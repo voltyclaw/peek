@@ -6,16 +6,16 @@ plugins {
 }
 
 android {
-    namespace = "com.mustafashakir.peek"
+    namespace = "app.pane.android"
     compileSdk = 36
     defaultConfig {
         // applicationId, app name, icons, and the Material palette can change
         // without reworking resolvers. Keep source routing independent of this id.
-        applicationId = "com.mustafashakir.peek"
+        applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.0.13"
+        versionCode = 14
+        versionName = "1.0.14"
     }
 
     buildTypes {

@@ -2,7 +2,7 @@
   <img src="assets/peek-logo.webp" width="112" alt="Peek app icon" />
 </p>
 
-<h1 align="center">Peek for Android</h1>
+<h1 align="center">Pane for Android</h1>
 
 <p align="center">
   A calm, native space for the links people share.<br />
@@ -26,13 +26,13 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 
 ## Current features
 
-- Paste links from the clipboard or open Instagram and Reddit links directly. Peek does not verify those sites: they publish `/.well-known/assetlinks.json` for their own apps, and this debug package is not in that file. Link filters keep `android:autoVerify="false"`, one host at a time. Open by default switches snap off while the official app still has link handling on. Turn that off in Instagram or Reddit, then turn the addresses on for Peek. Paste works either way.
+- Paste links from the clipboard or open Instagram, Reddit, Facebook, and X links directly. Pane does not verify those sites: they publish `/.well-known/assetlinks.json` for their own apps, and this debug package is not in that file. Link filters keep `android:autoVerify="false"`, one host at a time. Open by default switches snap off while the official app still has link handling on. Turn that off in the official app, then turn the addresses on for Pane. Paste works either way.
 - Resolve public Instagram posts, reels, and carousels with photos and videos.
 - Resolve public Reddit posts, including text, images, galleries, Reddit-hosted video, and `/r/{sub}/s/{id}` share shortlinks.
 - Resolve public Facebook posts, including `/posts/`, `/share/`, `/reel/`, `/watch/`, photos, and `fb.watch` links. Logged-out HTML is tried first, then a hidden WebView. Private posts and login walls fail as a load error. Replies are not loaded.
 - Resolve public X and Twitter status links (`x.com`, `twitter.com`, and mobile hosts). Syndication JSON is tried first, then oEmbed. Private or removed posts fail as a load error. Replies are usually absent.
 - Read comments, load more replies, refresh content, and revisit recent links.
-- Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe sideways moves between gallery images. Swipe up raises the comments sheet. By default, Back from a link opened in another app returns to that app. Back inside a session started from Peek’s home goes from the player to the preview, then home. Home’s options can instead keep Back inside Peek and return to home.
+- Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe sideways moves between gallery images. Swipe up raises the comments sheet. By default, Back from a link opened in another app returns to that app. Back inside a session started from Pane’s home goes from the player to the preview, then home. Home’s options can instead keep Back inside Pane and return to home.
 - Choose Light, Dark, or System from the options menu on Home. The choice is kept on this device. Open link settings is in that same menu.
 - Cache resolved content locally for a quicker return experience.
 
