@@ -95,6 +95,7 @@ fun ViewerView(
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit = {},
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
+    onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
 ) {
     Box(modifier = modifier.fillMaxSize().background(PeekGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -115,6 +116,7 @@ fun ViewerView(
                     onCopyMedia = onCopyMedia,
                     onDownload = onDownload,
                     onShare = onShare,
+                    onSharePost = onSharePost,
                 )
             }
         }
@@ -133,6 +135,7 @@ private fun ColumnScope.ViewerContent(
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
+    onSharePost: suspend (String, String?) -> Unit,
 ) {
     ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
@@ -155,6 +158,7 @@ private fun ColumnScope.ViewerContent(
             onCopyMedia = { onCopyMedia(currentItem) },
             onDownload = { onDownload(items) },
             onShare = { onShare(items) },
+            onSharePost = { onSharePost(post.sourceUrl, post.title) },
             canCopyMedia = currentItem.videoUrl == null && currentItem.image.let { image ->
                 image !is UiImage.Url || image.value.isNotBlank()
             },

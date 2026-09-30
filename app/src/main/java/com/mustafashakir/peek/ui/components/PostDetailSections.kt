@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,6 +55,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mustafashakir.peek.R
@@ -81,6 +84,7 @@ fun AuthorByline(
     onCopyMedia: suspend () -> Unit,
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
+    onSharePost: suspend () -> Unit = {},
     modifier: Modifier = Modifier,
     canCopyMedia: Boolean = true,
 ) {
@@ -107,6 +111,7 @@ fun AuthorByline(
         ) {
             UtilityActionsRow(
                 onCopyLink = onCopyLink,
+                onSharePost = onSharePost,
                 onCopyMedia = onCopyMedia,
                 onDownload = onDownload,
                 onShare = onShare,
@@ -138,6 +143,7 @@ private fun EllipsisToggleButton(expanded: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun UtilityActionsRow(
     onCopyLink: suspend () -> Unit,
+    onSharePost: suspend () -> Unit,
     onCopyMedia: suspend () -> Unit,
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
@@ -147,7 +153,7 @@ private fun UtilityActionsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(62.dp)
+            .height(68.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(PeekChip)
             .border(1.dp, PeekBorder, RoundedCornerShape(12.dp))
@@ -155,6 +161,7 @@ private fun UtilityActionsRow(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         UtilityActionButton(Icons.Rounded.Link, stringResource(R.string.copy_link), onCopyLink, Modifier.weight(1f))
+        UtilityActionButton(Icons.Rounded.Share, stringResource(R.string.share_post), onSharePost, Modifier.weight(1f))
         if (canCopyMedia) {
             UtilityActionButton(Icons.Rounded.ContentCopy, stringResource(R.string.copy_media), onCopyMedia, Modifier.weight(1f))
         }
@@ -200,7 +207,14 @@ private fun UtilityActionButton(
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(17.dp))
-        Text(label, color = contentColor, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold))
+        Text(
+            text = label,
+            color = contentColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, lineHeight = 9.sp),
+        )
         AnimatedVisibility(
             visible = processing,
             enter = fadeIn(animationSpec = tween(120)),

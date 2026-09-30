@@ -35,6 +35,7 @@ data class PostActionCallbacks(
     val onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     val onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     val onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
+    val onSharePost: suspend (String, String?) -> Unit,
 )
 
 @Composable
@@ -127,6 +128,12 @@ fun rememberPostActionCallbacks(
             val intent = prepared?.let { shareMediaIntent(context, it) }
             val launched = intent != null && runCatching {
                 context.startActivity(Intent.createChooser(intent, null))
+            }.isSuccess
+            if (!launched) toast(actionFailed)
+        },
+        onSharePost = { url, title ->
+            val launched = url.isNotBlank() && runCatching {
+                context.startActivity(Intent.createChooser(sharePostIntent(url, title), null))
             }.isSuccess
             if (!launched) toast(actionFailed)
         },

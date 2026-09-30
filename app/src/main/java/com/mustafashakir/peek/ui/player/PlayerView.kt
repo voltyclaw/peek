@@ -122,6 +122,7 @@ fun PlayerView(
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit = {},
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
+    onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
 ) {
     val view = LocalView.current
     DisposableEffect(view) {
@@ -162,6 +163,7 @@ fun PlayerView(
                 onCopyMedia = onCopyMedia,
                 onDownload = onDownload,
                 onShare = onShare,
+                onSharePost = onSharePost,
             )
         }
     }
@@ -243,6 +245,7 @@ private fun MediaContent(
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
+    onSharePost: suspend (String, String?) -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
     val initialPage = initialMediaIndex.coerceIn(0, items.lastIndex)
@@ -352,6 +355,7 @@ private fun MediaContent(
                 onCopyMedia = onCopyMedia,
                 onDownload = onDownload,
                 onShare = onShare,
+                onSharePost = onSharePost,
             )
         },
     ) {
@@ -574,6 +578,7 @@ private fun PostDetailsSheet(
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
+    onSharePost: suspend (String, String?) -> Unit,
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -590,6 +595,7 @@ private fun PostDetailsSheet(
             onCopyMedia = { onCopyMedia(currentItem) },
             onDownload = { onDownload(listOf(currentItem)) },
             onShare = { onShare(listOf(currentItem)) },
+            onSharePost = { onSharePost(post.sourceUrl, post.title) },
             canCopyMedia = currentItem.videoUrl == null,
         )
         CaptionText(post)

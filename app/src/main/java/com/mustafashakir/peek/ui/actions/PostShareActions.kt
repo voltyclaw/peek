@@ -13,6 +13,18 @@ fun mediaClipData(context: Context, media: PreparedMedia): ClipData? =
         ClipData.newUri(context.contentResolver, "Media", uri)
     }
 
+/** Text placed on the system share sheet for the post itself, not its media file. */
+internal fun sharePostText(url: String, title: String?): String {
+    val headline = title?.trim()?.takeIf { it.isNotEmpty() && !it.equals(url, ignoreCase = true) }
+    return if (headline == null) url else "$headline\n$url"
+}
+
+fun sharePostIntent(url: String, title: String?): Intent =
+    Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, sharePostText(url, title))
+    }
+
 fun shareMediaIntent(context: Context, media: List<PreparedMedia>): Intent? {
     val attachments = media.mapNotNull { item ->
         contentUri(context, item)?.let { uri -> MediaAttachment(uri, item.mimeType) }
