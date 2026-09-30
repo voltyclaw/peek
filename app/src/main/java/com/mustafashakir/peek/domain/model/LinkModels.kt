@@ -3,7 +3,7 @@ package com.mustafashakir.peek.domain.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class LinkSource { Instagram, YouTube, TikTok, Reddit }
+enum class LinkSource { Instagram, YouTube, TikTok, Reddit, Facebook, X }
 
 @Serializable
 enum class LinkKind { Post, Video }
@@ -81,6 +81,21 @@ data class RedditMediaItem(
     val height: Int? = null,
     val durationSeconds: Int? = null,
 )
+
+@Serializable
+data class ExternalMediaItem(
+    val id: String,
+    val imageUrl: String,
+    val contentDescription: String,
+    val videoUrl: String? = null,
+)
+
+/** Public Facebook and X posts. Comments are not loaded for these sources. */
+@Serializable
+data class ExternalPostMetadata(
+    val postId: String,
+    val mediaItems: List<ExternalMediaItem> = emptyList(),
+) : SourceMetadata
 
 @Serializable
 data class RedditMetadata(

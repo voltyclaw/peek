@@ -4,6 +4,7 @@ import com.mustafashakir.peek.R
 import com.mustafashakir.peek.domain.model.BundledImageKey
 import com.mustafashakir.peek.domain.model.Clock
 import com.mustafashakir.peek.domain.model.Comment
+import com.mustafashakir.peek.domain.model.ExternalPostMetadata
 import com.mustafashakir.peek.domain.model.InstagramMetadata
 import com.mustafashakir.peek.domain.model.LinkContent
 import com.mustafashakir.peek.domain.model.LinkKind
@@ -90,6 +91,8 @@ class HomeUiMapper(
         LinkSource.YouTube -> "YOUTUBE · VIDEO"
         LinkSource.TikTok -> "TIKTOK · CLIP"
         LinkSource.Reddit -> if (content.kind == LinkKind.Video) "REDDIT · VIDEO" else "REDDIT · POST"
+        LinkSource.Facebook -> if (content.kind == LinkKind.Video) "FACEBOOK · VIDEO" else "FACEBOOK · POST"
+        LinkSource.X -> if (content.kind == LinkKind.Video) "X · VIDEO" else "X · POST"
     }
 
     private fun ageLabel(openedAtEpochMillis: Long): String {
@@ -120,6 +123,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                 )
             }
         } else if (sourceMetadata is RedditMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
+            sourceMetadata.mediaItems.map { item ->
+                ViewerMediaItemUiModel(
+                    id = item.id,
+                    image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
+                    contentDescription = item.contentDescription,
+                    videoUrl = item.videoUrl,
+                )
+            }
+        } else if (sourceMetadata is ExternalPostMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
             sourceMetadata.mediaItems.map { item ->
                 ViewerMediaItemUiModel(
                     id = item.id,
@@ -174,6 +186,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         when (sourceMetadata) {
             is InstagramMetadata -> bestVideoUrl(sourceMetadata.videoVariants)
             is RedditMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
+            is ExternalPostMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             null -> null
         }
 

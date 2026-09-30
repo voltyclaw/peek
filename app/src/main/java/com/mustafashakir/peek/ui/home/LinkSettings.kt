@@ -33,6 +33,13 @@ object LinkSettings {
         "m.reddit.com",
         "redd.it",
         "www.redd.it",
+        "www.facebook.com",
+        "facebook.com",
+        "m.facebook.com",
+        "mbasic.facebook.com",
+        "fb.com",
+        "www.fb.com",
+        "fb.watch",
     )
 
     enum class LinkHandlingReport {

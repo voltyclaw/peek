@@ -6,6 +6,9 @@ import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import com.mustafashakir.peek.data.cache.LinkContentCacheDocument
 import com.mustafashakir.peek.data.cache.LinkContentCacheSerializer
 import com.mustafashakir.peek.data.cache.LinkContentCacheStore
+import com.mustafashakir.peek.data.facebook.AndroidFacebookPageLoader
+import com.mustafashakir.peek.data.facebook.FacebookDirectPageLoader
+import com.mustafashakir.peek.data.facebook.FacebookLinkContentRepository
 import com.mustafashakir.peek.data.instagram.AndroidInstagramPageLoader
 import com.mustafashakir.peek.data.instagram.InstagramDirectPageLoader
 import com.mustafashakir.peek.data.instagram.InstagramLinkContentRepository
@@ -72,10 +75,18 @@ class DefaultAppContainer(
         ),
         cacheStore = linkContentCacheStore,
     )
+    private val facebookRepository = FacebookLinkContentRepository(
+        pageLoaders = listOf(
+            FacebookDirectPageLoader(),
+            AndroidFacebookPageLoader(context),
+        ),
+        cacheStore = linkContentCacheStore,
+    )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
         listOf(
             RoutingLinkContentRepository.Route(instagramRepository::supports, instagramRepository),
             RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository),
+            RoutingLinkContentRepository.Route(facebookRepository::supports, facebookRepository),
         ),
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())

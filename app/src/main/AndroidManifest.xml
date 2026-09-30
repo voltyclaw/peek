@@ -122,6 +122,108 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="www.redd.it" />
             </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="www.facebook.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="facebook.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="m.facebook.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="mbasic.facebook.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="fb.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="fb.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="fb.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="fb.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/share/" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/watch" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/permalink.php" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/story.php" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/photo.php" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPrefix="/photo/" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPattern="/.*/posts/.*" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPattern="/.*/videos/.*" />
+                <data android:scheme="https" android:host="www.fb.com" android:pathPattern="/groups/.*/permalink/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="fb.watch" />
+            </intent-filter>
         </activity>
     </application>
 
