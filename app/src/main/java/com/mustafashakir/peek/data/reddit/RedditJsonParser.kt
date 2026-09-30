@@ -148,7 +148,16 @@ class RedditJsonParser {
         val video = data.obj("secure_media")?.obj("reddit_video")
             ?: data.obj("media")?.obj("reddit_video")
             ?: return null
-        val videoUrl = video.string("fallback_url")?.let(::httpsUrl) ?: return null
+        val fallback = video.string("fallback_url")?.let(::httpsUrl)
+        val dash = video.string("dash_url")?.let(::httpsUrl)
+        val hls = video.string("hls_url")?.let(::httpsUrl)
+        val audioIsSeparate = video.bool("has_audio") || video["has_audio"] == null
+        val videoUrl = when {
+            audioIsSeparate && dash != null -> dash
+            audioIsSeparate && hls != null -> hls
+            fallback != null -> fallback
+            else -> hls ?: dash
+        } ?: return null
         return ParsedRedditMedia(
             id = data.string("id") ?: fallbackId,
             imageUrl = previewUrl(data).orEmpty(),

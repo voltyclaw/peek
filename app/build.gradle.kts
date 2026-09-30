@@ -12,8 +12,8 @@ android {
         applicationId = "com.mustafashakir.peek"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.4"
+        versionCode = 5
+        versionName = "1.0.5"
     }
 
     buildTypes {
@@ -70,6 +70,8 @@ dependencies {
   implementation(libs.coil.network.okhttp)
   implementation(libs.okhttp)
   implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.exoplayer.hls)
+  implementation(libs.androidx.media3.exoplayer.dash)
   implementation(libs.androidx.media3.ui)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)

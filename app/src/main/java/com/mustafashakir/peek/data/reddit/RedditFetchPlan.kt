@@ -15,11 +15,11 @@ package com.mustafashakir.peek.data.reddit
  * The last request is the HTML comments page, used only when every JSON document fails.
  */
 object RedditFetchPlan {
-    const val CLIENT_USER_AGENT = "Peek/1.0.4 (public post viewer)"
+    const val CLIENT_USER_AGENT = "Peek/1.0.5 (public post viewer)"
     const val DESKTOP_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    const val LEGACY_USER_AGENT = "android:com.mustafashakir.peek:v1.0.4 (by /u/peek)"
+    const val LEGACY_USER_AGENT = "android:com.mustafashakir.peek:v1.0.5 (by /u/peek)"
 
     data class Request(
         val url: String,

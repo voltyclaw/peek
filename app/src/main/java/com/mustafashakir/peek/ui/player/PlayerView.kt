@@ -74,7 +74,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView as Media3PlayerView
 import androidx.core.view.WindowCompat
@@ -89,9 +91,14 @@ import com.mustafashakir.peek.ui.model.ViewerUiState
 import com.mustafashakir.peek.ui.model.mediaItemsOrPrimary
 import com.mustafashakir.peek.ui.theme.GeistMono
 import com.mustafashakir.peek.ui.theme.PeekGround
+import java.net.URI
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+
+private const val REDDIT_MEDIA_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 @Composable
 fun PlayerView(
@@ -231,7 +238,7 @@ private fun MediaContent(
     val context = LocalContext.current
     val exoPlayer = remember(currentVideoUrl) {
         currentVideoUrl?.let { videoUrl ->
-            ExoPlayer.Builder(context).build().apply {
+            exoPlayerFor(context, videoUrl).apply {
                 setMediaItem(MediaItem.fromUri(videoUrl))
                 repeatMode = Player.REPEAT_MODE_ONE
                 playWhenReady = true
@@ -337,15 +344,16 @@ private fun MediaContent(
                 key = { items[it].id },
             ) { page ->
                 val item = items[page]
-                if (page == pagerState.currentPage && item.videoUrl != null && exoPlayer != null) {
-                    VideoSurface(exoPlayer, resizeMode, Modifier.fillMaxSize())
-                } else {
+                Box(Modifier.fillMaxSize()) {
                     PeekImage(
                         image = item.image,
                         contentDescription = item.contentDescription,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
                     )
+                    if (page == pagerState.currentPage && item.videoUrl != null && exoPlayer != null) {
+                        VideoSurface(exoPlayer, resizeMode, Modifier.fillMaxSize())
+                    }
                 }
             }
 
@@ -555,6 +563,24 @@ private fun PostDetailsSheet(
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
+private fun exoPlayerFor(context: android.content.Context, videoUrl: String): ExoPlayer {
+    val builder = ExoPlayer.Builder(context)
+    if (isRedditMediaUrl(videoUrl)) {
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(REDDIT_MEDIA_USER_AGENT)
+            .setDefaultRequestProperties(mapOf("Referer" to "https://www.reddit.com/"))
+            .setAllowCrossProtocolRedirects(true)
+        builder.setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+    }
+    return builder.build()
+}
+
+private fun isRedditMediaUrl(url: String): Boolean {
+    val host = runCatching { URI(url).host }.getOrNull()?.lowercase(Locale.US) ?: return false
+    return host == "v.redd.it" || host.endsWith(".redd.it") || host.endsWith(".redditmedia.com")
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun VideoSurface(
     exoPlayer: ExoPlayer,
@@ -567,6 +593,7 @@ private fun VideoSurface(
             Media3PlayerView(context).apply {
                 player = exoPlayer
                 useController = false
+                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                 this.resizeMode = resizeMode
             }
         },

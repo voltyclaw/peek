@@ -19,7 +19,8 @@ object RedditShredditPost {
         val id = attr(tag, "id")?.removePrefix("t3_")?.takeIf { it.isNotBlank() } ?: return null
         val contentHref = attr(tag, "content-href")
         val postType = attr(tag, "post-type").orEmpty()
-        val media = media(id, title, contentHref, postType)
+        val media = RedditShredditPlayer.media(html, id, title)?.let(::listOf)
+            ?: media(id, title, contentHref, postType)
         return ParsedRedditPost(
             id = id.lowercase(Locale.US),
             title = title,
@@ -40,14 +41,16 @@ object RedditShredditPost {
 
     private fun media(id: String, title: String, contentHref: String?, postType: String): List<ParsedRedditMedia> {
         val url = contentHref?.replace("&amp;", "&")?.takeIf { it.startsWith("https://") } ?: return emptyList()
+        val videoUrl = RedditShredditPlayer.playableRedditVideo(url)
         val video = postType.equals("video", ignoreCase = true) ||
-            url.substringBefore('?').lowercase(Locale.US).let { it.endsWith(".mp4") || it.endsWith(".webm") }
-        if (video) {
+            videoUrl?.substringBefore('?')?.lowercase(Locale.US).orEmpty()
+                .let { it.endsWith(".mp4") || it.endsWith(".webm") || it.endsWith(".m3u8") || it.endsWith(".mpd") }
+        if (video && videoUrl != null) {
             return listOf(
                 ParsedRedditMedia(
                     id = id,
                     imageUrl = "",
-                    videoUrl = url,
+                    videoUrl = videoUrl,
                     width = null,
                     height = null,
                     durationSeconds = null,

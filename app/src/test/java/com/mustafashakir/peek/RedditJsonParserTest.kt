@@ -48,6 +48,24 @@ class RedditJsonParserTest {
     }
 
     @Test
+    fun prefersDashWhenTheRedditVideoHasSeparateAudio() {
+        val post = parser.parse(VIDEO_WITH_AUDIO)
+
+        assertEquals("https://v.redd.it/clip/DASHPlaylist.mpd", post?.media?.single()?.videoUrl)
+        assertEquals("https://preview.redd.it/poster.jpg", post?.media?.single()?.imageUrl)
+    }
+
+    @Test
+    fun keepsTheSilentFallbackForGifs() {
+        val gif = VIDEO_WITH_AUDIO.replace("\"has_audio\":true", "\"has_audio\":false")
+
+        assertEquals(
+            "https://v.redd.it/clip/DASH_720.mp4?source=fallback",
+            parser.parse(gif)?.media?.single()?.videoUrl,
+        )
+    }
+
+    @Test
     fun parsesTextPostsWithoutInventingMedia() {
         val post = parser.parse(TEXT_POST)
 
@@ -123,6 +141,21 @@ private const val VIDEO_POST = """
   "created_utc":1700000000,"permalink":"/r/videos/comments/vid111/a_clip/","is_video":true,"is_self":false,
   "url":"https://v.redd.it/clip",
   "secure_media":{"reddit_video":{"fallback_url":"https://v.redd.it/clip/DASH_720.mp4?source=fallback","height":720,"width":1280,"duration":12}},
+  "preview":{"images":[{"source":{"url":"https://preview.redd.it/poster.jpg","width":1280,"height":720}}]}
+}}]}}]
+"""
+
+private const val VIDEO_WITH_AUDIO = """
+[{"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+  "id":"vid111","title":"A clip","author":"alice","subreddit":"videos","score":10,"num_comments":0,
+  "created_utc":1700000000,"permalink":"/r/videos/comments/vid111/a_clip/","is_video":true,"is_self":false,
+  "url":"https://v.redd.it/clip",
+  "secure_media":{"reddit_video":{
+    "fallback_url":"https://v.redd.it/clip/DASH_720.mp4?source=fallback",
+    "dash_url":"https://v.redd.it/clip/DASHPlaylist.mpd",
+    "hls_url":"https://v.redd.it/clip/HLSPlaylist.m3u8",
+    "has_audio":true,"height":720,"width":1280,"duration":12
+  }},
   "preview":{"images":[{"source":{"url":"https://preview.redd.it/poster.jpg","width":1280,"height":720}}]}
 }}]}}]
 """
