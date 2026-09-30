@@ -130,10 +130,7 @@ class RedditDirectPageLoader(
             prepare(connection, accept = request.accept, userAgent = request.userAgent)
             if (!cookie.isNullOrBlank()) connection.setRequestProperty("Cookie", cookie)
             val status = connection.responseCode
-            val response = (if (status in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader(StandardCharsets.UTF_8)
-                ?.use { it.readText() }
-                .orEmpty()
+            val response = readBody(connection, status)
             if (allowCookieRetry && status == 403) {
                 val setCookie = connection.getHeaderField("Set-Cookie")
                     ?.substringBefore(';')
@@ -151,6 +148,25 @@ class RedditDirectPageLoader(
             return response
         } finally {
             connection.disconnect()
+        }
+    }
+
+    private fun readBody(connection: HttpURLConnection, status: Int): String {
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+        val reader = stream?.bufferedReader(StandardCharsets.UTF_8) ?: return ""
+        return if (status in 200..299) {
+            reader.use { it.readText() }
+        } else {
+            reader.use { read ->
+                val buffer = CharArray(4_096)
+                val body = StringBuilder()
+                while (body.length < MAX_ERROR_CHARS) {
+                    val count = read.read(buffer)
+                    if (count < 0) break
+                    body.append(buffer, 0, minOf(count, MAX_ERROR_CHARS - body.length))
+                }
+                body.toString()
+            }
         }
     }
 
@@ -179,9 +195,10 @@ class RedditDirectPageLoader(
 
     private companion object {
         const val LOG_TAG = "PeekReddit"
-        const val CONNECT_TIMEOUT_MILLIS = 15_000
-        const val READ_TIMEOUT_MILLIS = 30_000
+        const val CONNECT_TIMEOUT_MILLIS = 8_000
+        const val READ_TIMEOUT_MILLIS = 12_000
         const val MAX_SHARE_REDIRECTS = 5
         const val MAX_SHARE_HTML_CHARS = 512_000
+        const val MAX_ERROR_CHARS = 16_384
     }
 }

@@ -7,9 +7,10 @@ import com.mustafashakir.peek.domain.repository.LoadProgressListener
 import com.mustafashakir.peek.domain.usecase.OpenLinkUseCase
 import com.mustafashakir.peek.domain.usecase.LoadMoreCommentsUseCase
 import com.mustafashakir.peek.ui.mapper.ViewerUiMapper
-import com.mustafashakir.peek.ui.viewer.viewerStateFor
 import com.mustafashakir.peek.ui.mapper.loadStageMessage
 import com.mustafashakir.peek.ui.model.ViewerUiState
+import com.mustafashakir.peek.ui.viewer.MonotonicProgress
+import com.mustafashakir.peek.ui.viewer.viewerStateFor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,8 +27,10 @@ class PlayerViewModel(
 
     init {
         viewModelScope.launch {
+            val monotonic = MonotonicProgress()
             val onProgress = LoadProgressListener { progress ->
-                mutableUiState.value = ViewerUiState.Loading(progress.fraction, loadStageMessage(progress.stage))
+                val steady = monotonic.apply(progress)
+                mutableUiState.value = ViewerUiState.Loading(steady.fraction, loadStageMessage(steady.stage))
             }
             mutableUiState.value = openLink(url, onProgress).fold(
                 onSuccess = { ViewerUiState.Content(mapper.map(it)) },

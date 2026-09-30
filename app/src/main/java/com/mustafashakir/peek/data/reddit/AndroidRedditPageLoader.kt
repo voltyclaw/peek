@@ -81,6 +81,7 @@ class AndroidRedditPageLoader(
                         val handler = Handler(Looper.getMainLooper())
                         val webView = WebView(applicationContext)
                         var pageFinished = false
+                        var polling = false
                         var evaluating = false
                         var completed = false
                         var pollAttempt = 0
@@ -169,6 +170,22 @@ class AndroidRedditPageLoader(
                             }
                         }
 
+                        fun beginReading(url: String) {
+                            if (completed) return
+                            if (RedditBrowserNavigation.isLogin(url)) {
+                                fail(IOException(RedditPageDocument.LOGIN))
+                                return
+                            }
+                            if (!RedditBrowserNavigation.isAllowed(url)) {
+                                fail(IOException("Reddit redirected to an unsupported page"))
+                                return
+                            }
+                            if (polling) return
+                            polling = true
+                            pageFinished = true
+                            handler.post(poll)
+                        }
+
                         webView.settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
@@ -191,21 +208,16 @@ class AndroidRedditPageLoader(
                         webView.webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                                 pageFinished = false
+                                polling = false
+                                handler.removeCallbacks(poll)
+                            }
+
+                            override fun onPageCommitVisible(view: WebView, url: String) {
+                                beginReading(url)
                             }
 
                             override fun onPageFinished(view: WebView, url: String) {
-                                if (completed) return
-                                if (RedditBrowserNavigation.isLogin(url)) {
-                                    fail(IOException(RedditPageDocument.LOGIN))
-                                    return
-                                }
-                                if (!RedditBrowserNavigation.isAllowed(url)) {
-                                    fail(IOException("Reddit redirected to an unsupported page"))
-                                    return
-                                }
-                                pageFinished = true
-                                handler.removeCallbacks(poll)
-                                handler.post(poll)
+                                beginReading(url)
                             }
 
                             override fun shouldOverrideUrlLoading(

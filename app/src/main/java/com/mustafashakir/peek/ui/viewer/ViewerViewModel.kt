@@ -49,8 +49,10 @@ class ViewerViewModel(
     }
 
     private suspend fun load(fetch: suspend (LoadProgressListener) -> Result<LinkContent>) {
+        val monotonic = MonotonicProgress()
         val onProgress = LoadProgressListener { progress ->
-            mutableUiState.value = ViewerUiState.Loading(progress.fraction, loadStageMessage(progress.stage))
+            val steady = monotonic.apply(progress)
+            mutableUiState.value = ViewerUiState.Loading(steady.fraction, loadStageMessage(steady.stage))
         }
         mutableUiState.value = fetch(onProgress).fold(
             onSuccess = { ViewerUiState.Content(mapper.map(it)) },

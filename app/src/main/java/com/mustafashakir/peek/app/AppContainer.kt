@@ -65,6 +65,7 @@ class DefaultAppContainer(
         cacheStore = linkContentCacheStore,
     )
     private val redditRepository = RedditLinkContentRepository(
+        // JSON first. The WebView runs only after that loader fails, so a successful document skips it.
         pageLoaders = listOf(
             RedditDirectPageLoader(),
             AndroidRedditPageLoader(context),
