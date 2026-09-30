@@ -1,7 +1,7 @@
 package com.mustafashakir.peek
 
 import com.mustafashakir.peek.data.instagram.InstagramDirectPageLoader
-import com.mustafashakir.peek.data.instagram.PageLoadProgressElement
+import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.domain.model.LoadProgress
 import com.mustafashakir.peek.domain.repository.LoadProgressListener
 import java.io.ByteArrayInputStream

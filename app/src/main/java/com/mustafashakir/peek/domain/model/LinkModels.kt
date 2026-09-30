@@ -3,7 +3,7 @@ package com.mustafashakir.peek.domain.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class LinkSource { Instagram, YouTube, TikTok }
+enum class LinkSource { Instagram, YouTube, TikTok, Reddit }
 
 @Serializable
 enum class LinkKind { Post, Video }
@@ -69,6 +69,31 @@ data class InstagramMetadata(
     val videoVariants: List<InstagramVideoVariant>,
     val mediaItems: List<InstagramMediaItem> = emptyList(),
     val commentsEndCursor: String? = null,
+) : SourceMetadata
+
+@Serializable
+data class RedditMediaItem(
+    val id: String,
+    val imageUrl: String,
+    val contentDescription: String,
+    val videoUrl: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationSeconds: Int? = null,
+)
+
+@Serializable
+data class RedditMetadata(
+    val postId: String,
+    val subreddit: String,
+    val permalink: String,
+    val score: Int,
+    val commentCount: Int,
+    val createdUtcEpochSeconds: Long,
+    val author: String,
+    val over18: Boolean,
+    val spoiler: Boolean,
+    val mediaItems: List<RedditMediaItem> = emptyList(),
 ) : SourceMetadata
 
 @Serializable

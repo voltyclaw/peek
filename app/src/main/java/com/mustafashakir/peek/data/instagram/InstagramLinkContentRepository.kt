@@ -2,6 +2,7 @@ package com.mustafashakir.peek.data.instagram
 
 import com.mustafashakir.peek.data.cache.CachedLinkContent
 import com.mustafashakir.peek.data.cache.LinkContentCacheStore
+import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.data.resolver.PrioritizedUrlResolver
 import com.mustafashakir.peek.domain.model.Author
 import com.mustafashakir.peek.domain.model.Comment
@@ -38,6 +39,8 @@ class InstagramLinkContentRepository(
      */
     private val resolverForShortcode = ConcurrentHashMap<String, InstagramPageLoader>()
     private val loadMutex = Mutex()
+
+    fun supports(url: String): Boolean = canonicalize(url) != null
 
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})

@@ -2,9 +2,17 @@ package com.mustafashakir.peek
 
 import com.mustafashakir.peek.data.fixture.FixtureCatalog
 import com.mustafashakir.peek.domain.model.Clock
+import com.mustafashakir.peek.domain.model.Author
 import com.mustafashakir.peek.domain.model.InstagramMediaItem
 import com.mustafashakir.peek.domain.model.InstagramMetadata
+import com.mustafashakir.peek.domain.model.LinkContent
+import com.mustafashakir.peek.domain.model.LinkKind
+import com.mustafashakir.peek.domain.model.LinkSource
+import com.mustafashakir.peek.domain.model.Media
+import com.mustafashakir.peek.domain.model.MediaLocation
 import com.mustafashakir.peek.domain.model.RecentContent
+import com.mustafashakir.peek.domain.model.RedditMediaItem
+import com.mustafashakir.peek.domain.model.RedditMetadata
 import com.mustafashakir.peek.domain.model.RecentLink
 import com.mustafashakir.peek.ui.mapper.HomeUiMapper
 import com.mustafashakir.peek.ui.mapper.UiImageMapper
@@ -73,4 +81,68 @@ class UiMapperTest {
         assertEquals(2, result.mediaItems.size)
         assertEquals(1, result.initialMediaIndex)
     }
+
+    @Test
+    fun redditVideoAndTextPostsMapOntoTheSharedViewer() {
+        val mapper = HomeUiMapper(UiImageMapper(), Clock { now }, ZoneId.of("UTC"))
+        val text = redditContent(
+            url = "https://www.reddit.com/r/ask/comments/txt111/a_question/",
+            title = "A question",
+            kind = LinkKind.Post,
+            imageUrl = "",
+            videoUrl = null,
+        )
+        val video = redditContent(
+            url = "https://www.reddit.com/r/videos/comments/vid111/a_clip/",
+            title = "A clip",
+            kind = LinkKind.Video,
+            imageUrl = "https://preview.redd.it/poster.jpg",
+            videoUrl = "https://v.redd.it/clip/DASH_720.mp4",
+        )
+
+        val home = mapper.map(
+            listOf(RecentContent(RecentLink(text.url, now - 60_000), text)),
+        ) as HomeUiState.Content
+        val viewed = ViewerUiMapper(UiImageMapper()).map(video)
+
+        assertEquals("REDDIT · POST", home.recentLinks.single().sourceLabel)
+        assertEquals(null, home.recentLinks.single().thumbnail)
+        assertTrue(viewed.isVideo)
+        assertEquals("https://v.redd.it/clip/DASH_720.mp4", viewed.videoUrl)
+        assertEquals("https://preview.redd.it/poster.jpg", (viewed.media as com.mustafashakir.peek.ui.model.UiImage.Url).value)
+    }
+
+    private fun redditContent(
+        url: String,
+        title: String,
+        kind: LinkKind,
+        imageUrl: String,
+        videoUrl: String?,
+    ): LinkContent = LinkContent(
+        url = url,
+        title = title,
+        source = LinkSource.Reddit,
+        kind = kind,
+        thumbnail = MediaLocation.Remote(imageUrl),
+        media = Media(MediaLocation.Remote(imageUrl), title, badge = if (videoUrl == null) "TEXT" else "VIDEO"),
+        author = Author("alice", "REDDIT · r/pics · 1 POINT"),
+        commentCount = 0,
+        comments = emptyList(),
+        sourceMetadata = RedditMetadata(
+            postId = "post",
+            subreddit = "pics",
+            permalink = "/r/pics/comments/post/title/",
+            score = 1,
+            commentCount = 0,
+            createdUtcEpochSeconds = 0,
+            author = "alice",
+            over18 = false,
+            spoiler = false,
+            mediaItems = if (videoUrl == null && imageUrl.isBlank()) {
+                emptyList()
+            } else {
+                listOf(RedditMediaItem("post", imageUrl, title, videoUrl))
+            },
+        ),
+    )
 }

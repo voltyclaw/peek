@@ -44,6 +44,30 @@
                 <data android:pathPrefix="/reel/" />
                 <data android:pathPrefix="/reels/" />
             </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.reddit.com" />
+                <data android:host="reddit.com" />
+                <data android:host="old.reddit.com" />
+                <data android:host="np.reddit.com" />
+                <data android:host="new.reddit.com" />
+                <data android:host="m.reddit.com" />
+                <data android:pathPattern="/r/.*/comments/.*" />
+                <data android:pathPattern="/comments/.*" />
+                <data android:pathPattern="/gallery/.*" />
+                <data android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="redd.it" />
+                <data android:host="www.redd.it" />
+            </intent-filter>
         </activity>
     </application>
 

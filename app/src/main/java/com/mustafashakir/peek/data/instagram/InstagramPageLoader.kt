@@ -17,6 +17,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.data.resolver.UrlResolver
 import com.mustafashakir.peek.domain.model.LoadProgress
 import com.mustafashakir.peek.domain.model.LoadStage

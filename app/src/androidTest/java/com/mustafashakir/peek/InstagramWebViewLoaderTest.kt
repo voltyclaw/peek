@@ -3,7 +3,7 @@ package com.mustafashakir.peek
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mustafashakir.peek.data.instagram.AndroidInstagramPageLoader
-import com.mustafashakir.peek.data.instagram.PageLoadProgressElement
+import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.domain.model.LoadProgress
 import com.mustafashakir.peek.domain.repository.LoadProgressListener
 import kotlinx.coroutines.runBlocking

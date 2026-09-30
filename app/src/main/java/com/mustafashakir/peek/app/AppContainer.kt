@@ -13,6 +13,9 @@ import com.mustafashakir.peek.data.media.AndroidMediaRepository
 import com.mustafashakir.peek.data.recent.DataStoreRecentLinksRepository
 import com.mustafashakir.peek.data.recent.RecentLinksDocument
 import com.mustafashakir.peek.data.recent.RecentLinksSerializer
+import com.mustafashakir.peek.data.reddit.RedditDirectPageLoader
+import com.mustafashakir.peek.data.reddit.RedditLinkContentRepository
+import com.mustafashakir.peek.data.resolver.RoutingLinkContentRepository
 import com.mustafashakir.peek.domain.model.Clock
 import com.mustafashakir.peek.domain.model.SystemClock
 import com.mustafashakir.peek.domain.repository.LinkContentRepository
@@ -53,12 +56,22 @@ class DefaultAppContainer(
         produceFile = { File(context.filesDir, "link_content_cache.json") },
     )
     private val linkContentCacheStore = LinkContentCacheStore(linkContentCacheDataStore)
-    private val contentRepository: LinkContentRepository = InstagramLinkContentRepository(
+    private val instagramRepository = InstagramLinkContentRepository(
         pageLoaders = listOf(
             InstagramDirectPageLoader(),
             AndroidInstagramPageLoader(context),
         ),
         cacheStore = linkContentCacheStore,
+    )
+    private val redditRepository = RedditLinkContentRepository(
+        pageLoaders = listOf(RedditDirectPageLoader()),
+        cacheStore = linkContentCacheStore,
+    )
+    private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
+        listOf(
+            RoutingLinkContentRepository.Route(instagramRepository::supports, instagramRepository),
+            RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository),
+        ),
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())
     private val recentLinksDataStore = DataStoreFactory.create(
