@@ -35,7 +35,11 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_system">System</string>
-    <string name="link_settings_tip">Turn domains on to use Peek. Clear them, or pick another app, to switch back.</string>
+    <string name="link_settings_tip">These switches snap off when Instagram or Reddit already verified the address. This debug build cannot take that over. Turn off Open supported links in those apps, then turn the addresses on here. Paste still opens the link.</string>
+    <string name="link_settings_kept">Android kept the addresses on.</string>
+    <string name="link_settings_partial">Android kept some addresses on. The ones that snap off belong to an app that already verified them.</string>
+    <string name="link_settings_still_off">Android left the addresses off. Turn off Open supported links in Instagram and Reddit, then try the switches again.</string>
+    <string name="link_settings_handling_off">Open supported links is off for Peek, so those switches cannot stay on.</string>
     <string name="link_source">LINK SOURCE</string>
     <string name="home">Home</string>
     <string name="no_recent_links">No recent links yet</string>

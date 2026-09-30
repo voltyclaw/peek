@@ -43,6 +43,8 @@ data class ParsedRedditPost(
     val isSelf: Boolean,
     val media: List<ParsedRedditMedia>,
     val comments: List<ParsedRedditComment>,
+    /** Gallery pages keep loading slides after the first HTML snapshot. */
+    val mediaPending: Boolean = false,
 )
 
 /** Parses the public listing document Reddit returns for `.../comments/{id}.json`. */

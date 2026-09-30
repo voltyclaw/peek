@@ -28,7 +28,7 @@ fun ViewerRoute(
     var autoOpenedVideo by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(viewerUiState) {
         val post = (viewerUiState as? ViewerUiState.Content)?.post ?: return@LaunchedEffect
-        if (!VideoAutoplay.shouldOpen(autoOpenedVideo, post.isVideo)) return@LaunchedEffect
+        if (!VideoAutoplay.shouldOpen(autoOpenedVideo, post.hasVisualMedia())) return@LaunchedEffect
         autoOpenedVideo = true
         onOpenMedia(post.initialMediaIndex.coerceAtLeast(0))
     }

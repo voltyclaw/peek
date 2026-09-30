@@ -62,6 +62,52 @@ class RedditPageDocumentTest {
     }
 
     @Test
+    fun usesGallerySlidesWhenEmbeddedJsonOnlyHasTheGalleryPage() {
+        val html = """
+            <script type="application/json">
+              [{"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"1wu8cmd","title":"Monster","author":"caromakercomics","subreddit":"comics",
+                "score":10,"num_comments":1,"created_utc":1700000000,"is_self":false,"is_gallery":true,
+                "url":"https://www.reddit.com/gallery/1wu8cmd",
+                "permalink":"/r/comics/comments/1wu8cmd/monster/"
+              }}]}}]
+            </script>
+            $GALLERY_HTML
+        """.trimIndent()
+
+        val read = RedditPageDocument.read(html) as RedditPageDocument.Read.Ready
+
+        assertEquals(listOf("one", "two"), read.post.media.map { it.id })
+        assertEquals("https://preview.redd.it/one.jpg", read.post.media[0].imageUrl)
+    }
+
+    @Test
+    fun prefersJsonGalleryOrderWhenItHasEverySlide() {
+        val html = """
+            <script type="application/json">
+              [{"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"1wu8cmd","title":"Monster","author":"caromakercomics","subreddit":"comics",
+                "score":10,"num_comments":0,"created_utc":1700000000,"is_self":false,"is_gallery":true,
+                "url":"https://www.reddit.com/gallery/1wu8cmd",
+                "permalink":"/r/comics/comments/1wu8cmd/monster/",
+                "gallery_data":{"items":[{"media_id":"one"},{"media_id":"two"},{"media_id":"three"}]},
+                "media_metadata":{
+                  "one":{"status":"valid","e":"Image","s":{"u":"https://preview.redd.it/one.jpg","x":800,"y":600}},
+                  "two":{"status":"valid","e":"Image","s":{"u":"https://preview.redd.it/two.jpg","x":800,"y":600}},
+                  "three":{"status":"valid","e":"Image","s":{"u":"https://preview.redd.it/three.jpg","x":800,"y":600}}
+                }
+              }}]}}]
+            </script>
+            $GALLERY_HTML
+        """.trimIndent()
+
+        val read = RedditPageDocument.read(html) as RedditPageDocument.Read.Ready
+
+        assertEquals(listOf("one", "two", "three"), read.post.media.map { it.id })
+        assertEquals(false, read.post.mediaPending)
+    }
+
+    @Test
     fun mergesHtmlCommentsWhenEmbeddedJsonHasNone() {
         val html = """
             <script type="application/json">
@@ -147,6 +193,19 @@ private const val WINDOW_R_PAGE = """
 <html><body>
 <script>window.__r = $LISTING;</script>
 </body></html>
+"""
+
+private const val GALLERY_HTML = """
+<shreddit-post id="t3_1wu8cmd" post-title="Monster" author="caromakercomics"
+  subreddit-name="comics" score="10" comment-count="1" post-type="gallery"
+  content-href="https://www.reddit.com/gallery/1wu8cmd">
+  <gallery-carousel post-id="t3_1wu8cmd">
+    <ul>
+      <li slot="page-1"><figure><img src="https://preview.redd.it/one.jpg"></figure></li>
+      <li slot="page-2"><figure><img src="https://preview.redd.it/two.jpg"></figure></li>
+    </ul>
+  </gallery-carousel>
+</shreddit-post>
 """
 
 private const val SHREDDIT_PAGE = """

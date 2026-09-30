@@ -1,6 +1,7 @@
 package com.mustafashakir.peek
 
 import com.mustafashakir.peek.ui.viewer.VideoAutoplay
+import com.mustafashakir.peek.ui.viewer.isDirectPictureUrl
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,13 +9,26 @@ import org.junit.Test
 class VideoAutoplayTest {
     @Test
     fun aVideoPostOpensThePlayerOnce() {
-        assertTrue(VideoAutoplay.shouldOpen(alreadyOpened = false, isVideo = true))
-        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, isVideo = true))
+        assertTrue(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = true))
+        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, hasVisualMedia = true))
     }
 
     @Test
-    fun aPhotoPostStaysOnThePreview() {
-        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = false, isVideo = false))
-        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, isVideo = false))
+    fun aPhotoOrGalleryOpensThePlayerOnce() {
+        assertTrue(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = true))
+        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, hasVisualMedia = true))
+    }
+
+    @Test
+    fun aTextPostStaysOnThePreview() {
+        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = false))
+        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, hasVisualMedia = false))
+    }
+
+    @Test
+    fun aGalleryPageUrlIsNotAPicture() {
+        assertFalse(isDirectPictureUrl("https://www.reddit.com/gallery/1wu8cmd"))
+        assertTrue(isDirectPictureUrl("https://preview.redd.it/panel.jpg?width=1080"))
+        assertTrue(isDirectPictureUrl("https://scontent.cdninstagram.com/photo.jpg"))
     }
 }

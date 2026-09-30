@@ -46,9 +46,27 @@ object RedditPageDocument {
 
     private fun merge(json: ParsedRedditPost, rendered: ParsedRedditPost?, html: String): ParsedRedditPost {
         val comments = json.comments.ifEmpty { comments(html) }
-        val media = json.media.ifEmpty { rendered?.media.orEmpty() }
+        val renderedMedia = rendered?.media.orEmpty()
+        val media = preferMedia(json.media, renderedMedia)
         val selfText = json.selfText.ifBlank { rendered?.selfText.orEmpty() }.ifBlank { selfText(html) }
-        return json.copy(comments = comments, media = media, selfText = selfText)
+        val jsonCount = json.media.count { it.isDisplayableMedia() }
+        val renderedCount = renderedMedia.count { it.isDisplayableMedia() }
+        val mediaPending = rendered?.mediaPending == true && jsonCount <= renderedCount
+        return json.copy(comments = comments, media = media, selfText = selfText, mediaPending = mediaPending)
+    }
+
+    private fun preferMedia(
+        primary: List<ParsedRedditMedia>,
+        secondary: List<ParsedRedditMedia>,
+    ): List<ParsedRedditMedia> {
+        val primaryCount = primary.count { it.isDisplayableMedia() }
+        val secondaryCount = secondary.count { it.isDisplayableMedia() }
+        return when {
+            secondaryCount > primaryCount -> secondary
+            primaryCount > 0 -> primary
+            primary.isNotEmpty() -> primary
+            else -> secondary
+        }
     }
 
     private sealed interface Embedded {

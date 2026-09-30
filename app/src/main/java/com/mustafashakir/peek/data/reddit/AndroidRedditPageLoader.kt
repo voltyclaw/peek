@@ -12,6 +12,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
@@ -84,6 +85,9 @@ class AndroidRedditPageLoader(
                         var completed = false
                         var pollAttempt = 0
                         var commentWaits = 0
+                        var galleryWaits = 0
+                        var lastGalleryCount = -1
+                        var stableGalleryPolls = 0
 
                         fun reportProgress(fraction: Float, stage: LoadStage) {
                             listener.onProgress(LoadProgress(fraction.coerceIn(0f, 1f), stage))
@@ -134,11 +138,25 @@ class AndroidRedditPageLoader(
                                 when (val read = html?.let(RedditPageDocument::read)) {
                                     is RedditPageDocument.Read.Ready -> {
                                         captured.set(read.post)
+                                        val galleryCount = read.post.media.count { it.isDisplayableMedia() }
+                                        if (galleryCount == lastGalleryCount) {
+                                            stableGalleryPolls += 1
+                                        } else {
+                                            stableGalleryPolls = 0
+                                        }
+                                        lastGalleryCount = galleryCount
                                         val waitingForComments = read.post.comments.isEmpty() &&
                                             read.post.commentCount > 0 &&
                                             commentWaits < MAX_COMMENT_WAITS
-                                        if (waitingForComments) {
-                                            commentWaits += 1
+                                        val waitingForGallery = RedditGalleryWait.shouldWait(
+                                            mediaPending = read.post.mediaPending,
+                                            displayableCount = galleryCount,
+                                            stablePolls = stableGalleryPolls,
+                                            waits = galleryWaits,
+                                        )
+                                        if (waitingForComments || waitingForGallery) {
+                                            if (waitingForComments) commentWaits += 1
+                                            if (waitingForGallery) galleryWaits += 1
                                             handler.postDelayed(poll, pollIntervalMillis)
                                         } else {
                                             reportProgress(1f, LoadStage.ExtractingContent)
@@ -249,6 +267,11 @@ class AndroidRedditPageLoader(
                             }
                         }
 
+                        webView.measure(
+                            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY),
+                        )
+                        webView.layout(0, 0, 1080, 1920)
                         startLoad(webView)
                     }
                 }
@@ -293,8 +316,91 @@ class AndroidRedditPageLoader(
         const val DEFAULT_TIMEOUT_MILLIS = 45_000L
         const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
         private const val MAX_COMMENT_WAITS = 10
-        private const val DOCUMENT_HTML_SCRIPT =
-            "(function() { return document.documentElement ? document.documentElement.innerHTML : null; })();"
+        private val DOCUMENT_HTML_SCRIPT = """
+            (function() {
+              if (!window.__peekGallery) window.__peekGallery = [];
+              function keyOf(url) {
+                try { var u = new URL(url); return (u.hostname + u.pathname).toLowerCase(); }
+                catch (e) { return url.split('?')[0]; }
+              }
+              function consider(img) {
+                if (!img || !img.getAttribute) return;
+                var role = img.getAttribute('role') || '';
+                var cls = img.getAttribute('class') || '';
+                if (role === 'presentation' || cls.indexOf('post-background-image-filter') >= 0) return;
+                var src = img.currentSrc || img.getAttribute('src') || '';
+                var srcset = img.getAttribute('srcset') || '';
+                var best = src;
+                var bestW = -1;
+                if (srcset) {
+                  srcset.split(',').forEach(function(part) {
+                    var bits = part.trim().split(/\s+/);
+                    var u = bits[0] || '';
+                    var w = 0;
+                    if (bits[1] && /w${'$'}/.test(bits[1])) w = parseInt(bits[1], 10) || 0;
+                    if (u.indexOf('https://') === 0 && w >= bestW) { bestW = w; best = u; }
+                  });
+                }
+                if (!best || best.indexOf('https://') !== 0) return;
+                var key = keyOf(best);
+                for (var i = 0; i < window.__peekGallery.length; i++) {
+                  if (window.__peekGallery[i].key === key) return;
+                }
+                window.__peekGallery.push({
+                  key: key,
+                  url: best,
+                  w: img.getAttribute('width') || '',
+                  h: img.getAttribute('height') || ''
+                });
+              }
+              function harvest(node, depth) {
+                if (!node || depth > 8 || !node.querySelectorAll) return;
+                var imgs = node.querySelectorAll('img, source');
+                for (var i = 0; i < imgs.length; i++) consider(imgs[i]);
+                if (node.shadowRoot) harvest(node.shadowRoot, depth + 1);
+                var children = node.children || [];
+                for (var c = 0; c < children.length; c++) harvest(children[c], depth + 1);
+              }
+              var post = document.querySelector('shreddit-post');
+              var postId = post && post.getAttribute('id');
+              var carousels = document.querySelectorAll('gallery-carousel');
+              for (var i = 0; i < carousels.length; i++) {
+                var pid = carousels[i].getAttribute('post-id');
+                if (postId && pid && pid !== postId) continue;
+                harvest(carousels[i], 0);
+                var root = carousels[i].shadowRoot || carousels[i];
+                var buttons = root.querySelectorAll ? root.querySelectorAll('button, [role="button"]') : [];
+                for (var b = 0; b < buttons.length; b++) {
+                  if (buttons[b].disabled) continue;
+                  var label = (buttons[b].getAttribute('aria-label') || '').toLowerCase();
+                  if (label.indexOf('next') >= 0) { buttons[b].click(); break; }
+                }
+              }
+              if (!window.__peekJsonState) {
+                window.__peekJsonState = 'start';
+                var permalink = post && post.getAttribute('permalink');
+                var type = (post && post.getAttribute('post-type') || '').toLowerCase();
+                if (permalink && type === 'gallery') {
+                  var path = permalink.charAt(0) === '/' ? permalink : '/' + permalink;
+                  if (path.charAt(path.length - 1) !== '/') path += '/';
+                  fetch('https://www.reddit.com' + path + '.json?raw_json=1', {credentials: 'include'})
+                    .then(function(response) { return response.ok ? response.text() : ''; })
+                    .then(function(text) { window.__peekJson = text || ''; window.__peekJsonState = 'done'; })
+                    .catch(function() { window.__peekJsonState = 'done'; });
+                } else {
+                  window.__peekJsonState = 'done';
+                }
+              }
+              var extra = window.__peekGallery.map(function(item) {
+                return '<img src="' + String(item.url).replace(/"/g, '&quot;') + '" width="' + item.w + '" height="' + item.h + '">';
+              }).join('');
+              var html = document.documentElement ? document.documentElement.innerHTML : '';
+              if (window.__peekJson && window.__peekJson.indexOf('gallery_data') >= 0) {
+                html += '<script type="application/json" id="peek-json">' + window.__peekJson.replace(/</g, '\\u003c') + '</script>';
+              }
+              return html + '<peek-gallery>' + extra + '</peek-gallery>';
+            })();
+        """.trimIndent()
         private val REDDIT_COOKIE_URLS = listOf(
             "https://www.reddit.com/",
             "https://old.reddit.com/",

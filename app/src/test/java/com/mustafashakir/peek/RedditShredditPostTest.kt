@@ -1,7 +1,9 @@
 package com.mustafashakir.peek
 
+import com.mustafashakir.peek.data.reddit.RedditGalleryWait
 import com.mustafashakir.peek.data.reddit.RedditShredditPost
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -56,6 +58,51 @@ class RedditShredditPostTest {
     }
 
     @Test
+    fun readsGallerySlidesInsteadOfTheGalleryPageUrl() {
+        val media = RedditShredditPost.parse(GALLERY_PAGE)?.media
+
+        assertEquals(listOf("monster-v0-vzt58q9dhosh1", "monster-v0-heidkheviosh1"), media?.map { it.id })
+        assertEquals(
+            "https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=1080&crop=smart&auto=webp&s=abc",
+            media?.get(0)?.imageUrl,
+        )
+        assertEquals(
+            "https://preview.redd.it/monster-v0-heidkheviosh1.png?width=736&format=png&auto=webp&s=def",
+            media?.get(1)?.imageUrl,
+        )
+        assertEquals(null, media?.get(0)?.videoUrl)
+    }
+
+    @Test
+    fun appendsLaterSlidesTheWebViewCollected() {
+        val html = GALLERY_PAGE + """
+            <peek-gallery>
+              <img src="https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=640" width="640" height="640">
+              <img src="https://preview.redd.it/monster-v0-4edkq47ejosh1.jpeg?width=1080" width="1080" height="1400">
+            </peek-gallery>
+        """.trimIndent()
+
+        val media = RedditShredditPost.parse(html)?.media
+
+        assertEquals(
+            listOf("monster-v0-vzt58q9dhosh1", "monster-v0-heidkheviosh1", "monster-v0-4edkq47ejosh1"),
+            media?.map { it.id },
+        )
+        assertTrue(media?.get(0)?.imageUrl?.contains("width=1080") == true)
+    }
+
+    @Test
+    fun aGalleryKeepsWaitingUntilTheSlideListSettles() {
+        assertTrue(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 0, stablePolls = 2, waits = 2))
+        assertFalse(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 0, stablePolls = 6, waits = 6))
+        assertTrue(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 2, stablePolls = 5, waits = 4))
+        assertTrue(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 2, stablePolls = 1, waits = 8))
+        assertFalse(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 2, stablePolls = 3, waits = 8))
+        assertFalse(RedditGalleryWait.shouldWait(mediaPending = false, displayableCount = 1, stablePolls = 0, waits = 0))
+        assertFalse(RedditGalleryWait.shouldWait(mediaPending = true, displayableCount = 1, stablePolls = 0, waits = RedditGalleryWait.MAX_WAITS))
+    }
+
+    @Test
     fun failsClosedForQuarantineAndRemovedPosts() {
         assertNull(
             RedditShredditPost.parse("""<shreddit-post id="t3_abc" post-title="Hidden" quarantine="true"></shreddit-post>"""),
@@ -84,4 +131,38 @@ private const val VIDEO_PAGE = """
 <shreddit-player post-id="t3_ad" post-promoted="" src="https://v.redd.it/ad/HLSPlaylist.m3u8"></shreddit-player>
 <shreddit-player post-id="t3_1wubxdy" comment-id="t1_gif" gif=""
   src="https://preview.redd.it/comment.gif?format=mp4"></shreddit-player>
+"""
+
+private const val GALLERY_PAGE = """
+<shreddit-post id="t3_1wu8cmd" post-title="Monster - some comics about depression [OC]"
+  author="caromakercomics" subreddit-name="comics" score="4353" comment-count="61"
+  post-type="gallery" content-href="https://www.reddit.com/gallery/1wu8cmd"
+  permalink="/r/comics/comments/1wu8cmd/monster_some_comics_about_depression_oc/">
+  <gallery-carousel post-id="t3_1wu8cmd">
+    <ul>
+      <li slot="page-2">
+        <figure>
+          <img alt="panel 2" src="https://preview.redd.it/monster-v0-heidkheviosh1.png?width=320&amp;auto=webp"
+            srcset="https://preview.redd.it/monster-v0-heidkheviosh1.png?width=320&amp;auto=webp 320w, https://preview.redd.it/monster-v0-heidkheviosh1.png?width=736&amp;format=png&amp;auto=webp&amp;s=def 736w">
+        </figure>
+      </li>
+      <li slot="page-1">
+        <img role="presentation" class="post-background-image-filter" src="https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=320">
+        <figure>
+          <img alt="panel 1" width="2048" height="2048"
+            src="https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=640&amp;auto=webp"
+            srcset="https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=640&amp;auto=webp 640w, https://preview.redd.it/monster-v0-vzt58q9dhosh1.jpg?width=1080&amp;crop=smart&amp;auto=webp&amp;s=abc 1080w">
+        </figure>
+      </li>
+    </ul>
+  </gallery-carousel>
+</shreddit-post>
+<shreddit-comment author="bob" thingid="t1_c1">
+  <figure class="rte-media">
+    <img src="https://preview.redd.it/comment-only.png?width=640">
+  </figure>
+</shreddit-comment>
+<gallery-carousel post-id="t3_ad">
+  <img src="https://preview.redd.it/ad.jpg">
+</gallery-carousel>
 """

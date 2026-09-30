@@ -33,40 +33,94 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!--
+                autoVerify stays false. Instagram and Reddit host assetlinks.json for their own
+                apps, not for this debug package. Turning verification on makes Android check
+                those files and then refuse the Open by default switches. One host per filter
+                keeps a refused address from taking the others with it. Paths stay on the same
+                data element as the host so Android does not cross-multiply them.
+            -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" />
-                <data android:host="www.instagram.com" />
-                <data android:host="instagram.com" />
-                <data android:pathPrefix="/p/" />
-                <data android:pathPrefix="/reel/" />
-                <data android:pathPrefix="/reels/" />
+                <data android:scheme="https" android:host="www.instagram.com" android:pathPrefix="/p/" />
+                <data android:scheme="https" android:host="www.instagram.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="www.instagram.com" android:pathPrefix="/reels/" />
             </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" />
-                <data android:host="www.reddit.com" />
-                <data android:host="reddit.com" />
-                <data android:host="old.reddit.com" />
-                <data android:host="np.reddit.com" />
-                <data android:host="new.reddit.com" />
-                <data android:host="m.reddit.com" />
-                <data android:pathPattern="/r/.*/comments/.*" />
-                <data android:pathPattern="/comments/.*" />
-                <data android:pathPattern="/gallery/.*" />
-                <data android:pathPattern="/r/.*/s/.*" />
+                <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/p/" />
+                <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/reels/" />
             </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" />
-                <data android:host="redd.it" />
-                <data android:host="www.redd.it" />
+                <data android:scheme="https" android:host="www.reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="www.reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="www.reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="www.reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="old.reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="old.reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="old.reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="old.reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="np.reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="np.reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="np.reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="np.reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="new.reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="new.reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="new.reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="new.reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="m.reddit.com" android:pathPrefix="/comments/" />
+                <data android:scheme="https" android:host="m.reddit.com" android:pathPrefix="/gallery/" />
+                <data android:scheme="https" android:host="m.reddit.com" android:pathPattern="/r/.*/comments/.*" />
+                <data android:scheme="https" android:host="m.reddit.com" android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="redd.it" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.redd.it" />
             </intent-filter>
         </activity>
     </application>

@@ -266,7 +266,7 @@ private fun MediaContent(
         mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT)
     }
     var controlsVisible by remember {
-        mutableStateOf(playerShowsControlsOnOpen(items[initialPage].videoUrl))
+        mutableStateOf(playerShowsControlsOnOpen())
     }
     var appliedInitialChrome by remember { mutableStateOf(false) }
     var playbackSpeed by remember(currentVideoUrl) { mutableFloatStateOf(1f) }
@@ -299,7 +299,7 @@ private fun MediaContent(
     LaunchedEffect(pagerState.currentPage) {
         if (!appliedInitialChrome) {
             appliedInitialChrome = true
-        } else {
+        } else if (playerShowsControlsAfterPageChange(items[pagerState.currentPage].videoUrl)) {
             controlsVisible = true
         }
     }

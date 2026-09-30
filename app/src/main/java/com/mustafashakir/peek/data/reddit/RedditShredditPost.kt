@@ -19,8 +19,16 @@ object RedditShredditPost {
         val id = attr(tag, "id")?.removePrefix("t3_")?.takeIf { it.isNotBlank() } ?: return null
         val contentHref = attr(tag, "content-href")
         val postType = attr(tag, "post-type").orEmpty()
-        val media = RedditShredditPlayer.media(html, id, title)?.let(::listOf)
-            ?: media(id, title, contentHref, postType)
+        val gallery = RedditGallery.media(html, id, title)
+        val player = RedditShredditPlayer.media(html, id, title)?.let(::listOf)
+        val media = when {
+            gallery.isNotEmpty() -> gallery
+            player != null -> player
+            else -> directMedia(id, title, contentHref, postType)
+        }
+        val expectsVisual = postType.equals("gallery", ignoreCase = true) ||
+            postType.equals("image", ignoreCase = true) ||
+            postType.equals("video", ignoreCase = true)
         return ParsedRedditPost(
             id = id.lowercase(Locale.US),
             title = title,
@@ -33,13 +41,15 @@ object RedditShredditPost {
             permalink = attr(tag, "permalink").orEmpty(),
             over18 = false,
             spoiler = false,
-            isSelf = postType.equals("text", ignoreCase = true) || media.isEmpty(),
+            isSelf = postType.equals("text", ignoreCase = true) || (media.isEmpty() && !expectsVisual),
             media = media,
             comments = emptyList(),
+            mediaPending = postType.equals("gallery", ignoreCase = true) ||
+                (expectsVisual && media.none { it.isDisplayableMedia() }),
         )
     }
 
-    private fun media(id: String, title: String, contentHref: String?, postType: String): List<ParsedRedditMedia> {
+    private fun directMedia(id: String, title: String, contentHref: String?, postType: String): List<ParsedRedditMedia> {
         val url = contentHref?.replace("&amp;", "&")?.takeIf { it.startsWith("https://") } ?: return emptyList()
         val videoUrl = RedditShredditPlayer.playableRedditVideo(url)
         val video = postType.equals("video", ignoreCase = true) ||
@@ -58,6 +68,7 @@ object RedditShredditPost {
                 ),
             )
         }
+        if (!isDirectImageUrl(url)) return emptyList()
         return listOf(
             ParsedRedditMedia(
                 id = id,
