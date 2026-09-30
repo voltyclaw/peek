@@ -9,11 +9,13 @@ android {
     namespace = "com.mustafashakir.peek"
     compileSdk = 36
     defaultConfig {
+        // applicationId, app name, icons, and the Material palette can change
+        // without reworking resolvers. Keep source routing independent of this id.
         applicationId = "com.mustafashakir.peek"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.8"
+        versionCode = 9
+        versionName = "1.0.9"
     }
 
     buildTypes {

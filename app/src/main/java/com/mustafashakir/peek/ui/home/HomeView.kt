@@ -67,6 +67,7 @@ import com.mustafashakir.peek.ui.theme.PeekMuted
 import com.mustafashakir.peek.ui.theme.PeekOnFill
 import com.mustafashakir.peek.ui.theme.PeekSecondary
 import com.mustafashakir.peek.ui.theme.PeekTile
+import com.mustafashakir.peek.ui.navigation.BackBehavior
 import com.mustafashakir.peek.ui.theme.ThemeMode
 
 @Composable
@@ -79,6 +80,8 @@ fun HomeView(
     onOpenLinkSettings: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.System,
     onThemeMode: (ThemeMode) -> Unit = {},
+    backBehavior: BackBehavior = BackBehavior.ClosePeek,
+    onBackBehavior: (BackBehavior) -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PeekGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -89,7 +92,7 @@ fun HomeView(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         ) {
-            HomeHeader(onOpenLinkSettings, themeMode, onThemeMode)
+            HomeHeader(onOpenLinkSettings, themeMode, onThemeMode, backBehavior, onBackBehavior)
             if (versionLabel.isNotBlank()) {
                 Text(
                     text = versionLabel,
@@ -98,7 +101,11 @@ fun HomeView(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            LinkSettingsEntry(onOpenLinkSettings)
+            Text(
+                text = stringResource(R.string.home_product_line),
+                color = PeekSecondary,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 18.sp),
+            )
             Spacer(Modifier.height(20.dp))
             ClipboardEntry(onPasteClick)
             Spacer(Modifier.height(20.dp))
@@ -116,6 +123,8 @@ private fun HomeHeader(
     onOpenLinkSettings: () -> Unit,
     themeMode: ThemeMode,
     onThemeMode: (ThemeMode) -> Unit,
+    backBehavior: BackBehavior,
+    onBackBehavior: (BackBehavior) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -139,6 +148,7 @@ private fun HomeHeader(
             OptionsMenu(
                 expanded = menuOpen,
                 themeMode = themeMode,
+                backBehavior = backBehavior,
                 onDismiss = { menuOpen = false },
                 onOpenLinkSettings = {
                     menuOpen = false
@@ -147,6 +157,10 @@ private fun HomeHeader(
                 onThemeMode = { mode ->
                     menuOpen = false
                     onThemeMode(mode)
+                },
+                onBackBehavior = { behavior ->
+                    menuOpen = false
+                    onBackBehavior(behavior)
                 },
             )
         }
@@ -157,9 +171,11 @@ private fun HomeHeader(
 private fun OptionsMenu(
     expanded: Boolean,
     themeMode: ThemeMode,
+    backBehavior: BackBehavior,
     onDismiss: () -> Unit,
     onOpenLinkSettings: () -> Unit,
     onThemeMode: (ThemeMode) -> Unit,
+    onBackBehavior: (BackBehavior) -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -176,6 +192,45 @@ private fun OptionsMenu(
             },
             onClick = onOpenLinkSettings,
         )
+        HorizontalDivider(color = PeekBorder)
+        Text(
+            text = stringResource(R.string.back_behavior),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = PeekMuted,
+            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
+        )
+        BackBehavior.entries.forEach { behavior ->
+            val label = when (behavior) {
+                BackBehavior.ClosePeek -> R.string.back_closes_peek
+                BackBehavior.GoHome -> R.string.back_goes_home
+            }
+            val help = when (behavior) {
+                BackBehavior.ClosePeek -> R.string.back_closes_peek_help
+                BackBehavior.GoHome -> R.string.back_goes_home_help
+            }
+            DropdownMenuItem(
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(label),
+                            color = PeekInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = stringResource(help),
+                            color = PeekMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                        )
+                    }
+                },
+                onClick = { onBackBehavior(behavior) },
+                trailingIcon = if (backBehavior == behavior) {
+                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PeekAccent) }
+                } else {
+                    null
+                },
+            )
+        }
         HorizontalDivider(color = PeekBorder)
         Text(
             text = stringResource(R.string.appearance),
@@ -205,26 +260,6 @@ private fun OptionsMenu(
                 },
             )
         }
-    }
-}
-
-@Composable
-private fun LinkSettingsEntry(onOpenLinkSettings: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = stringResource(R.string.open_link_settings),
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(role = Role.Button, onClick = onOpenLinkSettings)
-                .padding(vertical = 2.dp),
-            color = PeekInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-        )
-        Text(
-            text = stringResource(R.string.link_settings_tip),
-            color = PeekMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
-        )
     }
 }
 

@@ -13,7 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,14 +45,23 @@ fun PeekNavigation(
     onThemeMode: (ThemeMode) -> Unit,
 ) {
     val backStack = rememberNavBackStack(HomeKey)
-    val activity = LocalContext.current as? Activity
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
+    val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
     )
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
     fun handleBack() {
-        when (peekBackAction(launchedFromViewLink, backStack.size)) {
+        when (
+            peekBackAction(
+                launchedFromViewLink = launchedFromViewLink,
+                stackSize = backStack.size,
+                backClosesPeek = backBehaviorState.value == BackBehavior.ClosePeek,
+            )
+        ) {
             PeekBackAction.Pop -> if (backStack.size > 1) backStack.removeLastOrNull()
             PeekBackAction.Finish -> activity?.finish()
             PeekBackAction.DeferToSystem -> Unit
@@ -87,6 +99,11 @@ fun PeekNavigation(
                     onOpenLink = { url -> backStack.add(ViewerKey(url)) },
                     themeMode = themeMode,
                     onThemeMode = onThemeMode,
+                    backBehavior = backBehavior,
+                    onBackBehavior = { behavior ->
+                        backBehavior = behavior
+                        BackPreferences.write(context, behavior)
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

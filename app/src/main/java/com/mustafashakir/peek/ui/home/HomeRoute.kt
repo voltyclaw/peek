@@ -24,6 +24,7 @@ import androidx.core.content.pm.PackageInfoCompat
 import com.mustafashakir.peek.R
 import com.mustafashakir.peek.domain.usecase.ExtractUrlFromTextUseCase
 import com.mustafashakir.peek.ui.model.HomeUiState
+import com.mustafashakir.peek.ui.navigation.BackBehavior
 import com.mustafashakir.peek.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,8 @@ fun HomeRoute(
     modifier: Modifier = Modifier,
     themeMode: ThemeMode = ThemeMode.System,
     onThemeMode: (ThemeMode) -> Unit = {},
+    backBehavior: BackBehavior = BackBehavior.ClosePeek,
+    onBackBehavior: (BackBehavior) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -113,6 +116,8 @@ fun HomeRoute(
             },
             themeMode = themeMode,
             onThemeMode = onThemeMode,
+            backBehavior = backBehavior,
+            onBackBehavior = onBackBehavior,
         )
         SnackbarHost(
             hostState = snackbarHostState,
