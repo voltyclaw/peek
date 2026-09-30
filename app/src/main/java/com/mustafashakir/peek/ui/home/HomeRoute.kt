@@ -16,6 +16,7 @@ import androidx.core.content.pm.PackageInfoCompat
 import com.mustafashakir.peek.R
 import com.mustafashakir.peek.domain.usecase.ExtractUrlFromTextUseCase
 import com.mustafashakir.peek.ui.model.HomeUiState
+import com.mustafashakir.peek.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
 
 @Composable
@@ -23,6 +24,8 @@ fun HomeRoute(
     uiState: HomeUiState,
     onOpenLink: (String) -> Unit,
     modifier: Modifier = Modifier,
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeMode: (ThemeMode) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -58,6 +61,8 @@ fun HomeRoute(
             onRecentLink = onOpenLink,
             versionLabel = versionLabel,
             onOpenLinkSettings = { LinkSettings.open(context) },
+            themeMode = themeMode,
+            onThemeMode = onThemeMode,
         )
         SnackbarHost(
             hostState = snackbarHostState,

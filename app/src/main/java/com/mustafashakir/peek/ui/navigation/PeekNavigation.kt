@@ -26,12 +26,18 @@ import com.mustafashakir.peek.ui.home.HomeRoute
 import com.mustafashakir.peek.ui.home.HomeViewModel
 import com.mustafashakir.peek.ui.player.PlayerRoute
 import com.mustafashakir.peek.ui.player.PlayerViewModel
+import com.mustafashakir.peek.ui.theme.ThemeMode
 import com.mustafashakir.peek.ui.viewer.ViewerRoute
 import com.mustafashakir.peek.ui.viewer.ViewerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PeekNavigation(container: AppContainer, viewIntentUrl: MutableState<String?>) {
+fun PeekNavigation(
+    container: AppContainer,
+    viewIntentUrl: MutableState<String?>,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
+) {
     val backStack = rememberNavBackStack(HomeKey)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
@@ -71,6 +77,8 @@ fun PeekNavigation(container: AppContainer, viewIntentUrl: MutableState<String?>
                 HomeRoute(
                     uiState = homeUiState,
                     onOpenLink = { url -> backStack.add(ViewerKey(url)) },
+                    themeMode = themeMode,
+                    onThemeMode = onThemeMode,
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

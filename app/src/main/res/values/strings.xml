@@ -31,6 +31,10 @@
     <string name="load_failed_description">Peek recognizes this link, but the source didn&#8217;t return the post.</string>
     <string name="app_version">%1$s (%2$s)</string>
     <string name="open_link_settings">Open link settings</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
     <string name="link_settings_tip">Turn domains on to use Peek. Clear them, or pick another app, to switch back.</string>
     <string name="link_source">LINK SOURCE</string>
     <string name="home">Home</string>

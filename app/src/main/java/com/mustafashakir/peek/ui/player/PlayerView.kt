@@ -48,6 +48,7 @@ import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -129,6 +130,12 @@ fun PlayerView(
                 controller.isAppearanceLightNavigationBars = previousLightNavigationBars
             }
         }
+    }
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
     }
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (uiState) {
@@ -229,8 +236,9 @@ private fun MediaContent(
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
+    val initialPage = initialMediaIndex.coerceIn(0, items.lastIndex)
     val pagerState = rememberPagerState(
-        initialPage = initialMediaIndex.coerceIn(0, items.lastIndex),
+        initialPage = initialPage,
         pageCount = items::size,
     )
     val currentItem = items[pagerState.currentPage]
@@ -257,7 +265,10 @@ private fun MediaContent(
     var resizeMode by remember(currentVideoUrl) {
         mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT)
     }
-    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsVisible by remember {
+        mutableStateOf(playerShowsControlsOnOpen(items[initialPage].videoUrl))
+    }
+    var appliedInitialChrome by remember { mutableStateOf(false) }
     var playbackSpeed by remember(currentVideoUrl) { mutableFloatStateOf(1f) }
 
     DisposableEffect(exoPlayer) {
@@ -286,7 +297,11 @@ private fun MediaContent(
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        controlsVisible = true
+        if (!appliedInitialChrome) {
+            appliedInitialChrome = true
+        } else {
+            controlsVisible = true
+        }
     }
 
     LaunchedEffect(controlsVisible, isPlaying, currentVideoUrl) {

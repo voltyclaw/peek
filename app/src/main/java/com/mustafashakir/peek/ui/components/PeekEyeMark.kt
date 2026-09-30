@@ -36,6 +36,7 @@ fun PeekLockup(modifier: Modifier = Modifier) {
 
 @Composable
 fun PeekEyeMark(modifier: Modifier = Modifier) {
+    val accent = PeekAccent
     Canvas(modifier = modifier) {
         val path = Path().apply {
             moveTo(0.8f, size.height / 2f)
@@ -43,9 +44,9 @@ fun PeekEyeMark(modifier: Modifier = Modifier) {
             quadraticTo(size.width / 2f, size.height + 1.5f, 0.8f, size.height / 2f)
             close()
         }
-        drawPath(path, color = PeekAccent, style = Stroke(width = 1.5.dp.toPx()))
+        drawPath(path, color = accent, style = Stroke(width = 1.5.dp.toPx()))
         drawOval(
-            color = PeekAccent,
+            color = accent,
             topLeft = Offset(size.width / 2f - 2.dp.toPx(), size.height / 2f - 2.dp.toPx()),
             size = Size(4.dp.toPx(), 4.dp.toPx()),
         )

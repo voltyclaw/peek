@@ -47,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -74,7 +73,9 @@ import com.mustafashakir.peek.ui.theme.Inter
 import com.mustafashakir.peek.ui.theme.PeekAccent
 import com.mustafashakir.peek.ui.theme.PeekBorder
 import com.mustafashakir.peek.ui.theme.PeekChip
+import com.mustafashakir.peek.ui.theme.PeekFill
 import com.mustafashakir.peek.ui.theme.PeekGround
+import com.mustafashakir.peek.ui.theme.PeekOnFill
 import com.mustafashakir.peek.ui.theme.PeekInk
 import com.mustafashakir.peek.ui.theme.PeekMuted
 import com.mustafashakir.peek.ui.theme.PeekSecondary
@@ -285,21 +286,21 @@ private fun MediaCanvas(
                 modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp),
             )
             Box(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).clip(CircleShape).background(PeekInk.copy(alpha = 0.78f)).padding(horizontal = 10.dp, vertical = 5.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).clip(CircleShape).background(PeekFill.copy(alpha = 0.78f)).padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
                 Text(
                     text = stringResource(R.string.carousel_position, pagerState.currentPage + 1, items.size),
-                    color = Color.White,
+                    color = PeekOnFill,
                     style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold),
                 )
             }
         } else {
             post.duration?.let { duration ->
                 Box(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).height(28.dp).clip(CircleShape).background(PeekInk.copy(alpha = 0.85f)).padding(horizontal = 10.dp),
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).height(28.dp).clip(CircleShape).background(PeekFill.copy(alpha = 0.85f)).padding(horizontal = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(duration, color = Color.White, style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold))
+                    Text(duration, color = PeekOnFill, style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold))
                 }
             }
         }

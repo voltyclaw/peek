@@ -16,17 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import com.mustafashakir.peek.ui.theme.PeekAccent
-import com.mustafashakir.peek.ui.theme.PeekBorder
-import com.mustafashakir.peek.ui.theme.PeekGround
-import com.mustafashakir.peek.ui.theme.PeekInk
-import com.mustafashakir.peek.ui.theme.PeekTile
+import com.mustafashakir.peek.ui.theme.LocalPeekColors
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.isActive
@@ -75,22 +72,36 @@ private fun rememberPencilTimeSeconds(): Float {
 private fun PencilShaderBadge(timeSeconds: Float, modifier: Modifier) {
     val shader = remember { RuntimeShader(PENCIL_LOADER_SHADER) }
     val brush = remember(shader) { ShaderBrush(shader) }
+    val colors = LocalPeekColors.current
 
     Canvas(modifier = modifier.size(BADGE_SIZE_DP.dp)) {
         shader.setFloatUniform("u_resolution", size.width, size.height)
         shader.setFloatUniform("u_time", timeSeconds)
+        shader.setFloatUniform("u_ground", colors.ground.red, colors.ground.green, colors.ground.blue)
+        shader.setFloatUniform("u_ink", colors.ink.red, colors.ink.green, colors.ink.blue)
+        shader.setFloatUniform("u_accent", colors.accent.red, colors.accent.green, colors.accent.blue)
+        shader.setFloatUniform("u_sage", colors.tile.red, colors.tile.green, colors.tile.blue)
+        shader.setFloatUniform("u_pale", colors.border.red, colors.border.green, colors.border.blue)
         drawRect(brush)
     }
 }
 
 @Composable
 private fun PencilCanvasBadge(timeSeconds: Float, modifier: Modifier) {
+    val colors = LocalPeekColors.current
     Canvas(modifier = modifier.size(BADGE_SIZE_DP.dp)) {
-        drawCanvasFallback(timeSeconds)
+        drawCanvasFallback(timeSeconds, colors.ground, colors.border, colors.tile, colors.ink, colors.accent)
     }
 }
 
-private fun DrawScope.drawCanvasFallback(timeSeconds: Float) {
+private fun DrawScope.drawCanvasFallback(
+    timeSeconds: Float,
+    ground: Color,
+    pale: Color,
+    sage: Color,
+    ink: Color,
+    accent: Color,
+) {
     val unit = size.minDimension
     val center = Offset(size.width / 2f, size.height / 2f)
     val slowLift = 0.050f * sin(timeSeconds * SLOW_LIFT_FREQUENCY)
@@ -100,20 +111,20 @@ private fun DrawScope.drawCanvasFallback(timeSeconds: Float) {
     val bottomPulse = 0.30f + 0.55f * (0.5f - 0.5f * sin(timeSeconds * SLOW_LIFT_FREQUENCY))
     val sideBuzz = 0.45f + 0.35f * sin(timeSeconds * BUZZ_FREQUENCY)
 
-    drawRect(PeekGround)
-    drawDash(center, 0f, -0.345f, 0.050f, 0.008f, unit, PeekBorder, topPulse)
-    drawDash(center, 0f, -0.300f, 0.025f, 0.006f, unit, PeekTile, topPulse)
-    drawDash(center, 0f, 0.345f, 0.050f, 0.008f, unit, PeekBorder, bottomPulse)
-    drawDash(center, 0f, 0.300f, 0.025f, 0.006f, unit, PeekTile, bottomPulse)
+    drawRect(ground)
+    drawDash(center, 0f, -0.345f, 0.050f, 0.008f, unit, pale, topPulse)
+    drawDash(center, 0f, -0.300f, 0.025f, 0.006f, unit, sage, topPulse)
+    drawDash(center, 0f, 0.345f, 0.050f, 0.008f, unit, pale, bottomPulse)
+    drawDash(center, 0f, 0.300f, 0.025f, 0.006f, unit, sage, bottomPulse)
 
-    drawCircle(color = PeekTile, radius = 0.245f * unit, center = logoCenter)
-    drawEyeOutline(logoCenter, unit)
+    drawCircle(color = sage, radius = 0.245f * unit, center = logoCenter)
+    drawEyeOutline(logoCenter, unit, ink)
     drawCircle(
-        color = PeekInk,
+        color = ink,
         radius = 0.036f * unit,
         center = logoCenter.copy(y = logoCenter.y - 0.012f * sin(timeSeconds * SLOW_LIFT_FREQUENCY) * unit),
     )
-    drawDash(logoCenter, -0.300f, 0f, 0.020f, 0.006f, unit, PeekAccent, sideBuzz)
+    drawDash(logoCenter, -0.300f, 0f, 0.020f, 0.006f, unit, accent, sideBuzz)
     drawDash(
         logoCenter,
         0.300f,
@@ -121,12 +132,12 @@ private fun DrawScope.drawCanvasFallback(timeSeconds: Float) {
         0.020f,
         0.006f,
         unit,
-        PeekAccent,
+        accent,
         1f - 0.45f * sin(timeSeconds * BUZZ_FREQUENCY),
     )
 }
 
-private fun DrawScope.drawEyeOutline(center: Offset, unit: Float) {
+private fun DrawScope.drawEyeOutline(center: Offset, unit: Float, ink: Color) {
     val halfWidth = 0.145f
     val steps = 48
     fun lidHeight(nx: Float) = 0.065f * sin((nx + 1f) * HALF_PI)
@@ -143,7 +154,7 @@ private fun DrawScope.drawEyeOutline(center: Offset, unit: Float) {
             lineTo(center.x + nx * halfWidth * unit, center.y + lidHeight(nx) * unit)
         }
     }
-    drawPath(path, color = PeekInk, style = Stroke(width = 0.020f * unit, cap = StrokeCap.Butt))
+    drawPath(path, color = ink, style = Stroke(width = 0.020f * unit, cap = StrokeCap.Butt))
 }
 
 private fun DrawScope.drawDash(
@@ -153,7 +164,7 @@ private fun DrawScope.drawDash(
     halfWidth: Float,
     halfHeight: Float,
     unit: Float,
-    color: androidx.compose.ui.graphics.Color,
+    color: Color,
     alpha: Float,
 ) {
     val topLeft = Offset(center.x + (offsetX - halfWidth) * unit, center.y + (offsetY - halfHeight) * unit)
@@ -169,6 +180,11 @@ private fun DrawScope.drawDash(
 private const val PENCIL_LOADER_SHADER = """
     uniform float2 u_resolution;
     uniform float u_time;
+    uniform float3 u_ground;
+    uniform float3 u_ink;
+    uniform float3 u_accent;
+    uniform float3 u_sage;
+    uniform float3 u_pale;
 
     const float PI = 3.14159265359;
 
@@ -200,13 +216,11 @@ private const val PENCIL_LOADER_SHADER = """
             0.5 * u_resolution.y - fragCoord.y
         ) / min(u_resolution.x, u_resolution.y);
         float t = u_time;
-
-        float3 ground = float3(0.961, 0.953, 0.933);
-        float3 ink = float3(0.106, 0.227, 0.157);
-        float3 accent = float3(0.176, 0.369, 0.227);
-        float3 sage = float3(0.784, 0.859, 0.737);
-        float3 pale = float3(0.839, 0.867, 0.816);
-        float3 color = ground;
+        float3 ink = u_ink;
+        float3 accent = u_accent;
+        float3 sage = u_sage;
+        float3 pale = u_pale;
+        float3 color = u_ground;
 
         float slowLift = 0.050 * sin(t * 1.15);
         float tinyBuzz = 0.005 * sin(t * 8.0);

@@ -22,18 +22,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -50,13 +57,17 @@ import com.mustafashakir.peek.ui.model.RecentLinkUiModel
 import com.mustafashakir.peek.ui.theme.Geist
 import com.mustafashakir.peek.ui.theme.GeistMono
 import com.mustafashakir.peek.ui.theme.Inter
-import com.mustafashakir.peek.ui.theme.PeekBorder
 import com.mustafashakir.peek.ui.theme.PeekAccent
+import com.mustafashakir.peek.ui.theme.PeekBorder
+import com.mustafashakir.peek.ui.theme.PeekChip
+import com.mustafashakir.peek.ui.theme.PeekFill
 import com.mustafashakir.peek.ui.theme.PeekGround
 import com.mustafashakir.peek.ui.theme.PeekInk
 import com.mustafashakir.peek.ui.theme.PeekMuted
+import com.mustafashakir.peek.ui.theme.PeekOnFill
 import com.mustafashakir.peek.ui.theme.PeekSecondary
 import com.mustafashakir.peek.ui.theme.PeekTile
+import com.mustafashakir.peek.ui.theme.ThemeMode
 
 @Composable
 fun HomeView(
@@ -66,6 +77,8 @@ fun HomeView(
     modifier: Modifier = Modifier,
     versionLabel: String = "",
     onOpenLinkSettings: () -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeMode: (ThemeMode) -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PeekGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -76,7 +89,7 @@ fun HomeView(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         ) {
-            HomeHeader(onOpenLinkSettings)
+            HomeHeader(onOpenLinkSettings, themeMode, onThemeMode)
             if (versionLabel.isNotBlank()) {
                 Text(
                     text = versionLabel,
@@ -99,23 +112,98 @@ fun HomeView(
 }
 
 @Composable
-private fun HomeHeader(onOpenLinkSettings: () -> Unit) {
-    val settingsDescription = stringResource(R.string.open_link_settings)
+private fun HomeHeader(
+    onOpenLinkSettings: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val optionsDescription = stringResource(R.string.more_options)
     Row(
         modifier = Modifier.fillMaxWidth().height(34.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         PeekLockup()
-        Box(
-            modifier = Modifier
-                .requiredSize(48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .clickable(role = Role.Button, onClick = onOpenLinkSettings)
-                .semantics { contentDescription = settingsDescription },
-            contentAlignment = Alignment.CenterEnd,
-        ) {
-            Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.open_link_settings), tint = PeekSecondary, modifier = Modifier.size(20.dp))
+        Box(contentAlignment = Alignment.CenterEnd) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(48.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .clickable(role = Role.Button) { menuOpen = true }
+                    .semantics { contentDescription = optionsDescription },
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(Icons.Rounded.Tune, contentDescription = null, tint = PeekSecondary, modifier = Modifier.size(20.dp))
+            }
+            OptionsMenu(
+                expanded = menuOpen,
+                themeMode = themeMode,
+                onDismiss = { menuOpen = false },
+                onOpenLinkSettings = {
+                    menuOpen = false
+                    onOpenLinkSettings()
+                },
+                onThemeMode = { mode ->
+                    menuOpen = false
+                    onThemeMode(mode)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun OptionsMenu(
+    expanded: Boolean,
+    themeMode: ThemeMode,
+    onDismiss: () -> Unit,
+    onOpenLinkSettings: () -> Unit,
+    onThemeMode: (ThemeMode) -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        containerColor = PeekChip,
+    ) {
+        DropdownMenuItem(
+            text = {
+                Text(
+                    text = stringResource(R.string.open_link_settings),
+                    color = PeekInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                )
+            },
+            onClick = onOpenLinkSettings,
+        )
+        HorizontalDivider(color = PeekBorder)
+        Text(
+            text = stringResource(R.string.appearance),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = PeekMuted,
+            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
+        )
+        ThemeMode.entries.forEach { mode ->
+            val label = when (mode) {
+                ThemeMode.Light -> R.string.theme_light
+                ThemeMode.Dark -> R.string.theme_dark
+                ThemeMode.System -> R.string.theme_system
+            }
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = stringResource(label),
+                        color = PeekInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    )
+                },
+                onClick = { onThemeMode(mode) },
+                trailingIcon = if (themeMode == mode) {
+                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PeekAccent) }
+                } else {
+                    null
+                },
+            )
         }
     }
 }
@@ -164,19 +252,19 @@ private fun ClipboardEntry(onPasteClick: () -> Unit) {
                 .fillMaxWidth()
                 .height(66.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(PeekInk)
+                .background(PeekFill)
                 .clickable(role = Role.Button, onClick = onPasteClick)
                 .padding(start = 16.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = Color.White, modifier = Modifier.size(19.dp))
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(PeekOnFill.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = PeekOnFill, modifier = Modifier.size(19.dp))
             }
             Text(
                 text = stringResource(R.string.paste_from_clipboard),
                 modifier = Modifier.weight(1f),
-                color = Color.White,
+                color = PeekOnFill,
                 style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
             )
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(50)).background(PeekTile), contentAlignment = Alignment.Center) {
