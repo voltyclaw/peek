@@ -20,32 +20,35 @@ data class PaneColors(
 )
 
 val LightPaneColors = PaneColors(
-    ground = Color(0xFFE8F2EA),
-    ink = Color(0xFF1C2822),
-    accent = Color(0xFF2E7D5A),
-    secondary = Color(0xFF4A6B5C),
-    muted = Color(0xFF5F7368),
-    border = Color(0xFFC9D8CE),
-    tile = Color(0xFFD5E6DB),
-    chip = Color(0xFFE4F0E8),
-    fill = Color(0xFF2E7D5A),
+    ground = Color(0xFFF3F6F3),
+    ink = Color(0xFF1E2A22),
+    accent = Color(0xFF3A8F6A),
+    secondary = Color(0xFF7FAE8A),
+    muted = Color(0xFF6A7A6E),
+    border = Color(0xFFD5DFD7),
+    tile = Color(0xFFE8EEE9),
+    chip = Color(0xFF8DBC76),
+    fill = Color(0xFF3A8F6A),
     onFill = Color.White,
     night = false,
 )
 
 val DarkPaneColors = PaneColors(
-    ground = Color(0xFF121C16),
-    ink = Color(0xFFE4EDE6),
-    accent = Color(0xFF6EC496),
-    secondary = Color(0xFF9AB5A6),
+    ground = Color(0xFF141C16),
+    ink = Color(0xFFE7F0E8),
+    accent = Color(0xFF9BC9A5),
+    secondary = Color(0xFFA8CDB4),
     muted = Color(0xFF9AADA3),
-    border = Color(0xFF2A3830),
-    tile = Color(0xFF1A2620),
-    chip = Color(0xFF222E28),
-    fill = Color(0xFF6EC496),
-    onFill = Color(0xFF121C16),
+    border = Color(0xFF2C3A32),
+    tile = Color(0xFF1C2820),
+    chip = Color(0xFF3A5238),
+    fill = Color(0xFF9BC9A5),
+    onFill = Color(0xFF141C16),
     night = true,
 )
+
+/** Cooler mint for success. Distinct from the brand greens above. */
+val PaneSuccess = Color(0xFF5BA8A0)
 
 val LocalPaneColors = staticCompositionLocalOf { LightPaneColors }
 
