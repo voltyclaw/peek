@@ -20,6 +20,8 @@ import com.mustafashakir.peek.data.reddit.AndroidRedditPageLoader
 import com.mustafashakir.peek.data.reddit.RedditDirectPageLoader
 import com.mustafashakir.peek.data.reddit.RedditLinkContentRepository
 import com.mustafashakir.peek.data.resolver.RoutingLinkContentRepository
+import com.mustafashakir.peek.data.x.XDirectPageLoader
+import com.mustafashakir.peek.data.x.XLinkContentRepository
 import com.mustafashakir.peek.domain.model.Clock
 import com.mustafashakir.peek.domain.model.SystemClock
 import com.mustafashakir.peek.domain.repository.LinkContentRepository
@@ -82,11 +84,16 @@ class DefaultAppContainer(
         ),
         cacheStore = linkContentCacheStore,
     )
+    private val xRepository = XLinkContentRepository(
+        pageLoaders = listOf(XDirectPageLoader()),
+        cacheStore = linkContentCacheStore,
+    )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
         listOf(
             RoutingLinkContentRepository.Route(instagramRepository::supports, instagramRepository),
             RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository),
             RoutingLinkContentRepository.Route(facebookRepository::supports, facebookRepository),
+            RoutingLinkContentRepository.Route(xRepository::supports, xRepository),
         ),
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())

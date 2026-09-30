@@ -40,6 +40,12 @@ object LinkSettings {
         "fb.com",
         "www.fb.com",
         "fb.watch",
+        "x.com",
+        "www.x.com",
+        "mobile.x.com",
+        "twitter.com",
+        "www.twitter.com",
+        "mobile.twitter.com",
     )
 
     enum class LinkHandlingReport {

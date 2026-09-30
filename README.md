@@ -30,6 +30,7 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 - Resolve public Instagram posts, reels, and carousels with photos and videos.
 - Resolve public Reddit posts, including text, images, galleries, Reddit-hosted video, and `/r/{sub}/s/{id}` share shortlinks.
 - Resolve public Facebook posts, including `/posts/`, `/share/`, `/reel/`, `/watch/`, photos, and `fb.watch` links. Logged-out HTML is tried first, then a hidden WebView. Private posts and login walls fail as a load error. Replies are not loaded.
+- Resolve public X and Twitter status links (`x.com`, `twitter.com`, and mobile hosts). Syndication JSON is tried first, then oEmbed. Private or removed posts fail as a load error. Replies are usually absent.
 - Read comments, load more replies, refresh content, and revisit recent links.
 - Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe sideways moves between gallery images. Swipe up raises the comments sheet. By default, Back from a link opened in another app returns to that app. Back inside a session started from Peek’s home goes from the player to the preview, then home. Home’s options can instead keep Back inside Peek and return to home.
 - Choose Light, Dark, or System from the options menu on Home. The choice is kept on this device. Open link settings is in that same menu.
