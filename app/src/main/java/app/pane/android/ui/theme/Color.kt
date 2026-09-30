@@ -16,6 +16,7 @@ data class PaneColors(
     val chip: Color,
     val fill: Color,
     val onFill: Color,
+    val night: Boolean,
 )
 
 val LightPaneColors = PaneColors(
@@ -29,6 +30,7 @@ val LightPaneColors = PaneColors(
     chip = Color(0xFFEEEBE3),
     fill = Color(0xFF3B5BDB),
     onFill = Color.White,
+    night = false,
 )
 
 val DarkPaneColors = PaneColors(
@@ -42,6 +44,7 @@ val DarkPaneColors = PaneColors(
     chip = Color(0xFF242830),
     fill = Color(0xFF7B93F0),
     onFill = Color.White,
+    night = true,
 )
 
 val LocalPaneColors = staticCompositionLocalOf { LightPaneColors }

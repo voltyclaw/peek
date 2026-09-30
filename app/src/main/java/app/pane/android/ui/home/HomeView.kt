@@ -208,11 +208,11 @@ private fun OptionsMenu(
         )
         BackBehavior.entries.forEach { behavior ->
             val label = when (behavior) {
-                BackBehavior.ClosePeek -> R.string.back_closes_peek
+                BackBehavior.ClosePeek -> R.string.back_closes_pane
                 BackBehavior.GoHome -> R.string.back_goes_home
             }
             val help = when (behavior) {
-                BackBehavior.ClosePeek -> R.string.back_closes_peek_help
+                BackBehavior.ClosePeek -> R.string.back_closes_pane_help
                 BackBehavior.GoHome -> R.string.back_goes_home_help
             }
             DropdownMenuItem(
