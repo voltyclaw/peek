@@ -102,6 +102,7 @@ fun ViewerView(
             when (uiState) {
                 is ViewerUiState.Loading -> LoadingViewer(uiState.progress, uiState.message, onBack, onRefresh)
                 is ViewerUiState.Unavailable -> UnavailableViewer(uiState.url, onBack)
+                is ViewerUiState.LoadFailed -> LoadFailedViewer(uiState.url, uiState.reason, onBack)
                 is ViewerUiState.Content -> ViewerContent(
                     post = uiState.post,
                     isLoadingMoreComments = uiState.isLoadingMoreComments,
@@ -460,7 +461,38 @@ private fun LoadingFooter(onBack: () -> Unit) {
 }
 
 @Composable
+private fun LoadFailedViewer(url: String, reason: String, onBack: () -> Unit) {
+    FailureViewer(
+        url = url,
+        onBack = onBack,
+        label = stringResource(R.string.load_failed_label),
+        title = stringResource(R.string.load_failed_title),
+        description = stringResource(R.string.load_failed_description),
+        detail = reason,
+    )
+}
+
+@Composable
 private fun UnavailableViewer(url: String, onBack: () -> Unit) {
+    FailureViewer(
+        url = url,
+        onBack = onBack,
+        label = stringResource(R.string.unsupported_link_label),
+        title = stringResource(R.string.unsupported_link_title),
+        description = stringResource(R.string.unsupported_link_description),
+        detail = null,
+    )
+}
+
+@Composable
+private fun FailureViewer(
+    url: String,
+    onBack: () -> Unit,
+    label: String,
+    title: String,
+    description: String,
+    detail: String?,
+) {
     Column(Modifier.fillMaxSize()) {
         UnsupportedHeader(onBack)
         Column(
@@ -482,14 +514,14 @@ private fun UnavailableViewer(url: String, onBack: () -> Unit) {
             ) {
                 Icon(Icons.Rounded.LinkOff, contentDescription = null, tint = PeekSecondary, modifier = Modifier.size(13.dp))
                 Text(
-                    text = stringResource(R.string.unsupported_link_label),
+                    text = label,
                     color = PeekSecondary,
                     style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp),
                 )
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = stringResource(R.string.unsupported_link_title),
+                text = title,
                 modifier = Modifier.fillMaxWidth(),
                 color = PeekInk,
                 textAlign = TextAlign.Center,
@@ -497,12 +529,22 @@ private fun UnavailableViewer(url: String, onBack: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = stringResource(R.string.unsupported_link_description),
+                text = description,
                 modifier = Modifier.fillMaxWidth(),
                 color = PeekSecondary,
                 textAlign = TextAlign.Center,
                 style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
             )
+            if (!detail.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = detail,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PeekSecondary,
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+            }
             Spacer(Modifier.height(18.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(PeekChip).padding(horizontal = 15.dp, vertical = 14.dp),

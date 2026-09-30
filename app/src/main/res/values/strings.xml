@@ -26,6 +26,12 @@
     <string name="unsupported_link_title">We can’t peek at this one.</string>
     <string name="unsupported_link_description">This link comes from a source Peek doesn’t support yet. Try a public article, video, or social post instead.</string>
     <string name="unsupported_link_label">LINK NOT SUPPORTED</string>
+    <string name="load_failed_label">COULDN&#8217;T LOAD</string>
+    <string name="load_failed_title">This link didn&#8217;t open.</string>
+    <string name="load_failed_description">Peek recognizes this link, but the source didn&#8217;t return the post.</string>
+    <string name="app_version">%1$s (%2$s)</string>
+    <string name="open_link_settings">Open link settings</string>
+    <string name="link_settings_tip">Turn domains on to use Peek. Clear them, or pick another app, to switch back.</string>
     <string name="link_source">LINK SOURCE</string>
     <string name="home">Home</string>
     <string name="no_recent_links">No recent links yet</string>

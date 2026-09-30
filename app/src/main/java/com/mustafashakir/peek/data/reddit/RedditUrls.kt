@@ -35,16 +35,41 @@ object RedditUrls {
     fun jsonUrl(id: String): String = jsonCandidates(id).first()
 
     /**
-     * Logged-out comments documents for one post. `www` is first; `old.reddit.com` is the
-     * fallback when the first host returns a block page instead of JSON.
+     * Logged-out comments documents. The full permalink on `old.reddit.com` is first.
+     * Short `/comments/{id}.json` URLs follow, on old and then www.
+     * [commentsPath] is the path only (`/r/{sub}/comments/{id}/…`), with tracking query removed.
      */
-    fun jsonCandidates(id: String): List<String> {
+    fun jsonCandidates(id: String, commentsPath: String? = null): List<String> {
         val canonicalId = id.lowercase(Locale.US)
         val query = "raw_json=1&limit=$COMMENT_LIMIT"
-        return listOf(
-            "https://www.reddit.com/comments/$canonicalId.json?$query",
-            "https://old.reddit.com/comments/$canonicalId.json?$query",
-        )
+        val urls = LinkedHashSet<String>()
+        val path = commentsPath?.substringBefore('?')?.trimEnd('/')
+            ?.takeIf { it.contains("/comments/") }
+        if (path != null) {
+            urls += "https://old.reddit.com$path.json?$query"
+            urls += "https://www.reddit.com$path.json?$query"
+        }
+        urls += "https://old.reddit.com/comments/$canonicalId.json?$query"
+        urls += "https://www.reddit.com/comments/$canonicalId.json?$query"
+        return urls.toList()
+    }
+
+    /** Path of a comments URL, without a query string. Null for short links and galleries. */
+    fun commentsPath(url: String): String? {
+        val uri = parseHttps(url) ?: return null
+        if (direct(url) == null) return null
+        val path = normalizedPath(uri)
+        return path.takeIf { COMMENTS_PATH.matches(it) && it.contains("/comments/") }
+    }
+
+    /**
+     * Comments page used after a share link resolves. Keeps `/r/{sub}/comments/{id}/…`
+     * and drops tracking parameters. Short links stay on the canonical comments URL.
+     */
+    fun fetchPageUrl(url: String): String? {
+        val direct = direct(url) ?: return null
+        val path = commentsPath(url)
+        return if (path != null) "https://www.reddit.com$path" else direct.canonicalUrl
     }
 
     private fun parseHttps(url: String): URI? {

@@ -64,6 +64,8 @@ fun HomeView(
     onPasteClick: () -> Unit,
     onRecentLink: (String) -> Unit,
     modifier: Modifier = Modifier,
+    versionLabel: String = "",
+    onOpenLinkSettings: () -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PeekGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -74,7 +76,16 @@ fun HomeView(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         ) {
-            HomeHeader()
+            HomeHeader(onOpenLinkSettings)
+            if (versionLabel.isNotBlank()) {
+                Text(
+                    text = versionLabel,
+                    color = PeekMuted,
+                    style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            LinkSettingsEntry(onOpenLinkSettings)
             Spacer(Modifier.height(20.dp))
             ClipboardEntry(onPasteClick)
             Spacer(Modifier.height(20.dp))
@@ -88,8 +99,8 @@ fun HomeView(
 }
 
 @Composable
-private fun HomeHeader() {
-    val settingsDescription = stringResource(R.string.settings)
+private fun HomeHeader(onOpenLinkSettings: () -> Unit) {
+    val settingsDescription = stringResource(R.string.open_link_settings)
     Row(
         modifier = Modifier.fillMaxWidth().height(34.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -97,11 +108,35 @@ private fun HomeHeader() {
     ) {
         PeekLockup()
         Box(
-            modifier = Modifier.requiredSize(48.dp).semantics { contentDescription = settingsDescription },
+            modifier = Modifier
+                .requiredSize(48.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(role = Role.Button, onClick = onOpenLinkSettings)
+                .semantics { contentDescription = settingsDescription },
             contentAlignment = Alignment.CenterEnd,
         ) {
-            Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.settings), tint = PeekSecondary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.open_link_settings), tint = PeekSecondary, modifier = Modifier.size(20.dp))
         }
+    }
+}
+
+@Composable
+private fun LinkSettingsEntry(onOpenLinkSettings: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.open_link_settings),
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClick = onOpenLinkSettings)
+                .padding(vertical = 2.dp),
+            color = PeekInk,
+            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+        )
+        Text(
+            text = stringResource(R.string.link_settings_tip),
+            color = PeekMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+        )
     }
 }
 

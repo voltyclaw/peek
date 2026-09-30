@@ -56,6 +56,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -126,6 +127,7 @@ fun PlayerView(
         when (uiState) {
             is ViewerUiState.Loading -> LoadingMedia(uiState, onBack)
             is ViewerUiState.Unavailable -> UnavailableMedia(onBack)
+            is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, uiState.reason)
             is ViewerUiState.Content -> MediaContent(
                 post = uiState.post,
                 isLoadingMoreComments = uiState.isLoadingMoreComments,
@@ -181,13 +183,25 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnavailableMedia(onBack: () -> Unit) {
+private fun UnavailableMedia(onBack: () -> Unit, reason: String = "") {
     Box(Modifier.fillMaxSize()) {
-        Text(
-            text = stringResource(R.string.content_unavailable),
-            color = Color.White,
-            modifier = Modifier.align(Alignment.Center),
-        )
+        Column(
+            modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.content_unavailable),
+                color = Color.White,
+            )
+            if (reason.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = reason,
+                    color = Color.White.copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
         BoxScopeLoadingBackButton(onBack)
     }
 }

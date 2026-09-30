@@ -7,6 +7,7 @@ import com.mustafashakir.peek.domain.repository.LoadProgressListener
 import com.mustafashakir.peek.domain.usecase.OpenLinkUseCase
 import com.mustafashakir.peek.domain.usecase.LoadMoreCommentsUseCase
 import com.mustafashakir.peek.ui.mapper.ViewerUiMapper
+import com.mustafashakir.peek.ui.viewer.viewerStateFor
 import com.mustafashakir.peek.ui.mapper.loadStageMessage
 import com.mustafashakir.peek.ui.model.ViewerUiState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,7 @@ class PlayerViewModel(
             }
             mutableUiState.value = openLink(url, onProgress).fold(
                 onSuccess = { ViewerUiState.Content(mapper.map(it)) },
-                onFailure = { ViewerUiState.Unavailable(url) },
+                onFailure = { viewerStateFor(url, it) },
             )
         }
     }

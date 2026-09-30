@@ -40,7 +40,7 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 | Public Instagram posts (`/p/`) | Available | Direct logged-out GraphQL resolver |
 | Public Instagram reels (`/reel/`, `/reels/`) | Available | Direct GraphQL resolver, then hidden WebView fallback |
 | Public Instagram carousels | Available | Instagram resolver chain above |
-| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Paste and open-with use the same in-app host classifier. Logged-out JSON is loaded from `www.reddit.com`, then `old.reddit.com` if the first host returns a block page. Share shortlinks follow HTTP redirects, then a canonical or `og:url` in the HTML |
+| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Paste uses the in-app classifier. Logged-out JSON is tried on `old.reddit.com` then `www`, full permalink first. A block page is a load failure, separate from “link not supported”. Share shortlinks follow redirects, then canonical or `og:url` HTML |
 | Reddit subreddit feeds, profiles, search, and posts Reddit hides when logged out | Unsupported | No resolver currently available |
 | Private posts, login-required content, challenges, consent flows | Unsupported | No resolver currently available |
 

@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.pm.PackageInfoCompat
 import com.mustafashakir.peek.R
 import com.mustafashakir.peek.domain.usecase.ExtractUrlFromTextUseCase
 import com.mustafashakir.peek.ui.model.HomeUiState
@@ -29,6 +30,11 @@ fun HomeRoute(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val invalidClipboardMessage = stringResource(R.string.clipboard_url_unavailable)
+    val versionLabel = remember(context) {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        val code = PackageInfoCompat.getLongVersionCode(info).toString()
+        context.getString(R.string.app_version, info.versionName.orEmpty(), code)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         HomeView(
@@ -50,6 +56,8 @@ fun HomeRoute(
                 }
             },
             onRecentLink = onOpenLink,
+            versionLabel = versionLabel,
+            onOpenLinkSettings = { LinkSettings.open(context) },
         )
         SnackbarHost(
             hostState = snackbarHostState,

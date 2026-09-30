@@ -29,7 +29,7 @@ class RedditRepositoryTest {
 
         val content = repository.resolve(requested).getOrThrow()
 
-        assertEquals("https://www.reddit.com/comments/abc123/", loader.urls.single())
+        assertEquals(requested, loader.urls.single())
         assertEquals(requested, content.url)
         assertEquals(LinkSource.Reddit, content.source)
         assertEquals(LinkKind.Post, content.kind)

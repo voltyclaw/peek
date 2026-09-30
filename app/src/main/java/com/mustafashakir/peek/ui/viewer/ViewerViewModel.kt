@@ -54,7 +54,7 @@ class ViewerViewModel(
         }
         mutableUiState.value = fetch(onProgress).fold(
             onSuccess = { ViewerUiState.Content(mapper.map(it)) },
-            onFailure = { ViewerUiState.Unavailable(url) },
+            onFailure = { viewerStateFor(url, it) },
         )
     }
 

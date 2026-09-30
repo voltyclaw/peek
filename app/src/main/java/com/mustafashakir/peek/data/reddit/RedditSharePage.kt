@@ -9,7 +9,7 @@ import java.net.URI
 object RedditSharePage {
     fun postUrl(html: String): String? =
         candidates(html).firstNotNullOfOrNull { candidate ->
-            RedditUrls.direct(absolutize(unescape(candidate)))?.canonicalUrl
+            RedditUrls.fetchPageUrl(absolutize(unescape(candidate)))
         }
 
     fun absolutize(value: String, base: String = DEFAULT_BASE): String {

@@ -29,7 +29,7 @@ class RedditUrlsTest {
             assertEquals(url, expected, direct?.canonicalUrl)
         }
         assertEquals(
-            "https://www.reddit.com/comments/abc123.json?raw_json=1&limit=50",
+            "https://old.reddit.com/comments/abc123.json?raw_json=1&limit=50",
             RedditUrls.jsonUrl("ABC123"),
         )
     }
@@ -58,12 +58,16 @@ class RedditUrlsTest {
         assertFalse(RedditUrls.isShareLink(pasted))
         assertEquals("1w3fcl7", direct?.id)
         assertEquals("https://www.reddit.com/comments/1w3fcl7/", direct?.canonicalUrl)
+        val path = "/r/interestingasfuck/comments/1w3fcl7/in_1960_david_latimer_planted_a_garden_inside_of"
+        assertEquals(path, RedditUrls.commentsPath(pasted))
         assertEquals(
             listOf(
-                "https://www.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=50",
+                "https://old.reddit.com$path.json?raw_json=1&limit=50",
+                "https://www.reddit.com$path.json?raw_json=1&limit=50",
                 "https://old.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=50",
+                "https://www.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=50",
             ),
-            RedditUrls.jsonCandidates("1w3fcl7"),
+            RedditUrls.jsonCandidates("1w3fcl7", path),
         )
         assertFalse(RedditUrls.supports("https://www.reddit.com/r/interestingasfuck"))
         assertFalse(RedditUrls.supports("https://www.reddit.com/r/interestingasfuck/hot"))

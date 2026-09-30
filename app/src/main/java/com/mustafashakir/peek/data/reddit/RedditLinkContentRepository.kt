@@ -74,9 +74,8 @@ class RedditLinkContentRepository(
             if (!forceNetwork && knownId != null) {
                 cachedContent(knownId, url)?.let { return@withLock Result.success(it) }
             }
-            val fetchUrl = RedditUrls.direct(url)?.canonicalUrl ?: url
             val resolved = withContext(PageLoadProgressElement(onProgress)) {
-                resolverChain.resolveWithSource(fetchUrl)
+                resolverChain.resolveWithSource(url)
             }
             val content = mapToLinkContent(url, resolved.value)
             successfulCache[content.postId()] = content

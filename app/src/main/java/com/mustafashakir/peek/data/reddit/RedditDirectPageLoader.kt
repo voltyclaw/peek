@@ -4,6 +4,7 @@ import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.domain.model.LoadProgress
 import com.mustafashakir.peek.domain.model.LoadStage
 import com.mustafashakir.peek.domain.repository.LoadProgressListener
+import android.util.Log
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -31,14 +32,11 @@ class RedditDirectPageLoader(
         if (!supports(url)) throw IllegalArgumentException("Unsupported Reddit post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.report(0.05f, LoadStage.Connecting)
-        val pageUrl = RedditUrls.direct(url)?.canonicalUrl ?: followShareLink(url)
+        val pageUrl = RedditUrls.fetchPageUrl(url) ?: followShareLink(url)
         val postId = RedditUrls.direct(pageUrl)?.id
             ?: throw IOException("Reddit share link did not open a public post")
         listener.report(0.35f, LoadStage.FetchingPage)
-        val response = loadPostDocument(postId)
-        listener.report(0.85f, LoadStage.ExtractingContent)
-        val post = parser.parse(response)
-            ?: throw IOException("Reddit response contained no public post")
+        val post = loadPost(pageUrl, postId)
         listener.report(1f, LoadStage.ExtractingContent)
         return post
     }
@@ -48,7 +46,7 @@ class RedditDirectPageLoader(
     }
 
     private fun resolveShareTarget(url: String, hopsLeft: Int): String {
-        RedditUrls.direct(url)?.let { return it.canonicalUrl }
+        RedditUrls.fetchPageUrl(url)?.let { return it }
         if (hopsLeft == 0) throw IOException("Reddit share link redirected too many times")
         val connection = connectionFactory(url)
         try {
@@ -56,11 +54,11 @@ class RedditDirectPageLoader(
                 connection,
                 accept = "text/html,application/xhtml+xml,application/json",
                 followRedirects = false,
-                userAgent = BROWSER_USER_AGENT,
+                userAgent = RedditFetchPlan.DESKTOP_USER_AGENT,
             )
             val status = connection.responseCode
             val landed = connection.url.toString()
-            RedditUrls.direct(landed)?.let { return it.canonicalUrl }
+            RedditUrls.fetchPageUrl(landed)?.let { return it }
             if (status in 300..399) {
                 val location = connection.getHeaderField("Location")?.takeIf { it.isNotBlank() }
                     ?: throw IOException("Reddit share link redirected without a destination (HTTP $status)")
@@ -97,34 +95,60 @@ class RedditDirectPageLoader(
         }.orEmpty()
     }
 
-    private suspend fun loadPostDocument(postId: String): String {
-        var lastError: IOException? = null
-        for (candidate in RedditUrls.jsonCandidates(postId)) {
+    private suspend fun loadPost(pageUrl: String, postId: String): ParsedRedditPost {
+        var blocked: String? = null
+        var last = "Reddit did not return a public post"
+        for (request in RedditFetchPlan.requests(pageUrl, postId)) {
             try {
-                return get(candidate)
+                val body = get(request)
+                parser.parse(body)?.let { return it }
+                RedditShredditPost.parse(body)?.let { return it }
+                last = "Reddit did not return a public post"
+                log("no public post from ${request.url.substringBefore('?')}")
             } catch (error: IOException) {
-                lastError = error
+                last = error.message ?: last
+                if (last.contains("blocked", ignoreCase = true) || last.contains("HTTP")) {
+                    blocked = last
+                }
+                log("${request.url.substringBefore('?')} -> $last")
             }
         }
-        throw lastError ?: IOException("Reddit did not return a public post")
+        throw IOException(blocked ?: last)
     }
 
-    private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
-        val connection = connectionFactory(url)
+    private suspend fun get(request: RedditFetchPlan.Request): String = withContext(Dispatchers.IO) {
+        read(request, cookie = null, allowCookieRetry = true)
+    }
+
+    private fun read(
+        request: RedditFetchPlan.Request,
+        cookie: String?,
+        allowCookieRetry: Boolean,
+    ): String {
+        val connection = connectionFactory(request.url)
         try {
-            prepare(connection, accept = "application/json", userAgent = JSON_USER_AGENT)
+            prepare(connection, accept = request.accept, userAgent = request.userAgent)
+            if (!cookie.isNullOrBlank()) connection.setRequestProperty("Cookie", cookie)
             val status = connection.responseCode
             val response = (if (status in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(StandardCharsets.UTF_8)
                 ?.use { it.readText() }
                 .orEmpty()
-            if (status == 429) throw IOException("Reddit temporarily rate-limited the request (HTTP $status)")
+            if (allowCookieRetry && status == 403) {
+                val setCookie = connection.getHeaderField("Set-Cookie")
+                    ?.substringBefore(';')
+                    ?.takeIf { it.isNotBlank() }
+                if (setCookie != null) {
+                    connection.disconnect()
+                    return read(request, setCookie, allowCookieRetry = false)
+                }
+            }
+            if (status == 429 || status == 403 || response.contains("whoa there", ignoreCase = true)) {
+                throw IOException("Reddit blocked the request (HTTP $status)")
+            }
             if (status !in 200..299) throw IOException("Reddit returned HTTP $status")
             if (response.isBlank()) throw IOException("Reddit returned an empty response")
-            if (response.trimStart().startsWith("<")) {
-                throw IOException("Reddit did not return a public post")
-            }
-            response
+            return response
         } finally {
             connection.disconnect()
         }
@@ -149,11 +173,12 @@ class RedditDirectPageLoader(
         onProgress(LoadProgress(fraction, stage))
     }
 
+    private fun log(message: String) {
+        runCatching { Log.i(LOG_TAG, message) }
+    }
+
     private companion object {
-        const val JSON_USER_AGENT = "Peek/1.0.2 (Android; public Reddit post viewer)"
-        const val BROWSER_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36"
+        const val LOG_TAG = "PeekReddit"
         const val CONNECT_TIMEOUT_MILLIS = 15_000
         const val READ_TIMEOUT_MILLIS = 30_000
         const val MAX_SHARE_REDIRECTS = 5

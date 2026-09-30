@@ -1,6 +1,7 @@
 package com.mustafashakir.peek
 
 import com.mustafashakir.peek.data.reddit.RedditDirectPageLoader
+import com.mustafashakir.peek.data.reddit.RedditFetchPlan
 import com.mustafashakir.peek.data.reddit.RedditUrls
 import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.domain.model.LoadProgress
@@ -31,14 +32,16 @@ class RedditDirectPageLoaderTest {
             loader.resolve("https://old.reddit.com/r/pics/comments/abc123/title/?utm_source=share")
         }
 
-        assertEquals(RedditUrls.jsonUrl("abc123"), requestedUrl)
+        val page = "https://old.reddit.com/r/pics/comments/abc123/title/?utm_source=share"
+        assertEquals(RedditFetchPlan.requests(page, "abc123").first().url, requestedUrl)
         assertEquals("abc123", post.id)
         assertEquals("alice", post.author)
         assertEquals("GET", connection.requestedMethod)
         assertTrue(connection.redirectsEnabled)
         assertEquals("application/json", connection.getRequestProperty("Accept"))
         val userAgent = connection.getRequestProperty("User-Agent").orEmpty()
-        assertTrue(userAgent.startsWith("Peek/"))
+        assertEquals(RedditFetchPlan.CLIENT_USER_AGENT, userAgent)
+        assertFalse(userAgent.contains("Android"))
         assertFalse(userAgent.contains("Chrome/"))
         assertEquals(1f, progress.last().fraction)
         assertFalse(connection.getRequestProperty("Authorization").orEmpty().isNotBlank())
@@ -67,7 +70,10 @@ class RedditDirectPageLoaderTest {
         val post = loader.resolve(share)
 
         assertEquals("abc123", post.id)
-        assertEquals(listOf(share, RedditUrls.jsonUrl("abc123")), opened)
+        assertEquals(
+            listOf(share, RedditFetchPlan.requests("https://www.reddit.com/r/pics/comments/abc123/title", "abc123").first().url),
+            opened,
+        )
     }
 
     @Test
@@ -92,17 +98,24 @@ class RedditDirectPageLoaderTest {
         val post = loader.resolve(share)
 
         assertEquals("1wubxdy", post.id)
-        assertEquals(listOf(share, RedditUrls.jsonUrl("1wubxdy")), opened)
+        assertEquals(
+            listOf(
+                share,
+                RedditFetchPlan.requests("https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title", "1wubxdy").first().url,
+            ),
+            opened,
+        )
         assertFalse(opened.any { it.contains("js_challenge") })
     }
 
     @Test
     fun retriesJsonOnOldRedditWhenWwwReturnsABlockPage() = runTest {
         val pasted = "https://www.reddit.com/r/interestingasfuck/comments/1w3fcl7/in_1960_david_latimer_planted_a_garden_inside_of/"
+        val planned = RedditFetchPlan.requests(pasted, "1w3fcl7")
         val opened = mutableListOf<String>()
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
-            if (url.startsWith("https://www.reddit.com/")) {
+            if (url == planned.first().url) {
                 FakeHttpConnection(url, "<html><p>whoa there, pardner</p></html>", status = 403)
             } else {
                 FakeHttpConnection(url, LATIMER_JSON)
@@ -113,7 +126,9 @@ class RedditDirectPageLoaderTest {
 
         assertEquals("1w3fcl7", post.id)
         assertEquals("In 1960, David Latimer planted a garden", post.title)
-        assertEquals(RedditUrls.jsonCandidates("1w3fcl7"), opened)
+        assertEquals(listOf(planned[0].url, planned[1].url), opened)
+        assertTrue(planned[0].url.startsWith("https://old.reddit.com/r/interestingasfuck/comments/1w3fcl7/"))
+        assertFalse(planned[0].userAgent.contains("Android"))
     }
 
     @Test
@@ -133,7 +148,27 @@ class RedditDirectPageLoaderTest {
 
         assertEquals("1wubxdy", post.id)
         assertEquals("A public photo", post.title)
-        assertEquals(listOf(share, RedditUrls.jsonUrl("1wubxdy")), opened)
+        val page = "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/the_new_us_passport_reveal_akin_to_apple_product"
+        assertEquals(listOf(share, RedditFetchPlan.requests(page, "1wubxdy").first().url), opened)
+    }
+
+    @Test
+    fun parsesShredditHtmlWhenEveryJsonHostIsBlocked() = runTest {
+        val pasted = "https://www.reddit.com/r/interestingasfuck/comments/1w3fcl7/in_1960_david_latimer_planted_a_garden_inside_of/"
+        val loader = RedditDirectPageLoader(connectionFactory = { url ->
+            if (url.endsWith(".json") || url.contains(".json?")) {
+                FakeHttpConnection(url, "<html><p>whoa there, pardner</p></html>", status = 403)
+            } else {
+                FakeHttpConnection(url, SHREDDIT_HTML)
+            }
+        })
+
+        val post = loader.resolve(pasted)
+
+        assertEquals("1w3fcl7", post.id)
+        assertEquals("In 1960, David Latimer planted a garden", post.title)
+        assertEquals("https://i.redd.it/h190t4tyzpmh1.jpeg", post.media.single().imageUrl)
+        assertTrue(post.comments.isEmpty())
     }
 
     @Test
@@ -232,6 +267,10 @@ private const val POST_JSON = """
   "created_utc":1700000000,"permalink":"/r/interestingasfuck/comments/1wubxdy/the_new_us_passport_reveal_akin_to_apple_product/",
   "is_self":false,"url":"https://i.redd.it/photo.jpg"
 }}]}}]
+"""
+
+private const val SHREDDIT_HTML = """
+<html><shreddit-post id="t3_1w3fcl7" post-title="In 1960, David Latimer planted a garden" author="The_Love-Tap" subreddit-name="interestingasfuck" score="45372" comment-count="676" created-timestamp="2026-08-31T14:25:05.266000+0000" permalink="/r/interestingasfuck/comments/1w3fcl7/in_1960_david_latimer_planted_a_garden_inside_of/" content-href="https://i.redd.it/h190t4tyzpmh1.jpeg" post-type="image"></shreddit-post></html>
 """
 
 private const val LATIMER_JSON = """

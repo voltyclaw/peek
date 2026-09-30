@@ -14,7 +14,7 @@ class RedditSharePageTest {
         """.trimIndent()
 
         assertEquals(
-            "https://www.reddit.com/comments/1wubxdy/",
+            "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title",
             RedditSharePage.postUrl(html),
         )
     }
@@ -22,25 +22,25 @@ class RedditSharePageTest {
     @Test
     fun readsOgUrlMetaRefreshJavascriptAndPermalink() {
         assertEquals(
-            "https://www.reddit.com/comments/ogurl1/",
+            "https://www.reddit.com/r/pics/comments/ogurl1/title",
             RedditSharePage.postUrl(
                 """<meta property="og:url" content="https://www.reddit.com/r/pics/comments/ogurl1/title/">""",
             ),
         )
         assertEquals(
-            "https://www.reddit.com/comments/refresh1/",
+            "https://www.reddit.com/r/pics/comments/refresh1/title",
             RedditSharePage.postUrl(
                 """<meta http-equiv="refresh" content="0;url=/r/pics/comments/refresh1/title/">""",
             ),
         )
         assertEquals(
-            "https://www.reddit.com/comments/jsloc1/",
+            "https://www.reddit.com/r/pics/comments/jsloc1/title",
             RedditSharePage.postUrl(
                 """<script>window.location.replace("https://www.reddit.com/r/pics/comments/jsloc1/title/");</script>""",
             ),
         )
         assertEquals(
-            "https://www.reddit.com/comments/perm111/",
+            "https://www.reddit.com/r/pics/comments/perm111/title",
             RedditSharePage.postUrl(
                 """<shreddit-post permalink="/r/pics/comments/perm111/title/"></shreddit-post>""",
             ),
@@ -53,7 +53,7 @@ class RedditSharePageTest {
             <link href="https://www.reddit.com/r/pics/comments/amp111/title/?share_id=a&amp;utm_source=share" rel="canonical">
         """.trimIndent()
 
-        assertEquals("https://www.reddit.com/comments/amp111/", RedditSharePage.postUrl(html))
+        assertEquals("https://www.reddit.com/r/pics/comments/amp111/title", RedditSharePage.postUrl(html))
     }
 
     @Test
