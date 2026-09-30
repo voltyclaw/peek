@@ -32,8 +32,20 @@ object RedditUrls {
         return SHARE_PATH.matches(normalizedPath(uri))
     }
 
-    fun jsonUrl(id: String): String =
-        "https://www.reddit.com/comments/${id.lowercase(Locale.US)}.json?raw_json=1&limit=$COMMENT_LIMIT"
+    fun jsonUrl(id: String): String = jsonCandidates(id).first()
+
+    /**
+     * Logged-out comments documents for one post. `www` is first; `old.reddit.com` is the
+     * fallback when the first host returns a block page instead of JSON.
+     */
+    fun jsonCandidates(id: String): List<String> {
+        val canonicalId = id.lowercase(Locale.US)
+        val query = "raw_json=1&limit=$COMMENT_LIMIT"
+        return listOf(
+            "https://www.reddit.com/comments/$canonicalId.json?$query",
+            "https://old.reddit.com/comments/$canonicalId.json?$query",
+        )
+    }
 
     private fun parseHttps(url: String): URI? {
         val uri = runCatching { URI(url) }.getOrNull() ?: return null

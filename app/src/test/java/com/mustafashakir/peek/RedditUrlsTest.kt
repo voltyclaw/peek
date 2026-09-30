@@ -37,11 +37,37 @@ class RedditUrlsTest {
     @Test
     fun recognizesShareLinksWithoutTreatingThemAsPostIds() {
         val share = "https://www.reddit.com/r/pics/s/Ab12Cd/?utm_source=share"
+        val pasted = "https://www.reddit.com/r/interestingasfuck/s/VDgXcEIG1q"
 
         assertTrue(RedditUrls.isShareLink(share))
+        assertTrue(RedditUrls.supports(pasted))
+        assertTrue(RedditUrls.isShareLink(pasted))
+        assertNull(RedditUrls.direct(pasted))
         assertNull(RedditUrls.direct(share))
         assertTrue(RedditUrls.supports(share))
         assertFalse(RedditUrls.isShareLink("https://redd.it/abc123"))
+    }
+
+    @Test
+    fun classifiesAPastedCommentsUrlAndRejectsTheSubredditHome() {
+        val pasted = "https://www.reddit.com/r/interestingasfuck/comments/1w3fcl7/" +
+            "in_1960_david_latimer_planted_a_garden_inside_of/?utm_source=share&utm_medium=android_app"
+        val direct = RedditUrls.direct(pasted)
+
+        assertTrue(RedditUrls.supports(pasted))
+        assertFalse(RedditUrls.isShareLink(pasted))
+        assertEquals("1w3fcl7", direct?.id)
+        assertEquals("https://www.reddit.com/comments/1w3fcl7/", direct?.canonicalUrl)
+        assertEquals(
+            listOf(
+                "https://www.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=50",
+                "https://old.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=50",
+            ),
+            RedditUrls.jsonCandidates("1w3fcl7"),
+        )
+        assertFalse(RedditUrls.supports("https://www.reddit.com/r/interestingasfuck"))
+        assertFalse(RedditUrls.supports("https://www.reddit.com/r/interestingasfuck/hot"))
+        assertFalse(RedditUrls.supports("https://www.reddit.com/user/The_Love-Tap"))
     }
 
     @Test

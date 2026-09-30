@@ -12,8 +12,8 @@ android {
         applicationId = "com.mustafashakir.peek"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.1"
+        versionCode = 2
+        versionName = "1.0.2"
     }
 
     buildTypes {

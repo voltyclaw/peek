@@ -1,5 +1,6 @@
 package com.mustafashakir.peek
 
+import com.mustafashakir.peek.data.reddit.RedditUrls
 import com.mustafashakir.peek.data.resolver.RoutingLinkContentRepository
 import com.mustafashakir.peek.domain.model.Author
 import com.mustafashakir.peek.domain.model.LinkContent
@@ -35,6 +36,27 @@ class RoutingLinkContentRepositoryTest {
         assertEquals("https://www.instagram.com/p/example/", instagramResult.url)
         assertTrue(unsupported.isFailure)
         assertEquals(null, router.peekCached("https://example.com/post"))
+    }
+
+    @Test
+    fun pastedCommentsUrlReachesRedditAndNonPostRedditUrlsFailClosed() = runTest {
+        val instagram = FakeRepository { it.contains("instagram.com") }
+        val reddit = FakeRepository { RedditUrls.supports(it) }
+        val router = RoutingLinkContentRepository(
+            listOf(
+                RoutingLinkContentRepository.Route(instagram::supports, instagram),
+                RoutingLinkContentRepository.Route(reddit::supports, reddit),
+            ),
+        )
+        val comments = "https://www.reddit.com/r/interestingasfuck/comments/1w3fcl7/" +
+            "in_1960_david_latimer_planted_a_garden_inside_of/"
+
+        assertTrue(router.resolve(comments).isSuccess)
+        assertEquals(listOf(comments), reddit.resolved)
+        assertTrue(instagram.resolved.isEmpty())
+        assertTrue(router.resolve("https://www.reddit.com/r/interestingasfuck").isFailure)
+        assertTrue(router.resolve("https://www.reddit.com/user/spez").isFailure)
+        assertEquals(listOf(comments), reddit.resolved)
     }
 
     private class FakeRepository(
