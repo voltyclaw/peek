@@ -1,5 +1,6 @@
 package com.mustafashakir.peek.ui.navigation
 
+import android.app.Activity
 import androidx.activity.BackEventCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -14,6 +15,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -35,17 +37,23 @@ import com.mustafashakir.peek.ui.viewer.ViewerViewModel
 fun PeekNavigation(
     container: AppContainer,
     viewIntentUrl: MutableState<String?>,
+    launchedFromViewLink: Boolean,
     themeMode: ThemeMode,
     onThemeMode: (ThemeMode) -> Unit,
 ) {
     val backStack = rememberNavBackStack(HomeKey)
+    val activity = LocalContext.current as? Activity
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
     )
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
-    fun regularPop() {
-        if (backStack.size > 1) backStack.removeLastOrNull()
+    fun handleBack() {
+        when (peekBackAction(launchedFromViewLink, backStack.size)) {
+            PeekBackAction.Pop -> if (backStack.size > 1) backStack.removeLastOrNull()
+            PeekBackAction.Finish -> activity?.finish()
+            PeekBackAction.DeferToSystem -> Unit
+        }
     }
 
     LaunchedEffect(viewIntentUrl.value) {
@@ -56,7 +64,7 @@ fun PeekNavigation(
 
     NavDisplay(
         backStack = backStack,
-        onBack = ::regularPop,
+        onBack = ::handleBack,
         transitionSpec = {
             EnterTransition.None togetherWith ExitTransition.None
         },
@@ -90,7 +98,7 @@ fun PeekNavigation(
                     viewModel = viewerViewModel,
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
-                    onBack = ::regularPop,
+                    onBack = ::handleBack,
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     modifier = Modifier.safeDrawingPadding(),
                 )
@@ -104,7 +112,7 @@ fun PeekNavigation(
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
                     initialMediaIndex = key.mediaIndex,
-                    onBack = ::regularPop,
+                    onBack = ::handleBack,
                 )
             }
         },

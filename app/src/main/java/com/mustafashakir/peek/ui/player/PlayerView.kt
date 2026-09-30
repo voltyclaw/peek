@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,8 +57,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,6 +103,7 @@ import com.mustafashakir.peek.ui.theme.PeekGround
 import java.net.URI
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private const val REDDIT_MEDIA_USER_AGENT =
@@ -311,6 +320,7 @@ private fun MediaContent(
         }
     }
 
+    val scope = rememberCoroutineScope()
     val bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
     )
@@ -346,11 +356,26 @@ private fun MediaContent(
         },
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { controlsVisible = !controlsVisible },
-            ),
+            modifier = Modifier
+                .fillMaxSize()
+                .raiseCommentsOnSwipeUp {
+                    when (
+                        commentsRaiseForSwipe(
+                            commentsLowered = !controlsVisible,
+                            sheetExpanded = bottomSheetState.currentValue == SheetValue.Expanded ||
+                                bottomSheetState.targetValue == SheetValue.Expanded,
+                        )
+                    ) {
+                        CommentsRaise.ShowPeek -> controlsVisible = true
+                        CommentsRaise.Expand -> scope.launch { bottomSheetState.expand() }
+                        CommentsRaise.None -> Unit
+                    }
+                }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { controlsVisible = !controlsVisible },
+                ),
         ) {
             HorizontalPager(
                 state = pagerState,
@@ -805,6 +830,45 @@ private fun BottomPlaybackControls(
                         .size(19.dp)
                         .clickable(role = Role.Button, onClick = onToggleFullscreen),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Upward swipe raises comments the same way a tap does. Sideways motion is left for the gallery pager.
+ */
+@Composable
+private fun Modifier.raiseCommentsOnSwipeUp(onRaise: () -> Unit): Modifier {
+    val currentOnRaise by rememberUpdatedState(onRaise)
+    val touchSlop = LocalViewConfiguration.current.touchSlop
+    val thresholdPx = with(LocalDensity.current) { 56.dp.toPx() }
+    return pointerInput(touchSlop, thresholdPx) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var totalDx = 0f
+            var totalDy = 0f
+            var trackingUp = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    if (trackingUp) change.consume()
+                    if (swipeRaisesComments(totalDx, totalDy, thresholdPx)) currentOnRaise()
+                    break
+                }
+                val delta = change.position - change.previousPosition
+                totalDx += delta.x
+                totalDy += delta.y
+                if (
+                    !trackingUp &&
+                    kotlin.math.abs(totalDy) > touchSlop &&
+                    kotlin.math.abs(totalDx) <= kotlin.math.abs(totalDy) &&
+                    totalDy < 0f
+                ) {
+                    trackingUp = true
+                }
+                if (trackingUp) change.consume()
             }
         }
     }

@@ -1,0 +1,22 @@
+package com.mustafashakir.peek
+
+import com.mustafashakir.peek.ui.navigation.PeekBackAction
+import com.mustafashakir.peek.ui.navigation.peekBackAction
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class PeekBackTest {
+    @Test
+    fun aSharedLinkFinishesBackToTheCallingApp() {
+        assertEquals(PeekBackAction.Finish, peekBackAction(launchedFromViewLink = true, stackSize = 3))
+        assertEquals(PeekBackAction.Finish, peekBackAction(launchedFromViewLink = true, stackSize = 2))
+    }
+
+    @Test
+    fun aHomeSessionPopsUntilHomeThenLeavesBackToTheSystem() {
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = false, stackSize = 3))
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = false, stackSize = 2))
+        assertEquals(PeekBackAction.DeferToSystem, peekBackAction(launchedFromViewLink = false, stackSize = 1))
+        assertEquals(PeekBackAction.DeferToSystem, peekBackAction(launchedFromViewLink = true, stackSize = 1))
+    }
+}

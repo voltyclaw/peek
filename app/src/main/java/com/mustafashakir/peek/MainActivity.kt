@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
         }
         themeMode = ThemePreferences.read(this)
         viewIntentUrl.value = extractViewUrl(intent)
+        val launchedFromViewLink = intent?.action == Intent.ACTION_VIEW
         val container = (application as PeekApplication).container
         setContent {
             PeekTheme(themeMode) {
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
                     PeekNavigation(
                         container = container,
                         viewIntentUrl = viewIntentUrl,
+                        launchedFromViewLink = launchedFromViewLink,
                         themeMode = themeMode,
                         onThemeMode = { mode ->
                             themeMode = mode

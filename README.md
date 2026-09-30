@@ -30,7 +30,7 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 - Resolve public Instagram posts, reels, and carousels with photos and videos.
 - Resolve public Reddit posts, including text, images, galleries, Reddit-hosted video, and `/r/{sub}/s/{id}` share shortlinks.
 - Read comments, load more replies, refresh content, and revisit recent links.
-- Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe moves between gallery images.
+- Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe sideways moves between gallery images. Swipe up raises the comments sheet. Back from a link opened in another app returns to that app. Back inside a session started from Peek’s home goes from the player to the preview, then home.
 - Choose Light, Dark, or System from the options menu on Home. The choice is kept on this device.
 - Cache resolved content locally for a quicker return experience.
 
