@@ -11,6 +11,7 @@ import com.mustafashakir.peek.domain.model.LinkSource
 import com.mustafashakir.peek.domain.model.LoadStage
 import com.mustafashakir.peek.domain.model.MediaLocation
 import com.mustafashakir.peek.domain.model.RecentContent
+import com.mustafashakir.peek.domain.model.RedditMetadata
 import com.mustafashakir.peek.domain.model.SourceMetadata
 import com.mustafashakir.peek.ui.model.CommentUiModel
 import com.mustafashakir.peek.ui.model.HomeUiState
@@ -73,7 +74,9 @@ class HomeUiMapper(
                         title = content.title,
                         sourceLabel = sourceLabel(content),
                         ageLabel = ageLabel(recent.recentLink.openedAtEpochMillis),
-                        thumbnail = imageMapper.map(content.thumbnail),
+                        thumbnail = imageMapper.map(content.thumbnail).takeUnless { image ->
+                            image is UiImage.Url && image.value.isBlank()
+                        },
                         thumbnailDescription = content.title,
                         isCached = true,
                     )
@@ -86,6 +89,7 @@ class HomeUiMapper(
         LinkSource.Instagram -> if (content.kind == LinkKind.Video) "INSTAGRAM · REEL" else "INSTAGRAM · POST"
         LinkSource.YouTube -> "YOUTUBE · VIDEO"
         LinkSource.TikTok -> "TIKTOK · CLIP"
+        LinkSource.Reddit -> if (content.kind == LinkKind.Video) "REDDIT · VIDEO" else "REDDIT · POST"
     }
 
     private fun ageLabel(openedAtEpochMillis: Long): String {
@@ -113,6 +117,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
                     contentDescription = item.contentDescription,
                     videoUrl = bestVideoUrl(item.videoVariants),
+                )
+            }
+        } else if (sourceMetadata is RedditMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
+            sourceMetadata.mediaItems.map { item ->
+                ViewerMediaItemUiModel(
+                    id = item.id,
+                    image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
+                    contentDescription = item.contentDescription,
+                    videoUrl = item.videoUrl,
                 )
             }
         } else {
@@ -160,6 +173,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
     private fun bestVideoUrl(sourceMetadata: SourceMetadata?): String? =
         when (sourceMetadata) {
             is InstagramMetadata -> bestVideoUrl(sourceMetadata.videoVariants)
+            is RedditMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             null -> null
         }
 

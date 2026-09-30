@@ -134,7 +134,9 @@ fun rememberPostActionCallbacks(
 }
 
 private fun ViewerMediaItemUiModel.toRemoteMedia(): RemoteMedia? {
-    val url = videoUrl ?: (image as? UiImage.Url)?.value ?: return null
+    val url = videoUrl?.takeIf { it.isNotBlank() }
+        ?: (image as? UiImage.Url)?.value?.takeIf { it.isNotBlank() }
+        ?: return null
     return RemoteMedia(
         id = id,
         url = url,

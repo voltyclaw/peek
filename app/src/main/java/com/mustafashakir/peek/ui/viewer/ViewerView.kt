@@ -63,6 +63,7 @@ import com.mustafashakir.peek.ui.components.CommentsSection
 import com.mustafashakir.peek.ui.components.PeekBuzzingEyeBadge
 import com.mustafashakir.peek.ui.components.PeekImage
 import com.mustafashakir.peek.ui.components.PeekLockup
+import com.mustafashakir.peek.ui.model.UiImage
 import com.mustafashakir.peek.ui.model.ViewerPostUiModel
 import com.mustafashakir.peek.ui.model.ViewerUiState
 import com.mustafashakir.peek.ui.model.ViewerMediaItemUiModel
@@ -143,14 +144,18 @@ private fun ColumnScope.ViewerContent(
         modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scrollState).padding(horizontal = 14.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        MediaCanvas(post, items, pagerState, onOpenMedia)
+        if (items.any(::hasVisualMedia)) {
+            MediaCanvas(post, items, pagerState, onOpenMedia)
+        }
         AuthorByline(
             post = post,
             onCopyLink = { onCopyLink(post.sourceUrl) },
             onCopyMedia = { onCopyMedia(currentItem) },
             onDownload = { onDownload(items) },
             onShare = { onShare(items) },
-            canCopyMedia = currentItem.videoUrl == null,
+            canCopyMedia = currentItem.videoUrl == null && currentItem.image.let { image ->
+                image !is UiImage.Url || image.value.isNotBlank()
+            },
         )
         CaptionText(post)
         CommentsSection(
@@ -197,6 +202,14 @@ private fun ViewerHeader(isVideo: Boolean, onBack: () -> Unit, onRefresh: () -> 
     }
 }
 
+private fun hasVisualMedia(item: ViewerMediaItemUiModel): Boolean {
+    if (item.videoUrl != null) return true
+    return when (val image = item.image) {
+        is UiImage.Resource -> true
+        is UiImage.Url -> image.value.isNotBlank()
+    }
+}
+
 @Composable
 private fun MediaCanvas(
     post: ViewerPostUiModel,
@@ -234,7 +247,7 @@ private fun MediaCanvas(
             }
         }
         post.mediaBadge?.let { badge ->
-            if (items.size == 1 || badge == "CAROUSEL") {
+            if (items.size == 1 || badge == "CAROUSEL" || badge == "GALLERY") {
                 Row(
                     modifier = Modifier.align(Alignment.TopStart).padding(12.dp).height(28.dp).clip(CircleShape).background(PeekGround.copy(alpha = 0.91f)).padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,

@@ -14,6 +14,10 @@ class ExtractUrlFromTextUseCaseTest {
             "https://www.instagram.com/reel/DapVyootsZw/",
             extractUrl("Watch this: https://www.instagram.com/reel/DapVyootsZw/)."),
         )
+        assertEquals(
+            "https://www.reddit.com/r/pics/comments/abc123/title/",
+            extractUrl("Look: https://www.reddit.com/r/pics/comments/abc123/title/."),
+        )
     }
 
     @Test

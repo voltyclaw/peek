@@ -9,7 +9,7 @@ import com.mustafashakir.peek.data.instagram.ImageVersions
 import com.mustafashakir.peek.data.instagram.InstagramLinkContentRepository
 import com.mustafashakir.peek.data.instagram.InstagramPageLoader
 import com.mustafashakir.peek.data.instagram.Owner
-import com.mustafashakir.peek.data.instagram.PageLoadProgressElement
+import com.mustafashakir.peek.data.resolver.PageLoadProgressElement
 import com.mustafashakir.peek.data.instagram.ParsedInstagramComment
 import com.mustafashakir.peek.data.instagram.ParsedInstagramCommentsPage
 import com.mustafashakir.peek.data.instagram.ParsedInstagramMedia
@@ -31,6 +31,16 @@ import org.junit.Test
 
 class InstagramRepositoryTest {
     private fun newCacheStore() = LinkContentCacheStore(FakeCacheDataStore())
+
+    @Test
+    fun supportsOnlyCanonicalInstagramPostUrls() {
+        val repository = InstagramLinkContentRepository(listOf(FakePageLoader(media())), newCacheStore())
+
+        assertTrue(repository.supports("https://www.instagram.com/p/DapVyootsZw/"))
+        assertTrue(repository.supports("https://instagram.com/reel/DapVyootsZw/?utm_source=copy_link"))
+        assertFalse(repository.supports("https://www.reddit.com/r/pics/comments/abc123/title/"))
+        assertFalse(repository.supports("http://www.instagram.com/p/DapVyootsZw/"))
+    }
 
     @Test
     fun canonicalizesSupportedReelAndMapsAllMetadata() = runTest {

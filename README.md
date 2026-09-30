@@ -26,8 +26,9 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 
 ## Current features
 
-- Paste links from the clipboard or open Instagram links directly.
+- Paste links from the clipboard or open Instagram and Reddit links directly.
 - Resolve public Instagram posts, reels, and carousels with photos and videos.
+- Resolve public Reddit posts, including text, images, galleries, and Reddit-hosted video.
 - Read comments, load more replies, refresh content, and revisit recent links.
 - Open media in an edge-to-edge viewer with video playback and carousel navigation.
 - Cache resolved content locally for a quicker return experience.
@@ -39,13 +40,16 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 | Public Instagram posts (`/p/`) | Available | Direct logged-out GraphQL resolver |
 | Public Instagram reels (`/reel/`, `/reels/`) | Available | Direct GraphQL resolver, then hidden WebView fallback |
 | Public Instagram carousels | Available | Instagram resolver chain above |
+| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Logged-out public post JSON |
+| Reddit subreddit feeds, profiles, search, and posts Reddit hides when logged out | Unsupported | No resolver currently available |
 | Private posts, login-required content, challenges, consent flows | Unsupported | No resolver currently available |
 
 Resolvers are selected through a shared prioritized resolver chain, so adding a new source does not require changing the viewer UI.
 
 ## Roadmap
 
-- [ ] Add more link sources, including Reddit, X/Twitter, TikTok, and YouTube.
+- [x] Add Reddit public posts.
+- [ ] Add more link sources, including X/Twitter, TikTok, and YouTube.
 - [ ] Add more Instagram features, including Stories.
 - [ ] Improve sharing, link history, and source-specific viewing experiences.
 
@@ -62,7 +66,7 @@ flowchart LR
     E --> F[Jetpack Compose UI]
 ```
 
-The app is a single-activity Kotlin/Jetpack Compose project. `domain` contains models, repository contracts, and use cases; `data` contains Instagram resolution, persistence, caching, and fixtures; `ui` contains navigation, ViewModels, mappers, and rendering.
+The app is a single-activity Kotlin/Jetpack Compose project. `domain` contains models, repository contracts, and use cases; `data` contains Instagram and Reddit resolution, persistence, caching, and fixtures; `ui` contains navigation, ViewModels, mappers, and rendering.
 
 ## Contributing
 
