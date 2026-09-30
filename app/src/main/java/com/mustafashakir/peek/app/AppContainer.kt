@@ -13,6 +13,7 @@ import com.mustafashakir.peek.data.media.AndroidMediaRepository
 import com.mustafashakir.peek.data.recent.DataStoreRecentLinksRepository
 import com.mustafashakir.peek.data.recent.RecentLinksDocument
 import com.mustafashakir.peek.data.recent.RecentLinksSerializer
+import com.mustafashakir.peek.data.reddit.AndroidRedditPageLoader
 import com.mustafashakir.peek.data.reddit.RedditDirectPageLoader
 import com.mustafashakir.peek.data.reddit.RedditLinkContentRepository
 import com.mustafashakir.peek.data.resolver.RoutingLinkContentRepository
@@ -64,7 +65,10 @@ class DefaultAppContainer(
         cacheStore = linkContentCacheStore,
     )
     private val redditRepository = RedditLinkContentRepository(
-        pageLoaders = listOf(RedditDirectPageLoader()),
+        pageLoaders = listOf(
+            RedditDirectPageLoader(),
+            AndroidRedditPageLoader(context),
+        ),
         cacheStore = linkContentCacheStore,
     )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(

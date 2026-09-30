@@ -12,6 +12,7 @@ import com.mustafashakir.peek.domain.model.LinkKind
 import com.mustafashakir.peek.domain.model.LinkSource
 import com.mustafashakir.peek.domain.model.MediaLocation
 import com.mustafashakir.peek.domain.model.RedditMetadata
+import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -93,6 +94,31 @@ class RedditRepositoryTest {
     }
 
     @Test
+    fun usesTheNextLoaderWhenTheJsonLoaderIsBlocked() = runTest {
+        val blocked = FailingLoader(IOException("Reddit blocked the request (HTTP 403)"))
+        val web = FakeLoader(imagePost())
+        val repository = RedditLinkContentRepository(listOf(blocked, web), newCacheStore())
+
+        val content = repository.resolve("https://www.reddit.com/r/pics/comments/abc123/title/").getOrThrow()
+
+        assertEquals(1, blocked.urls.size)
+        assertEquals(1, web.urls.size)
+        assertEquals("abc123", (content.sourceMetadata as RedditMetadata).postId)
+    }
+
+    @Test
+    fun surfacesTheWebViewFailureWhenThatFallbackAlsoFails() = runTest {
+        val blocked = FailingLoader(IOException("Reddit blocked the request (HTTP 403)"))
+        val web = FailingLoader(IOException("Reddit blocked the page in the browser (HTTP 403)"))
+        val repository = RedditLinkContentRepository(listOf(blocked, web), newCacheStore())
+
+        val error = repository.resolve("https://www.reddit.com/r/pics/comments/abc123/title/").exceptionOrNull()
+
+        assertEquals("Reddit blocked the page in the browser (HTTP 403)", error?.message)
+        assertTrue(error is IOException)
+    }
+
+    @Test
     fun refreshBypassesTheCache() = runTest {
         val loader = FakeLoader(imagePost())
         val repository = RedditLinkContentRepository(listOf(loader), newCacheStore())
@@ -129,6 +155,15 @@ class RedditRepositoryTest {
             val updated = transform(state.value)
             state.value = updated
             return updated
+        }
+    }
+
+    private class FailingLoader(private val error: IOException) : RedditPageLoader {
+        val urls = mutableListOf<String>()
+
+        override suspend fun resolve(url: String): ParsedRedditPost {
+            urls += url
+            throw error
         }
     }
 

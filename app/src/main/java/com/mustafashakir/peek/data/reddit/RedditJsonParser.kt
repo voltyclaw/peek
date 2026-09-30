@@ -68,6 +68,10 @@ class RedditJsonParser {
             ?: return null
         val title = post.string("title")?.trim().orEmpty()
         if (title.isBlank() || title == "[deleted]" || title == "[removed]") return null
+        if (post.bool("quarantine")) return null
+        when (post.string("subreddit_type")) {
+            "private", "gold_only", "employees_only" -> return null
+        }
         val id = post.string("id")?.takeIf { it.isNotBlank() }
             ?: post.string("name")?.removePrefix("t3_")?.takeIf { it.isNotBlank() }
             ?: return null

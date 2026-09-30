@@ -67,6 +67,20 @@ class RedditJsonParserTest {
             ),
         )
     }
+
+    @Test
+    fun failsClosedForQuarantinedAndPrivatePosts() {
+        assertNull(parser.parse(TEXT_POST.replace("\"over_18\":true", "\"quarantine\":true")))
+        assertNull(
+            parser.parse(
+                """[{"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                  "id":"priv1","title":"Members only","author":"mod","subreddit":"secret",
+                  "subreddit_type":"private","score":1,"num_comments":0,"created_utc":1,
+                  "permalink":"/r/secret/comments/priv1/members/","is_self":true
+                }}]}}]""",
+            ),
+        )
+    }
 }
 
 private const val IMAGE_POST = """

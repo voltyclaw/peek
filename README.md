@@ -40,7 +40,7 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 | Public Instagram posts (`/p/`) | Available | Direct logged-out GraphQL resolver |
 | Public Instagram reels (`/reel/`, `/reels/`) | Available | Direct GraphQL resolver, then hidden WebView fallback |
 | Public Instagram carousels | Available | Instagram resolver chain above |
-| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Paste uses the in-app classifier. Logged-out JSON is tried on `old.reddit.com` then `www`, full permalink first. A block page is a load failure, separate from “link not supported”. Share shortlinks follow redirects, then canonical or `og:url` HTML |
+| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Paste uses the in-app classifier. Logged-out JSON is tried first (`old.reddit.com`, then `www`, full permalink first). If Reddit blocks that request, a hidden WebView loads the public page logged-out and reads `shreddit-post`, embedded JSON, `__NEXT_DATA__`, or `window.__r`. Private and quarantined posts fail closed. A block is a load failure, separate from “link not supported”. Share shortlinks follow redirects, then the same path |
 | Reddit subreddit feeds, profiles, search, and posts Reddit hides when logged out | Unsupported | No resolver currently available |
 | Private posts, login-required content, challenges, consent flows | Unsupported | No resolver currently available |
 
@@ -82,6 +82,8 @@ Requires JDK 17 and Android SDK 36.
 ./gradlew :app:validateDebugScreenshotTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+Sideload debug builds are published as `peek-reddit-debug-<versionName>.apk` (for example `peek-reddit-debug-1.0.4.apk`).
 
 ## Acknowledgements
 
