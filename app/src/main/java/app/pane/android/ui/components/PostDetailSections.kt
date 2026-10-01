@@ -11,8 +11,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -285,7 +283,7 @@ fun CaptionText(post: ViewerPostUiModel) {
 
 /**
  * The author's own chain, root first. The opened status is highlighted.
- * Jump to start brings the first post into the framed scroll.
+ * The reader scrolls the sequence; there is no separate jump control.
  */
 @Composable
 fun AuthorThreadSection(post: ViewerPostUiModel) {
@@ -293,8 +291,6 @@ fun AuthorThreadSection(post: ViewerPostUiModel) {
     if (posts.size < 2) return
     val openedIndex = posts.indexOfFirst { it.opened }.let { index -> if (index < 0) 0 else index }
     val labelColor = if (LocalPaneColors.current.night) PaneAccent.copy(alpha = 0.7f) else PaneMuted
-    val start = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -312,28 +308,13 @@ fun AuthorThreadSection(post: ViewerPostUiModel) {
                 style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
             )
         }
-        Box(
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .clickable(role = Role.Button) {
-                    scope.launch { start.bringIntoView() }
-                },
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text(
-                text = stringResource(R.string.jump_to_start),
-                modifier = Modifier.padding(horizontal = 4.dp),
-                color = PaneAccent,
-                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-            )
-        }
+        Spacer(Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            posts.forEachIndexed { index, item ->
+            posts.forEachIndexed { _, item ->
                 val opened = item.opened
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (index == 0) Modifier.bringIntoViewRequester(start) else Modifier)
                         .clip(RoundedCornerShape(12.dp))
                         .then(
                             if (opened) {
