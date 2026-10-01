@@ -26,7 +26,7 @@ class FacebookDirectPageLoader(
 
     override fun supports(url: String): Boolean = FacebookUrls.supports(url)
 
-    override suspend fun resolve(url: String): ParsedFacebookPost {
+    override suspend fun resolve(url: String): ParsedFacebookPost = withContext(Dispatchers.IO) {
         val post = FacebookUrls.parse(url)
             ?: throw IllegalArgumentException("Unsupported Facebook post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
@@ -45,14 +45,14 @@ class FacebookDirectPageLoader(
                 best = chosen
                 if (!FacebookDocument.isTruncatedPreview(chosen.text) && FacebookDocument.hasDistinctAuthor(chosen)) {
                     listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                    return chosen
+                    return@withContext chosen
                 }
             }
             if (html.contains("login_form", ignoreCase = true)) last = FacebookDocument.LOGIN
         }
         best?.let {
             listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-            return it
+            return@withContext it
         }
         throw IOException(last)
     }

@@ -43,6 +43,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -330,11 +331,16 @@ private fun MediaCanvas(
                     onIntrinsicSize = if (videoUrl == null) reportSize else null,
                 )
                 if (videoUrl != null && page == pagerState.currentPage) {
-                    MutedInlineVideo(
-                        videoUrl = videoUrl,
-                        modifier = mediaModifier,
-                        onVideoSize = reportSize,
-                    )
+                    // Poster and caption paint first. The player attaches on the next frame.
+                    var attachPlayer by remember(videoUrl) { mutableStateOf(false) }
+                    LaunchedEffect(videoUrl) { attachPlayer = true }
+                    if (attachPlayer) {
+                        MutedInlineVideo(
+                            videoUrl = videoUrl,
+                            modifier = mediaModifier,
+                            onVideoSize = reportSize,
+                        )
+                    }
                 }
                 if (videoUrl != null) {
                     Box(modifier = Modifier.fillMaxSize()) {

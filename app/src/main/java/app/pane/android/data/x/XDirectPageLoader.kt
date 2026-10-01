@@ -1,5 +1,6 @@
 package app.pane.android.data.x
 
+import android.util.Log
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
 import app.pane.android.domain.model.LoadStage
@@ -9,13 +10,29 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 /**
- * Logged-out fetch of one public status. Syndication JSON is tried first, then oEmbed.
- * No X login or token from the user is used.
+ * Fired with the syndication post as soon as that small JSON is parsed, before the
+ * slower status HTML (author thread and replies) finishes.
+ */
+class XPreviewElement(val emit: (ParsedXPost) -> Unit) :
+    AbstractCoroutineContextElement(XPreviewElement) {
+    companion object Key : CoroutineContext.Key<XPreviewElement>
+}
+
+/**
+ * Logged-out fetch of one public status. Syndication JSON is the fast caption and media.
+ * Status HTML for the author thread and replies is fetched in parallel and does not
+ * block the first preview. No X login or token from the user is used.
  */
 class XDirectPageLoader(
     private val connectionFactory: (String) -> HttpURLConnection = { url ->
@@ -26,42 +43,69 @@ class XDirectPageLoader(
 
     override fun supports(url: String): Boolean = XUrls.supports(url)
 
-    override suspend fun resolve(url: String): ParsedXPost {
+    override suspend fun resolve(url: String): ParsedXPost = withContext(Dispatchers.IO) {
         val status = XUrls.parse(url)
             ?: throw IllegalArgumentException("Unsupported X status URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
+        val started = System.nanoTime()
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
-        val syndication = runCatching { get(XSyndication.syndicationUrl(status.id), json = true) }.getOrNull()
-        if (syndication != null) {
-            XSyndication.parseJson(syndication, status.id, status.canonicalUrl)?.let { post ->
+        coroutineScope {
+            val slices = mutableListOf<Deferred<StatusSlice?>>()
+            fun track(pageUrl: String, agent: String) {
+                slices += async { fetchSlice(pageUrl, agent, status.id) }
+            }
+            val knownHandle = handleFrom(url)
+            statusPages(status.id, knownHandle).forEach { (pageUrl, agent) -> track(pageUrl, agent) }
+            val syndication = runCatching { get(XSyndication.syndicationUrl(status.id), json = true) }.getOrNull()
+            val parsed = syndication?.let { XSyndication.parseJson(it, status.id, status.canonicalUrl) }
+            if (parsed != null) {
+                val learned = parsed.screenName?.trim()?.takeIf { HANDLE.matches(it) }
+                if (knownHandle == null && learned != null) {
+                    track("https://x.com/$learned/status/${status.id}", USER_AGENT)
+                }
+                if (slices.any { !it.isCompleted }) {
+                    coroutineContext[XPreviewElement]?.emit(parsed)
+                    log("x preview ${elapsed(started)}ms id=${status.id}")
+                }
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
-                val page = loadStatusPage(status.id, post.screenName)
-                val text = XConversation.longerCaption(post.text, page.note)
-                val withPage = post.copy(
+                val page = mergeSlices(slices.awaitAll().filterNotNull())
+                val text = XConversation.longerCaption(parsed.text, page.note)
+                log(
+                    "x ready ${elapsed(started)}ms thread=${page.authorThread.size} " +
+                        "replies=${page.replies.size} id=${status.id}",
+                )
+                listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                parsed.copy(
                     text = text,
                     replies = page.replies,
                     authorThread = page.authorThread.map { item ->
-                        if (item.id == post.id) item.copy(text = richest(item.text, text)) else item
+                        if (item.id == parsed.id) item.copy(text = richest(item.text, text)) else item
                     },
                     authorThreadPartial = page.authorThreadPartial,
                 )
-                listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                return withPage
+            } else {
+                slices.forEach { it.cancel() }
+                listener.onProgress(LoadProgress(0.55f, LoadStage.FetchingPage))
+                val encoded = URLEncoder.encode(status.canonicalUrl, StandardCharsets.UTF_8.name())
+                val oembed = runCatching {
+                    get("https://publish.twitter.com/oembed?url=$encoded&omit_script=true", json = true)
+                }.getOrNull()
+                val post = oembed?.let { XSyndication.parseOEmbed(it, status.id, status.canonicalUrl) }
+                if (post != null) {
+                    listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                    post
+                } else {
+                    throw IOException(XSyndication.UNAVAILABLE)
+                }
             }
         }
-        listener.onProgress(LoadProgress(0.55f, LoadStage.FetchingPage))
-        val encoded = URLEncoder.encode(status.canonicalUrl, StandardCharsets.UTF_8.name())
-        val oembed = runCatching {
-            get("https://publish.twitter.com/oembed?url=$encoded&omit_script=true", json = true)
-        }.getOrNull()
-        if (oembed != null) {
-            XSyndication.parseOEmbed(oembed, status.id, status.canonicalUrl)?.let { post ->
-                listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                return post
-            }
-        }
-        throw IOException(XSyndication.UNAVAILABLE)
     }
+
+    private data class StatusSlice(
+        val note: String?,
+        val thread: ParsedAuthorThread,
+        val replies: List<ParsedXReply>,
+    )
 
     private data class StatusPage(
         val note: String?,
@@ -70,28 +114,52 @@ class XDirectPageLoader(
         val authorThreadPartial: Boolean,
     )
 
-    private suspend fun loadStatusPage(statusId: String, screenName: String?): StatusPage {
+    private fun statusPages(statusId: String, screenName: String?): List<Pair<String, String>> {
         val handle = screenName?.trim()?.takeIf { HANDLE.matches(it) }
-        val attempts = buildList {
+        return buildList {
             add("https://x.com/i/status/$statusId" to USER_AGENT)
             if (handle != null) add("https://x.com/$handle/status/$statusId" to USER_AGENT)
             add("https://twitter.com/i/status/$statusId" to USER_AGENT)
             add("https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT)
         }
+    }
+
+    private fun handleFrom(url: String): String? {
+        val segments = runCatching { URI(url).path }.getOrNull()
+            .orEmpty()
+            .trim('/')
+            .split('/')
+            .filter { it.isNotEmpty() }
+        val index = segments.indexOf("status")
+        if (index <= 0) return null
+        val handle = segments[index - 1]
+        if (handle.equals("i", ignoreCase = true)) return null
+        return handle.takeIf { HANDLE.matches(it) }
+    }
+
+    private suspend fun fetchSlice(url: String, agent: String, statusId: String): StatusSlice? {
+        val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: return null
+        return StatusSlice(
+            note = XConversation.parseNoteText(html),
+            thread = XConversation.parseAuthorThread(html, statusId),
+            replies = XConversation.parseReplies(html, statusId),
+        )
+    }
+
+    /** Merge in request order so a fast host does not reshuffle replies ahead of an earlier one. */
+    private fun mergeSlices(slices: List<StatusSlice>): StatusPage {
         var note: String? = null
         var thread = emptyList<ParsedXThreadPost>()
         var threadPartial = false
         val replies = LinkedHashMap<String, ParsedXReply>()
-        for ((url, agent) in attempts) {
-            val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: continue
-            val foundNote = XConversation.parseNoteText(html)
+        for (slice in slices) {
+            val foundNote = slice.note
             if (foundNote != null && foundNote.length > (note?.length ?: 0)) note = foundNote
-            val foundThread = XConversation.parseAuthorThread(html, statusId)
-            if (prefers(foundThread, thread, threadPartial)) {
-                thread = foundThread.posts
-                threadPartial = foundThread.partial
+            if (prefers(slice.thread, thread, threadPartial)) {
+                thread = slice.thread.posts
+                threadPartial = slice.thread.partial
             }
-            for (reply in XConversation.parseReplies(html, statusId)) {
+            for (reply in slice.replies) {
                 val existing = replies[reply.id]
                 if (existing == null || reply.text.length > existing.text.length) {
                     replies[reply.id] = reply
@@ -174,5 +242,11 @@ class XDirectPageLoader(
             "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
         val HANDLE = Regex("[A-Za-z0-9_]{1,15}")
+
+        fun elapsed(startNanos: Long): Long = (System.nanoTime() - startNanos) / 1_000_000L
+
+        fun log(message: String) {
+            runCatching { Log.i("PaneOpen", message) }
+        }
     }
 }

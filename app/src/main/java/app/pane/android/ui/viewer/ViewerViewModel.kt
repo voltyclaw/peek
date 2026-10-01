@@ -27,12 +27,12 @@ class ViewerViewModel(
     val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
 
     init {
-        viewModelScope.launch { load { onProgress -> openLink(url, onProgress) } }
+        viewModelScope.launch { load { onProgress, onPreview -> openLink(url, onProgress, onPreview) } }
     }
 
     fun onRefresh() {
         mutableUiState.value = ViewerUiState.Loading()
-        viewModelScope.launch { load { onProgress -> refreshLink(url, onProgress) } }
+        viewModelScope.launch { load { onProgress, onPreview -> refreshLink(url, onProgress, onPreview) } }
     }
 
     fun onLoadMoreComments() {
@@ -48,16 +48,25 @@ class ViewerViewModel(
         }
     }
 
-    private suspend fun load(fetch: suspend (LoadProgressListener) -> Result<LinkContent>) {
+    private suspend fun load(
+        fetch: suspend (LoadProgressListener, (LinkContent) -> Unit) -> Result<LinkContent>,
+    ) {
         val monotonic = MonotonicProgress()
+        var revealed = false
         val onProgress = LoadProgressListener { progress ->
+            if (revealed) return@LoadProgressListener
             val steady = monotonic.apply(progress)
             mutableUiState.value = ViewerUiState.Loading(steady.fraction, loadStageMessage(steady.stage))
         }
-        mutableUiState.value = fetch(onProgress).fold(
-            onSuccess = { ViewerUiState.Content(mapper.map(it)) },
-            onFailure = { viewerStateFor(url, it) },
-        )
+        val onPreview: (LinkContent) -> Unit = { preview ->
+            revealed = true
+            mutableUiState.value = ViewerUiState.Content(mapper.map(preview))
+        }
+        fetch(onProgress, onPreview).onSuccess { content ->
+            mutableUiState.value = ViewerUiState.Content(mapper.map(content))
+        }.onFailure { error ->
+            if (!revealed) mutableUiState.value = viewerStateFor(url, error)
+        }
     }
 
     class Factory(

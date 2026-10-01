@@ -28,7 +28,7 @@ class RedditDirectPageLoader(
 
     override fun supports(url: String): Boolean = RedditUrls.supports(url)
 
-    override suspend fun resolve(url: String): ParsedRedditPost {
+    override suspend fun resolve(url: String): ParsedRedditPost = withContext(Dispatchers.IO) {
         if (!supports(url)) throw IllegalArgumentException("Unsupported Reddit post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.report(0.05f, LoadStage.Connecting)
@@ -38,7 +38,7 @@ class RedditDirectPageLoader(
         listener.report(0.35f, LoadStage.FetchingPage)
         val post = loadPost(pageUrl, postId)
         listener.report(1f, LoadStage.ExtractingContent)
-        return post
+        post
     }
 
     private suspend fun followShareLink(url: String): String = withContext(Dispatchers.IO) {

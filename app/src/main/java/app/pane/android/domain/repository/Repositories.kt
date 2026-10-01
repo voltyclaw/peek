@@ -17,6 +17,16 @@ interface LinkContentRepository {
     /** Same as [resolve], additionally reporting progress if the underlying source can. */
     suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> = resolve(url)
 
+    /**
+     * Same as [resolve], and may call [onPreview] with a usable post before the full
+     * result (comments, author thread) is ready. The returned result is still the full post.
+     */
+    suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> = resolve(url, onProgress)
+
     /** Returns cached content for [url] without triggering a network load, or null if not cached. */
     suspend fun peekCached(url: String): LinkContent?
 
@@ -30,6 +40,13 @@ interface LinkContentRepository {
 
     /** Same as [refresh], additionally reporting progress if the underlying source can. */
     suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> = refresh(url)
+
+    /** Same as [refresh], and may call [onPreview] with a usable post before the full result. */
+    suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> = refresh(url, onProgress)
 }
 
 interface RecentLinksRepository {

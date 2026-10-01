@@ -12,6 +12,7 @@ class RefreshLinkUseCase(
     suspend operator fun invoke(
         url: String,
         onProgress: LoadProgressListener = LoadProgressListener {},
+        onPreview: (LinkContent) -> Unit = {},
     ): Result<LinkContent> =
-        contentRepository.refresh(url, onProgress).onSuccess { recentLinksRepository.markOpened(url) }
+        contentRepository.refresh(url, onProgress, onPreview).onSuccess { recentLinksRepository.markOpened(url) }
 }

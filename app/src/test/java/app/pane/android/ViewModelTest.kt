@@ -110,6 +110,33 @@ class ViewModelTest {
     }
 
     @Test
+    fun viewerKeepsAPreviewOnScreenWhenLaterProgressArrives() = runTest(mainDispatcherRule.dispatcher) {
+        val recents = FakeRecentLinksRepository(emptyList())
+        val full = FixtureCatalog.contents.getValue(FixtureCatalog.MATERIAL_URL)
+        val preview = full.copy(title = "Preview caption")
+        val repository = PreviewThenFullRepository(preview, full)
+        val viewModel = ViewerViewModel(
+            url = FixtureCatalog.MATERIAL_URL,
+            openLink = OpenLinkUseCase(repository, recents),
+            refreshLink = RefreshLinkUseCase(repository, recents),
+            loadMoreComments = LoadMoreCommentsUseCase(repository),
+            mapper = ViewerUiMapper(UiImageMapper()),
+        )
+        val seen = mutableListOf<ViewerUiState>()
+        val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { seen += it }
+        }
+
+        advanceUntilIdle()
+
+        val titles = seen.filterIsInstance<ViewerUiState.Content>().map { it.post.title }
+        assertEquals(listOf("Preview caption", "A24 — Material studies"), titles)
+        val firstContent = seen.indexOfFirst { it is ViewerUiState.Content }
+        assertEquals(true, seen.drop(firstContent).none { it is ViewerUiState.Loading })
+        collection.cancel()
+    }
+
+    @Test
     fun viewerViewModelPublishesUnavailableForUnknownUrl() = runTest(mainDispatcherRule.dispatcher) {
         val fakeRecents = FakeRecentLinksRepository(emptyList())
         val viewModel = ViewerViewModel(
@@ -135,6 +162,27 @@ private class FakeRecentLinksRepository(initial: List<RecentLink>) : RecentLinks
     override suspend fun markOpened(url: String) {
         openedUrls += url
     }
+}
+
+private class PreviewThenFullRepository(
+    private val preview: LinkContent,
+    private val full: LinkContent,
+) : LinkContentRepository {
+    override suspend fun resolve(url: String): Result<LinkContent> = Result.success(full)
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
+        onPreview(preview)
+        onProgress.onProgress(LoadProgress(0.9f, LoadStage.ExtractingContent))
+        return Result.success(full)
+    }
+
+    override suspend fun peekCached(url: String): LinkContent? = null
+
+    override suspend fun refresh(url: String): Result<LinkContent> = resolve(url)
 }
 
 private class ProgressReportingLinkContentRepository(

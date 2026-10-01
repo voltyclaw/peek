@@ -2,11 +2,18 @@ package app.pane.android
 
 import app.pane.android.data.x.XConversation
 import app.pane.android.data.x.XDirectPageLoader
+import app.pane.android.data.x.XPreviewElement
 import app.pane.android.data.x.XSyndication
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -371,8 +378,47 @@ class XSyndicationTest {
     }
 
     @Test
+    fun syndicationPreviewArrivesWhileStatusPagesAreStillLoading() = runBlocking {
+        val previews = Collections.synchronizedList(mutableListOf<String>())
+        val htmlStarted = CountDownLatch(1)
+        val releaseHtml = CountDownLatch(1)
+        val threadHtml = """
+            display_type:"Tweet",tweet_results:{rest_id:"19",core:{name:"jack",screen_name:"jack"},details:{full_text:"Earlier post in the chain."}}
+            display_type:"SelfThread",tweet_results:{rest_id:"20",core:{name:"jack",screen_name:"jack"},details:{full_text:"just setting up my twttr"},reply_to_results:{rest_id:"19"},reply_to_user_results:{screen_name:"jack"}}
+        """.trimIndent()
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"just setting up my twttr","user":{"name":"jack","screen_name":"jack"}}
+                """.trimIndent()
+                else -> {
+                    htmlStarted.countDown()
+                    check(releaseHtml.await(5, TimeUnit.SECONDS))
+                    threadHtml
+                }
+            }
+            jsonConnection(body)
+        }
+
+        val deferred = async(Dispatchers.IO + XPreviewElement { previews += it.text }) {
+            loader.resolve("https://x.com/jack/status/20")
+        }
+        assertTrue(htmlStarted.await(5, TimeUnit.SECONDS))
+        val deadline = System.currentTimeMillis() + 2_000
+        while (previews.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
+        assertEquals(listOf("just setting up my twttr"), previews.toList())
+        releaseHtml.countDown()
+        val post = deferred.await()
+
+        assertEquals(listOf("19", "20"), post.authorThread.map { it.id })
+        assertEquals("just setting up my twttr", post.text)
+    }
+
+    @Test
     fun loaderFallsThroughATombstoneToOEmbed() = runTest {
-        val opened = mutableListOf<String>()
+        val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = XDirectPageLoader { url ->
             opened += url
             val body = if (url.contains("syndication")) {
@@ -386,9 +432,8 @@ class XSyndicationTest {
         val post = loader.resolve("https://x.com/ada/status/20")
 
         assertEquals("Still public", post.text)
-        assertTrue(opened[0].contains("cdn.syndication.twimg.com"))
-        assertTrue(opened[0].contains("token=6dq1a2xwd93"))
-        assertTrue(opened[1].startsWith("https://publish.twitter.com/oembed"))
+        assertTrue(opened.any { it.contains("cdn.syndication.twimg.com") && it.contains("token=6dq1a2xwd93") })
+        assertTrue(opened.any { it.startsWith("https://publish.twitter.com/oembed") })
     }
 
     private fun jsonConnection(body: String): HttpURLConnection =

@@ -35,12 +35,19 @@ class XLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        resolve(url, onProgress) {}
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val status = XUrls.parse(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported X status URL: $url"),
         )
         cached(status.id, url)?.let { return Result.success(it) }
-        return load(url, status, onProgress)
+        return load(url, status, onProgress, onPreview)
     }
 
     override suspend fun peekCached(url: String): LinkContent? {
@@ -60,13 +67,20 @@ class XLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        refresh(url, onProgress) {}
+
+    override suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val status = XUrls.parse(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported X status URL: $url"),
         )
         successfulCache.remove(status.id)
         cacheStore.remove(cacheKey(status.id))
-        return load(url, status, onProgress)
+        return load(url, status, onProgress, onPreview)
     }
 
     private suspend fun cached(id: String, url: String): LinkContent? {
@@ -78,11 +92,17 @@ class XLinkContentRepository(
         url: String,
         status: XUrls.Status,
         onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> = try {
         loadMutex.withLock {
             successfulCache[status.id]?.let { return@withLock Result.success(it.withUrl(url)) }
-            val resolved = withContext(PageLoadProgressElement(onProgress)) {
-                resolverChain.resolveWithSource(status.canonicalUrl)
+            val resolved = withContext(
+                PageLoadProgressElement(onProgress) + XPreviewElement { post ->
+                    runCatching { onPreview(map(url, post)) }
+                },
+            ) {
+                // Keep the caller's host and handle so the fast status page can start immediately.
+                resolverChain.resolveWithSource(url)
             }
             val content = map(url, resolved.value)
             successfulCache[status.id] = content

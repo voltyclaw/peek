@@ -12,6 +12,7 @@ class OpenLinkUseCase(
     suspend operator fun invoke(
         url: String,
         onProgress: LoadProgressListener = LoadProgressListener {},
+        onPreview: (LinkContent) -> Unit = {},
     ): Result<LinkContent> =
-        contentRepository.resolve(url, onProgress).onSuccess { recentLinksRepository.markOpened(url) }
+        contentRepository.resolve(url, onProgress, onPreview).onSuccess { recentLinksRepository.markOpened(url) }
 }

@@ -34,7 +34,7 @@ class InstagramDirectPageLoader(
 
     override val resolverId: String = "instagram-graphql"
 
-    override suspend fun resolve(url: String): ParsedInstagramMedia {
+    override suspend fun resolve(url: String): ParsedInstagramMedia = withContext(Dispatchers.IO) {
         val shortcode = extractShortcode(url)
             ?: throw IllegalArgumentException("Unsupported Instagram post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
@@ -48,7 +48,7 @@ class InstagramDirectPageLoader(
         val media = parser.parse(response)
             ?: throw IOException(graphQlErrorMessage(response) ?: "Instagram response contained no public post")
         listener.report(1f, LoadStage.ExtractingContent)
-        return media
+        media
     }
 
     override suspend fun loadComments(postId: String, cursor: String): ParsedInstagramCommentsPage {
