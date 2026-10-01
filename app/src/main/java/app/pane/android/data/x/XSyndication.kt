@@ -27,6 +27,7 @@ data class ParsedXPost(
     val videoUrl: String?,
     val commentCount: Int,
     val replies: List<ParsedXReply> = emptyList(),
+    val screenName: String? = null,
 )
 
 /**
@@ -50,10 +51,16 @@ object XSyndication {
         val root = runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
         val type = root.string("__typename")
         if (type == "TweetTombstone" || root.containsKey("tombstone")) return null
-        val text = root.string("text") ?: root.obj("note_tweet")?.string("text") ?: return null
+        val preview = root.string("text")
+        val note = root.obj("note_tweet")?.string("text")
+        val text = when {
+            preview != null -> XConversation.longerCaption(preview, note)
+            else -> note
+        } ?: return null
         if (text.isBlank()) return null
         val user = root.obj("user")
         val author = user?.string("name") ?: user?.string("screen_name") ?: "X"
+        val screenName = user?.string("screen_name")
         val images = mutableListOf<String>()
         (root["photos"] as? JsonArray)?.forEach { photo ->
             (photo as? JsonObject)?.string("url")?.takeIf { it.startsWith("http") }?.let(images::add)
@@ -72,6 +79,7 @@ object XSyndication {
             imageUrls = images.distinct(),
             videoUrl = videoUrl,
             commentCount = comments,
+            screenName = screenName,
         )
     }
 

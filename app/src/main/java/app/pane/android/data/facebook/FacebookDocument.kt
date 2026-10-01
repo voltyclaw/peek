@@ -11,6 +11,7 @@ data class ParsedFacebookPost(
     val text: String,
     val imageUrls: List<String>,
     val videoUrl: String?,
+    val authorAvatarUrl: String? = null,
 )
 
 /**
@@ -39,14 +40,23 @@ object FacebookDocument {
         val text = chooseCaption(description, title, html)
         if (text == null && images.isEmpty() && video == null) return null
         if (isLoginWall(html) && text == null) return null
+        val caption = text ?: title?.takeIf { !isGeneric(it) } ?: "Facebook post"
+        val actor = findActor(html, caption, images)
         return ParsedFacebookPost(
             id = id,
             canonicalUrl = canonicalUrl,
-            author = author(title) ?: "Facebook",
-            text = text ?: title?.takeIf { !isGeneric(it) } ?: "Facebook post",
+            author = actor?.name ?: "Facebook",
+            text = caption,
             imageUrls = images,
             videoUrl = video,
+            authorAvatarUrl = actor?.avatarUrl,
         )
+    }
+
+    /** A page name, not the post body that Facebook sometimes copies into og:title. */
+    fun hasDistinctAuthor(post: ParsedFacebookPost): Boolean {
+        if (post.author.isBlank() || post.author == "Facebook") return false
+        return !looksLikeCaption(post.author, post.text)
     }
 
     /** Facebook's preview tags often end in an ellipsis while the page still has the rest. */
@@ -199,15 +209,139 @@ object FacebookDocument {
             .find(tag)
             ?.let { it.groupValues[1].ifEmpty { it.groupValues[2] } }
 
-    private fun author(title: String?): String? {
-        val raw = title?.trim()?.takeIf { it.isNotEmpty() && !isGeneric(it) } ?: return null
-        return raw
+    private data class Actor(val name: String, val avatarUrl: String?)
+
+    private fun findActor(html: String, caption: String, postImages: List<String>): Actor? {
+        val fromJson = listOf("\"actors\":", "\"owning_profile\":")
+            .firstNotNullOfOrNull { actorNear(html, it, postImages) }
+        val fromPage = fromJson
+            ?: mbasicActor(html, postImages)
+            ?: pluginAuthor(html, caption)
+            ?: titleAuthor(html, caption)?.let { Actor(it, null) }
+        return fromPage?.takeUnless { looksLikeCaption(it.name, caption) || isGeneric(it.name) }
+    }
+
+    private fun actorNear(html: String, key: String, postImages: List<String>): Actor? {
+        var from = 0
+        while (from < html.length) {
+            val at = html.indexOf(key, from)
+            if (at < 0) return null
+            val window = html.substring(at, minOf(html.length, at + 2_500))
+            val name = firstJsonString(window, "name")?.let(::unescape)?.trim()
+            if (name != null && acceptableName(name)) {
+                return Actor(name, avatarIn(window, postImages))
+            }
+            from = at + key.length
+        }
+        return null
+    }
+
+    private fun mbasicActor(html: String, postImages: List<String>): Actor? {
+        val heading = Regex("""<h3[^>]*>\s*<a\b[^>]*>([^<]{1,80})</a>""", RegexOption.IGNORE_CASE)
+            .find(html)
+            ?.groupValues
+            ?.get(1)
+            ?.let(::unescape)
+            ?.trim()
+            ?: return null
+        if (!acceptableName(heading)) return null
+        val avatar = Regex("""<img\b[^>]*>""", RegexOption.IGNORE_CASE).findAll(html).firstNotNullOfOrNull { match ->
+            val tag = match.value
+            val alt = attr(tag, "alt")?.let(::unescape)?.trim()
+            val src = attr(tag, "src")?.let(::cleanUrl)
+            if (alt == heading && src != null && isAvatar(src, postImages)) src else null
+        }
+        return Actor(heading, avatar)
+    }
+
+    private fun pluginAuthor(html: String, caption: String): Actor? {
+        val link = Regex(
+            """<a\b[^>]*href="https://(?:www\.)?facebook\.com/(?!plugins|share|sharer|login)[^"]*"[^>]*>([^<]{1,80})</a>""",
+            RegexOption.IGNORE_CASE,
+        )
+        for (match in link.findAll(html)) {
+            val name = unescape(match.groupValues[1]).trim()
+            if (!acceptableName(name) || looksLikeCaption(name, caption)) continue
+            return Actor(name, null)
+        }
+        return null
+    }
+
+    private fun titleAuthor(html: String, caption: String): String? {
+        val metas = metas(html)
+        val raw = (metas["og:title"] ?: metas["twitter:title"])?.trim()?.takeIf { it.isNotEmpty() && !isGeneric(it) }
+            ?: return null
+        val name = raw
             .removeSuffix(" - Facebook")
             .removeSuffix(" | Facebook")
             .removeSuffix(" on Facebook")
             .removeSuffix(" on Reels")
-            .substringBefore(" - ").trim()
-            .takeIf { it.isNotEmpty() && !isGeneric(it) }
+            .substringBefore(" - ")
+            .trim()
+        return name.takeIf { acceptableName(it) && !looksLikeCaption(it, caption) }
+    }
+
+    private fun looksLikeCaption(name: String, caption: String): Boolean {
+        val authorName = normalize(name)
+        val body = normalize(caption)
+        if (authorName.length > 80) return true
+        if (authorName.count { it == ' ' } >= 12) return true
+        if (authorName.length >= 40 && body.startsWith(authorName.take(40))) return true
+        if (authorName.length >= 24 && body.isNotEmpty() && authorName == body) return true
+        return false
+    }
+
+    private fun acceptableName(name: String): Boolean =
+        name.isNotEmpty() && name.length <= 80 && !isGeneric(name) && !name.contains("http", ignoreCase = true)
+
+    private fun avatarIn(window: String, postImages: List<String>): String? =
+        listOf("uri", "profile_pic_url", "url").firstNotNullOfOrNull { key ->
+            firstJsonString(window, key)
+                ?.let(::unescape)
+                ?.let(::cleanUrl)
+                ?.takeIf { isAvatar(it, postImages) }
+        }
+
+    private fun isAvatar(url: String, postImages: List<String>): Boolean {
+        if (!isRemote(url) || url in postImages) return false
+        val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase().orEmpty()
+        if (host.contains("fbcdn") || host.contains("scontent")) return true
+        return url.contains(".jpg", ignoreCase = true) ||
+            url.contains(".jpeg", ignoreCase = true) ||
+            url.contains(".png", ignoreCase = true) ||
+            url.contains(".webp", ignoreCase = true)
+    }
+
+    private fun firstJsonString(window: String, key: String): String? {
+        val marker = "\"$key\":\""
+        var from = 0
+        while (from < window.length) {
+            val at = window.indexOf(marker, from)
+            if (at < 0) return null
+            val previous = if (at == 0) ' ' else window[at - 1]
+            if (!previous.isLetterOrDigit() && previous != '_') {
+                return readJsonString(window, at + marker.length)
+            }
+            from = at + marker.length
+        }
+        return null
+    }
+
+    private fun readJsonString(source: String, start: Int): String {
+        val out = StringBuilder()
+        var index = start
+        while (index < source.length) {
+            val char = source[index]
+            if (char == '"') break
+            if (char == '\\' && index + 1 < source.length) {
+                out.append(source[index + 1])
+                index += 2
+                continue
+            }
+            out.append(char)
+            index += 1
+        }
+        return out.toString()
     }
 
     private fun isGeneric(value: String): Boolean {

@@ -99,6 +99,7 @@ fun ViewerView(
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
     onOpenInApp: suspend (String) -> Unit = {},
+    onMediaMeasured: (Float, Float) -> Unit = { _, _ -> },
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -121,6 +122,7 @@ fun ViewerView(
                     onShare = onShare,
                     onSharePost = onSharePost,
                     onOpenInApp = onOpenInApp,
+                    onMediaMeasured = onMediaMeasured,
                 )
             }
         }
@@ -141,6 +143,7 @@ private fun ColumnScope.ViewerContent(
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onSharePost: suspend (String, String?) -> Unit,
     onOpenInApp: suspend (String) -> Unit,
+    onMediaMeasured: (Float, Float) -> Unit,
 ) {
     ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
@@ -156,7 +159,7 @@ private fun ColumnScope.ViewerContent(
     ) {
         if (items.any(::hasVisualMedia)) {
             Column(Modifier.padding(bottom = 18.dp)) {
-                MediaCanvas(post, items, pagerState, onOpenMedia)
+                MediaCanvas(post, items, pagerState, onOpenMedia, onMediaMeasured)
             }
         }
         AuthorByline(
@@ -231,6 +234,7 @@ private fun MediaCanvas(
     items: List<ViewerMediaItemUiModel>,
     pagerState: PagerState,
     onOpenMedia: (Int) -> Unit,
+    onMediaMeasured: (Float, Float) -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val mediaHeight = if (items.any { it.videoUrl != null }) 288.dp else 244.dp
@@ -256,9 +260,14 @@ private fun MediaCanvas(
                             Modifier
                         },
                     ),
+                    onIntrinsicSize = if (videoUrl == null && page == pagerState.currentPage) onMediaMeasured else null,
                 )
                 if (videoUrl != null && page == pagerState.currentPage) {
-                    MutedInlineVideo(videoUrl = videoUrl, modifier = Modifier.fillMaxSize())
+                    MutedInlineVideo(
+                        videoUrl = videoUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        onVideoSize = onMediaMeasured,
+                    )
                 }
                 if (videoUrl != null) {
                     Box(

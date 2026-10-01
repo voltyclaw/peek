@@ -32,6 +32,7 @@ data class Media(
 data class Author(
     val name: String,
     val metadata: String,
+    val avatarUrl: String? = null,
 )
 
 @Serializable
@@ -51,6 +52,8 @@ data class InstagramMediaItem(
     val imageUrl: String,
     val contentDescription: String,
     val videoVariants: List<InstagramVideoVariant> = emptyList(),
+    val width: Int? = null,
+    val height: Int? = null,
 )
 
 @Serializable

@@ -3,16 +3,31 @@ package app.pane.android.ui.viewer
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.mediaItemsOrPrimary
+import app.pane.android.ui.player.mediaFillsPortrait
 import java.net.URI
 import java.util.Locale
 
 internal object VideoAutoplay {
     /**
-     * Every post opens on the framed screen. Video plays muted there.
-     * Fullscreen is a tap on the media, never an automatic navigation.
+     * Tall media opens immersive first. Wide media stays on the framed screen,
+     * where the leftover space holds the caption. Returning from immersive
+     * does not send the reader back into fullscreen.
      */
-    @Suppress("UNUSED_PARAMETER")
-    fun shouldOpen(alreadyOpened: Boolean, hasVisualMedia: Boolean): Boolean = false
+    fun shouldOpen(
+        alreadyOpened: Boolean,
+        contentWidthPx: Float,
+        contentHeightPx: Float,
+        viewportWidthPx: Float,
+        viewportHeightPx: Float,
+    ): Boolean {
+        if (alreadyOpened) return false
+        return mediaFillsPortrait(
+            viewportWidthPx,
+            viewportHeightPx,
+            contentWidthPx,
+            contentHeightPx,
+        )
+    }
 }
 
 internal fun ViewerPostUiModel.hasVisualMedia(): Boolean =

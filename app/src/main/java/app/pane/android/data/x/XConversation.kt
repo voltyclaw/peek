@@ -37,6 +37,34 @@ object XConversation {
         return replies.distinctBy(ParsedXReply::id)
     }
 
+    /**
+     * Note tweets store the full body separately from the short `full_text` preview.
+     * The longest `text` field after a NoteTweet marker is that body.
+     */
+    fun parseNoteText(html: String): String? {
+        val source = normalize(html)
+        var best: String? = null
+        var from = 0
+        while (from < source.length) {
+            val at = source.indexOf("NoteTweet", from)
+            if (at < 0) break
+            val window = source.substring(at, minOf(source.length, at + 20_000))
+            val longest = jsStrings(window, "text").maxByOrNull { it.length }?.trim()
+            if (!longest.isNullOrBlank() && longest.length > (best?.length ?: 0)) best = longest
+            from = at + "NoteTweet".length
+        }
+        return best?.takeIf { it.isNotBlank() }
+    }
+
+    /** Keep a longer public body when it continues the short preview. */
+    fun longerCaption(preview: String, candidate: String?): String {
+        val extra = candidate?.trim().orEmpty()
+        if (extra.length <= preview.length) return preview
+        val head = preview.trim().take(48)
+        if (head.length >= 16 && extra.startsWith(head)) return extra
+        return preview
+    }
+
     /** Logged-out HTML is sometimes a JSON blob with escaped quotes. Both shapes share one parser. */
     internal fun normalize(html: String): String =
         html.replace("\\u0022", "\"").replace("\\\"", "\"")
@@ -61,6 +89,23 @@ object XConversation {
             }
         }
         return best
+    }
+
+    private fun jsStrings(slice: String, key: String): List<String> {
+        val found = ArrayList<String>()
+        for (marker in listOf("$key:\"", "$key\":\"")) {
+            var from = 0
+            while (from < slice.length) {
+                val start = slice.indexOf(marker, from)
+                if (start < 0) break
+                val previous = if (start == 0) ' ' else slice[start - 1]
+                if (!previous.isLetterOrDigit() && previous != '_') {
+                    found += readJsString(slice, start + marker.length)
+                }
+                from = start + marker.length
+            }
+        }
+        return found
     }
 
     private fun readJsString(source: String, start: Int): String {

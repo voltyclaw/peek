@@ -6,8 +6,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import app.pane.android.ui.components.MAX_COMMENT_DEPTH
+import app.pane.android.ui.components.autolinkedCaption
+import app.pane.android.ui.components.commentBranchExpanded
 import app.pane.android.ui.components.commentNestingStepDp
 import app.pane.android.ui.components.redditCommentAnnotated
+import androidx.compose.ui.text.LinkAnnotation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +56,29 @@ class CommentMarkdownTest {
         val text = redditCommentAnnotated("> a quote\nspoiler >!hidden!< end", linkColor, bodyColor, FontFamily.Monospace)
         assertEquals("a quote\nspoiler hidden end", text.text)
         assertTrue(text.spanStyles.any { it.item.color == bodyColor })
+    }
+
+    @Test
+    fun bareUrlsInCaptionsAndCommentsAreLinks() {
+        val source = "Waze https://waze.com/ul/q and maps https://maps.google.com/q=1."
+        val caption = autolinkedCaption(source, linkColor)
+        val comment = redditCommentAnnotated(source, linkColor, bodyColor, FontFamily.Monospace)
+        assertEquals(source, caption.text)
+        assertEquals(
+            listOf("https://waze.com/ul/q", "https://maps.google.com/q=1"),
+            caption.getLinkAnnotations(0, caption.length).map { (it.item as LinkAnnotation.Url).url },
+        )
+        assertEquals(
+            listOf("https://waze.com/ul/q", "https://maps.google.com/q=1"),
+            comment.getLinkAnnotations(0, comment.length).map { (it.item as LinkAnnotation.Url).url },
+        )
+    }
+
+    @Test
+    fun aCollapsedBranchHidesThatCommentOnly() {
+        assertTrue(commentBranchExpanded(emptySet(), "abc"))
+        assertTrue(!commentBranchExpanded(setOf("abc"), "abc"))
+        assertTrue(commentBranchExpanded(setOf("abc"), "child"))
     }
 
     @Test

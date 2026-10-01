@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.model.CommentUiModel
+import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
@@ -93,17 +97,39 @@ fun AuthorByline(
     canDownload: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var nameExpanded by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 4.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(Modifier.size(34.dp).clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Person, contentDescription = null, tint = PaneSecondary, modifier = Modifier.size(17.dp))
+                val avatar = post.authorAvatar
+                if (avatar != null && (avatar !is UiImage.Url || avatar.value.isNotBlank())) {
+                    PeekImage(
+                        image = avatar,
+                        contentDescription = post.authorName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                } else {
+                    Icon(Icons.Rounded.Person, contentDescription = null, tint = PaneSecondary, modifier = Modifier.size(17.dp))
+                }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(post.authorName, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+                Text(
+                    text = post.authorName,
+                    modifier = Modifier.clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.show_full_name),
+                        onClick = { nameExpanded = !nameExpanded },
+                    ),
+                    color = PaneInk,
+                    maxLines = if (nameExpanded) Int.MAX_VALUE else 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                )
                 Text(post.authorMetadata, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp))
             }
             EllipsisToggleButton(expanded = expanded, onToggle = { expanded = !expanded })
@@ -246,7 +272,7 @@ private fun UtilityActionButton(
 @Composable
 fun CaptionText(post: ViewerPostUiModel) {
     Text(
-        text = post.title,
+        text = autolinkedCaption(post.title, PaneAccent),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
         color = PaneInk,
         style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
@@ -316,6 +342,12 @@ private fun CommentPaginationSentinel(
 
 @Composable
 fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) {
+    var collapsed by rememberSaveable(comment.id) { mutableStateOf(false) }
+    val canFold = comment.replies.isNotEmpty()
+    val expanded = commentBranchExpanded(
+        collapsedIds = if (collapsed) setOf(comment.id) else emptySet(),
+        commentId = comment.id,
+    )
     val lineColor = if (accentLine) PaneMuted else PaneBorder
     val step = commentNestingStepDp(depth)
     Column(
@@ -328,22 +360,52 @@ fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) 
             .padding(start = 10.dp, top = 2.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        CommentRow(comment)
-        comment.replies.forEach { reply ->
-            CommentThread(reply, accentLine = false, depth = depth + 1)
+        CommentRow(
+            comment = comment,
+            folded = canFold && !expanded,
+            onToggleFold = if (canFold) {
+                { collapsed = !collapsed }
+            } else {
+                null
+            },
+        )
+        if (expanded) {
+            comment.replies.forEach { reply ->
+                CommentThread(reply, accentLine = false, depth = depth + 1)
+            }
         }
     }
 }
 
 @Composable
-fun CommentRow(comment: CommentUiModel) {
+fun CommentRow(
+    comment: CommentUiModel,
+    folded: Boolean = false,
+    onToggleFold: (() -> Unit)? = null,
+) {
+    val toggleLabel = stringResource(if (folded) R.string.expand_replies else R.string.collapse_replies)
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onToggleFold != null) {
+                    Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold)
+                } else {
+                    Modifier
+                },
+            ),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 10.sp, fontWeight = FontWeight.SemiBold))
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp))
+            if (folded) {
+                Text(
+                    text = "+",
+                    color = PaneAccent,
+                    style = TextStyle(fontFamily = GeistMono, fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                )
+            }
         }
         Text(
             text = redditCommentAnnotated(

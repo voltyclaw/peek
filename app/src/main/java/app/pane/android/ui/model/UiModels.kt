@@ -69,6 +69,7 @@ data class ViewerPostUiModel(
     val mediaItems: List<ViewerMediaItemUiModel> = emptyList(),
     val initialMediaIndex: Int = 0,
     val sourceUrl: String = "",
+    val authorAvatar: UiImage? = null,
 )
 
 @Immutable
@@ -77,6 +78,8 @@ data class ViewerMediaItemUiModel(
     val image: UiImage,
     val contentDescription: String,
     val videoUrl: String?,
+    val width: Int? = null,
+    val height: Int? = null,
 )
 
 fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {

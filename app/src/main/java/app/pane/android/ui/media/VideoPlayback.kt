@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -46,6 +48,7 @@ private fun isRedditMediaUrl(url: String): Boolean {
 internal fun MutedInlineVideo(
     videoUrl: String,
     modifier: Modifier = Modifier,
+    onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val exoPlayer = remember(videoUrl) {
@@ -57,8 +60,20 @@ internal fun MutedInlineVideo(
             prepare()
         }
     }
+    val sizeCallback = rememberUpdatedState(onVideoSize)
     DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer.release() }
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    sizeCallback.value?.invoke(videoSize.width.toFloat(), videoSize.height.toFloat())
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
     }
     VideoSurface(
         exoPlayer = exoPlayer,

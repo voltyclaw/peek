@@ -4,6 +4,10 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +40,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.media3.common.MediaItem
@@ -198,12 +203,40 @@ private fun MediaContent(
     DisposableEffect(exoPlayer) {
         onDispose { exoPlayer?.release() }
     }
+    val density = LocalDensity.current
+    val revealThreshold = with(density) { 56.dp.toPx() }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .pointerInput(onBack, revealThreshold) {
+                val slop = viewConfiguration.touchSlop
+                awaitEachGesture {
+                    val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                    var totalDx = 0f
+                    var totalDy = 0f
+                    var decided = false
+                    var vertical = false
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (vertical && swipeRevealsPost(totalDx, totalDy, revealThreshold)) onBack()
+                            break
+                        }
+                        val delta = change.position - change.previousPosition
+                        totalDx += delta.x
+                        totalDy += delta.y
+                        if (!decided && (kotlin.math.abs(totalDx) > slop || kotlin.math.abs(totalDy) > slop)) {
+                            decided = true
+                            vertical = kotlin.math.abs(totalDy) > kotlin.math.abs(totalDx) && totalDy > 0f
+                        }
+                        if (vertical) change.consume()
+                    }
+                }
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

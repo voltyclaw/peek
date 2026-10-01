@@ -43,7 +43,7 @@ class FacebookDirectPageLoader(
             if (parsed != null) {
                 val chosen = longerCaption(best, parsed)
                 best = chosen
-                if (!FacebookDocument.isTruncatedPreview(chosen.text)) {
+                if (!FacebookDocument.isTruncatedPreview(chosen.text) && FacebookDocument.hasDistinctAuthor(chosen)) {
                     listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
                     return chosen
                 }
@@ -58,17 +58,22 @@ class FacebookDirectPageLoader(
     }
 
     private fun longerCaption(current: ParsedFacebookPost?, next: ParsedFacebookPost): ParsedFacebookPost {
-        if (current == null || next.text.length > current.text.length) {
-            return next.copy(
-                imageUrls = next.imageUrls.ifEmpty { current?.imageUrls.orEmpty() },
-                videoUrl = next.videoUrl ?: current?.videoUrl,
-                author = if (next.author == "Facebook") current?.author ?: next.author else next.author,
-            )
-        }
-        return current.copy(
-            imageUrls = current.imageUrls.ifEmpty { next.imageUrls },
-            videoUrl = current.videoUrl ?: next.videoUrl,
+        if (current == null) return next
+        val longer = if (next.text.length > current.text.length) next else current
+        val other = if (longer === next) current else next
+        return longer.copy(
+            imageUrls = longer.imageUrls.ifEmpty { other.imageUrls },
+            videoUrl = longer.videoUrl ?: other.videoUrl,
+            author = preferredAuthor(longer, other),
+            authorAvatarUrl = longer.authorAvatarUrl ?: other.authorAvatarUrl,
         )
+    }
+
+    private fun preferredAuthor(primary: ParsedFacebookPost, other: ParsedFacebookPost): String {
+        val primaryAuthor = primary.copy(author = primary.author)
+        if (FacebookDocument.hasDistinctAuthor(primaryAuthor)) return primary.author
+        if (FacebookDocument.hasDistinctAuthor(other)) return other.author
+        return primary.author
     }
 
     private fun targets(post: FacebookUrls.Post): List<String> {

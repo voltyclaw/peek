@@ -105,6 +105,55 @@ class FacebookDocumentTest {
     }
 
     @Test
+    fun aPostBodyInTheTitleIsNotTheAuthor() {
+        val html = """
+            <html>
+              <meta property="og:title" content="טיולון- מבלים עם הילדים ומדווחים מהשטח | המלצה חמה: יום כיף בנחל בצת, נחל שרך">
+              <meta property="og:description" content="טיולון- מבלים עם הילדים ומדווחים מהשטח | המלצה חמה: יום כיף בנחל בצת, נחל שרך וסיום מפנק בנהריה">
+              <meta property="og:image" content="https://scontent.example/trail.jpg">
+              "actors":[{"__typename":"Page","name":"טיולון","id":"9","profile_picture":{"uri":"https://scontent.example/avatar.jpg"}}]
+            </html>
+        """.trimIndent()
+
+        val post = FacebookDocument.parse(html, "1", "https://www.facebook.com/tiulon/posts/1")
+
+        assertEquals("טיולון", post?.author)
+        assertEquals("https://scontent.example/avatar.jpg", post?.authorAvatarUrl)
+        assertTrue(post?.text?.contains("נהריה") == true)
+        assertTrue(FacebookDocument.hasDistinctAuthor(post!!))
+    }
+
+    @Test
+    fun directLoaderKeepsLookingForThePageNameWhenTheTitleIsTheCaption() = runTest {
+        val loader = FacebookDirectPageLoader { url ->
+            val html = if (url.contains("mbasic.facebook.com")) {
+                """
+                    <html>
+                      <h3><a href="/tiulon">טיולון</a></h3>
+                      <img src="https://scontent.example/avatar.jpg" alt="טיולון">
+                      <meta property="og:description" content="יום כיף בנחל">
+                    </html>
+                """.trimIndent()
+            } else {
+                """
+                    <html>
+                      <meta property="og:title" content="יום כיף בנחל בצת עם הילדים ומדווחים מהשטח כל הבוקר">
+                      <meta property="og:description" content="יום כיף בנחל בצת עם הילדים ומדווחים מהשטח כל הבוקר ואחר הצהריים.">
+                      <meta property="og:image" content="https://scontent.example/trail.jpg">
+                    </html>
+                """.trimIndent()
+            }
+            htmlConnection(html)
+        }
+
+        val post = loader.resolve("https://www.facebook.com/tiulon/posts/pfbid0123")
+
+        assertEquals("טיולון", post.author)
+        assertEquals("https://scontent.example/avatar.jpg", post.authorAvatarUrl)
+        assertTrue(post.text.contains("אחר הצהריים"))
+    }
+
+    @Test
     fun aLoginWallWithoutAPostIsNotContent() {
         val html = """
             <html><meta property="og:title" content="Facebook">

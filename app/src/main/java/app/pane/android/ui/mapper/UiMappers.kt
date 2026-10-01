@@ -120,6 +120,8 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
                     contentDescription = item.contentDescription,
                     videoUrl = bestVideoUrl(item.videoVariants),
+                    width = item.width?.takeIf { it > 0 } ?: item.videoVariants.mapNotNull { it.width }.maxOrNull(),
+                    height = item.height?.takeIf { it > 0 } ?: item.videoVariants.mapNotNull { it.height }.maxOrNull(),
                 )
             }
         } else if (sourceMetadata is RedditMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
@@ -129,6 +131,8 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
                     contentDescription = item.contentDescription,
                     videoUrl = item.videoUrl,
+                    width = item.width?.takeIf { it > 0 },
+                    height = item.height?.takeIf { it > 0 },
                 )
             }
         } else if (sourceMetadata is ExternalPostMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
@@ -166,6 +170,9 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             mediaItems = mediaItems,
             initialMediaIndex = requestedMediaIndex(content.url, mediaItems.size),
             sourceUrl = content.url,
+            authorAvatar = content.author.avatarUrl
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                ?.let { UiImage.Url(it) },
         )
     }
 

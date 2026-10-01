@@ -6,6 +6,31 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!--
+        Package visibility. Without this, API 30+ hides the official apps from resolveActivity
+        and Open in app falls through to the browser even when the app is installed.
+        startActivity still targets these packages by name.
+    -->
+    <queries>
+        <package android:name="com.twitter.android" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <package android:name="com.reddit.frontpage" />
+        <package android:name="com.instagram.android" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="reddit" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="twitter" />
+        </intent>
+    </queries>
+
     <application
         android:name=".PaneApplication"
         android:allowBackup="true"

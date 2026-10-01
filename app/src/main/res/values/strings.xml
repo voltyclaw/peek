@@ -70,7 +70,10 @@
     <string name="open_in_facebook">Open in Facebook</string>
     <string name="open_in_reddit">Open in Reddit</string>
     <string name="open_in_instagram">Open in Instagram</string>
-    <string name="replies_unavailable">Replies didn\u2019t load. Try refresh.</string>
+    <string name="replies_unavailable">The public page didn\u2019t include reply text. Try refresh.</string>
+    <string name="show_full_name">Show full name</string>
+    <string name="collapse_replies">Collapse replies</string>
+    <string name="expand_replies">Expand replies</string>
     <string name="link_copied">Link copied</string>
     <string name="media_copied">Copied to clipboard</string>
     <string name="action_failed">Something went wrong. Try again.</string>

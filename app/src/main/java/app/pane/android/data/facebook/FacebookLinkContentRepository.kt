@@ -111,7 +111,7 @@ class FacebookLinkContentRepository(
                     else -> "TEXT"
                 },
             ),
-            author = Author(name = post.author, metadata = "FACEBOOK"),
+            author = Author(name = post.author, metadata = "FACEBOOK", avatarUrl = post.authorAvatarUrl),
             commentCount = 0,
             comments = emptyList(),
             sourceMetadata = ExternalPostMetadata(

@@ -35,9 +35,13 @@ class XDirectPageLoader(
         if (syndication != null) {
             XSyndication.parseJson(syndication, status.id, status.canonicalUrl)?.let { post ->
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
-                val withReplies = post.copy(replies = loadReplies(status.id))
+                val page = loadStatusPage(status.id, post.screenName)
+                val withPage = post.copy(
+                    text = XConversation.longerCaption(post.text, page.note),
+                    replies = page.replies,
+                )
                 listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                return withReplies
+                return withPage
             }
         }
         listener.onProgress(LoadProgress(0.55f, LoadStage.FetchingPage))
@@ -54,18 +58,27 @@ class XDirectPageLoader(
         throw IOException(XSyndication.UNAVAILABLE)
     }
 
-    private suspend fun loadReplies(statusId: String): List<ParsedXReply> {
-        val attempts = listOf(
-            "https://x.com/i/status/$statusId" to USER_AGENT,
-            "https://twitter.com/i/status/$statusId" to USER_AGENT,
-            "https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT,
-        )
+    private data class StatusPage(val note: String?, val replies: List<ParsedXReply>)
+
+    private suspend fun loadStatusPage(statusId: String, screenName: String?): StatusPage {
+        val handle = screenName?.trim()?.takeIf { HANDLE.matches(it) }
+        val attempts = buildList {
+            add("https://x.com/i/status/$statusId" to USER_AGENT)
+            if (handle != null) add("https://x.com/$handle/status/$statusId" to USER_AGENT)
+            add("https://twitter.com/i/status/$statusId" to USER_AGENT)
+            add("https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT)
+        }
+        var note: String? = null
+        var replies = emptyList<ParsedXReply>()
         for ((url, agent) in attempts) {
             val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: continue
-            val replies = XConversation.parseReplies(html, statusId)
-            if (replies.isNotEmpty()) return replies
+            val foundNote = XConversation.parseNoteText(html)
+            if (foundNote != null && foundNote.length > (note?.length ?: 0)) note = foundNote
+            val foundReplies = XConversation.parseReplies(html, statusId)
+            if (foundReplies.size > replies.size) replies = foundReplies
+            if (note != null && replies.isNotEmpty()) break
         }
-        return emptyList()
+        return StatusPage(note, replies)
     }
 
     private suspend fun get(url: String, json: Boolean, userAgent: String = USER_AGENT): String = withContext(Dispatchers.IO) {
@@ -122,5 +135,6 @@ class XDirectPageLoader(
         const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+        val HANDLE = Regex("[A-Za-z0-9_]{1,15}")
     }
 }

@@ -167,9 +167,9 @@ class InstagramLinkContentRepository(
             val variants = item.videoVersions.map {
                 InstagramVideoVariant(it.type, it.url, it.width, it.height)
             }
-            val imageUrl = item.imageVersions?.candidates
-                ?.maxByOrNull { it.width * it.height }
-                ?.url
+            val bestImage = item.imageVersions?.candidates?.maxByOrNull { it.width * it.height }
+            val bestVideo = item.videoVersions.maxByOrNull { (it.width ?: 0) * (it.height ?: 0) }
+            val imageUrl = bestImage?.url
                 ?: variants.firstOrNull()?.url
                 ?: throw IllegalStateException("Instagram media item ${index + 1} has no source")
             InstagramMediaItem(
@@ -179,6 +179,8 @@ class InstagramLinkContentRepository(
                     ?: caption?.take(200)
                     ?: "Instagram media ${index + 1} by ${media.owner.username}",
                 videoVariants = variants,
+                width = (bestVideo?.width ?: bestImage?.width)?.takeIf { it > 0 },
+                height = (bestVideo?.height ?: bestImage?.height)?.takeIf { it > 0 },
             )
         }
         val firstItem = mediaItems.firstOrNull()
@@ -206,6 +208,7 @@ class InstagramLinkContentRepository(
                     if (media.owner.is_verified) append(" · VERIFIED")
                     append(" · ${formatCount(media.likeCount)} LIKES")
                 },
+                avatarUrl = media.owner.profile_pic_url,
             ),
             commentCount = media.commentCount,
             comments = mapComments(media),

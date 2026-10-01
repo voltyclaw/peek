@@ -147,6 +147,46 @@ class XSyndicationTest {
     }
 
     @Test
+    fun noteTextIsTheLongerBodyAfterThePreview() {
+        val html = """
+            full_text:"That's a +225 basis"
+            __typename:"NoteTweet" text:"short entity" text:"That's a +225 basis point move and the rest of the note."
+        """.trimIndent()
+
+        assertEquals(
+            "That's a +225 basis point move and the rest of the note.",
+            XConversation.parseNoteText(html),
+        )
+        assertEquals(
+            "That's a +225 basis point move and the rest of the note.",
+            XConversation.longerCaption("That's a +225 basis", XConversation.parseNoteText(html)),
+        )
+    }
+
+    @Test
+    fun loaderCopiesTheNoteAndRepliesFromTheStatusPage() = runTest {
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"That's a +225 basis","user":{"name":"The Kobeissi Letter","screen_name":"KobeissiLetter"},"conversation_count":1}
+                """.trimIndent()
+                url.contains("/i/status/") -> "<html>login wall</html>"
+                url.contains("/KobeissiLetter/status/") -> """
+                    __typename:"NoteTweet" text:"That's a +225 basis point move and the rest of the note."
+                    entry_id:"conversationthread-8-tweet-8" name:"Ada" full_text:"a public reply" created_at_ms:1710000000000
+                """.trimIndent()
+                else -> """{"author_name":"jack","html":"<p>fallback</p>"}"""
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/KobeissiLetter/status/20")
+
+        assertEquals("That's a +225 basis point move and the rest of the note.", post.text)
+        assertEquals("a public reply", post.replies.single().text)
+    }
+
+    @Test
     fun loaderAttachesRepliesFromTheStatusPage() = runTest {
         val loader = XDirectPageLoader { url ->
             val body = when {

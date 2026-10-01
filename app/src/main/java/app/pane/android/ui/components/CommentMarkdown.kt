@@ -16,6 +16,13 @@ import androidx.compose.ui.text.withStyle
 /** How far a nested reply sits past its parent. Depth is capped so a long chain stays readable. */
 internal const val MAX_COMMENT_DEPTH = 8
 
+internal fun commentBranchExpanded(collapsedIds: Set<String>, commentId: String): Boolean =
+    commentId !in collapsedIds
+
+/** Caption and comment text with bare http(s) URLs marked as links. */
+internal fun autolinkedCaption(source: String, linkColor: Color): AnnotatedString =
+    buildAnnotatedString { appendWithAutolinks(source, linkColor) }
+
 internal fun commentNestingStepDp(depth: Int): Int =
     if (depth in 1..MAX_COMMENT_DEPTH) 12 else 0
 
@@ -54,6 +61,19 @@ private fun AnnotatedString.Builder.appendMarkdown(
         if (text[index] == '\\' && index + 1 < text.length) {
             append(text[index + 1])
             index += 2
+            continue
+        }
+        val url = plainUrlAt(text, index)
+        if (url != null) {
+            withLink(
+                LinkAnnotation.Url(
+                    url,
+                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+                ),
+            ) {
+                append(url)
+            }
+            index += url.length
             continue
         }
         if (text.startsWith(">!", index)) {
@@ -163,5 +183,49 @@ private fun closingItalic(text: String, from: Int): Int {
     }
     return -1
 }
+
+private fun AnnotatedString.Builder.appendWithAutolinks(text: String, linkColor: Color) {
+    var index = 0
+    while (index < text.length) {
+        val url = plainUrlAt(text, index)
+        if (url != null) {
+            withLink(
+                LinkAnnotation.Url(
+                    url,
+                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+                ),
+            ) {
+                append(url)
+            }
+            index += url.length
+            continue
+        }
+        append(text[index])
+        index += 1
+    }
+}
+
+private fun plainUrlAt(text: String, index: Int): String? {
+    val rest = text.substring(index)
+    val marker = when {
+        rest.startsWith("https://", ignoreCase = true) -> "https://"
+        rest.startsWith("http://", ignoreCase = true) -> "http://"
+        else -> return null
+    }
+    if (index > 0) {
+        val previous = text[index - 1]
+        if (previous.isLetterOrDigit() || previous == '@' || previous == '/') return null
+        if (previous == '(' && text.getOrNull(index - 2) == ']') return null
+    }
+    val end = rest.indexOfAny(charArrayOf(' ', '\n', '\t', '<', '>', '"', '\'')).let { if (it < 0) rest.length else it }
+    var url = rest.substring(0, end)
+    while (url.length > marker.length && url.last() in TRAILING_URL_PUNCTUATION) {
+        url = url.dropLast(1)
+    }
+    if (url.length <= marker.length) return null
+    return url
+}
+
+private const val TRAILING_URL_PUNCTUATION = ".,);:!?]}"
 
 private fun quoteTint(color: Color): Color = color.copy(alpha = 0.12f)
