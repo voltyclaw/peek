@@ -1,5 +1,9 @@
 package app.pane.android.data.facebook
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+
 data class ParsedFacebookPost(
     val id: String,
     val canonicalUrl: String,
@@ -17,6 +21,8 @@ object FacebookDocument {
     const val UNAVAILABLE = "Facebook didn't return this public post. It may be private or blocked."
     const val LOGIN = "Facebook asked for a login"
 
+    private val json = Json { isLenient = true }
+
     fun parse(html: String, id: String, canonicalUrl: String): ParsedFacebookPost? {
         if (html.isBlank()) return null
         val metas = metas(html)
@@ -30,7 +36,7 @@ object FacebookDocument {
             .firstNotNullOfOrNull { metas[it] }
             ?.let(::cleanUrl)
             ?.takeIf { isRemote(it) && !isFacebookPage(it) }
-        val text = listOf(description, title).firstOrNull { !it.isNullOrBlank() && !isGeneric(it) }
+        val text = chooseCaption(description, title, html)
         if (text == null && images.isEmpty() && video == null) return null
         if (isLoginWall(html) && text == null) return null
         return ParsedFacebookPost(
@@ -41,6 +47,140 @@ object FacebookDocument {
             imageUrls = images,
             videoUrl = video,
         )
+    }
+
+    /** Facebook's preview tags often end in an ellipsis while the page still has the rest. */
+    fun isTruncatedPreview(text: String): Boolean {
+        val trimmed = text.trim()
+        return trimmed.endsWith("...") || trimmed.endsWith("…")
+    }
+
+    private fun chooseCaption(description: String?, title: String?, html: String): String? {
+        val preview = description?.trim()?.takeIf { it.isNotEmpty() && !isGeneric(it) }
+        val bodies = htmlBodies(html).filter { it.length >= 8 && !isGeneric(it) }
+        val messages = messageTexts(html).filter { it.length >= 8 && !isGeneric(it) }
+        val extended = (bodies + messages)
+            .filter { candidate -> preview == null || extendsPreview(candidate, preview) }
+            .maxByOrNull { it.length }
+        return when {
+            extended != null && (preview == null || extended.length > preview.length) -> extended
+            preview != null -> preview
+            else -> title?.trim()?.takeIf { it.isNotEmpty() && !isGeneric(it) }
+        }
+    }
+
+    private fun extendsPreview(candidate: String, preview: String): Boolean {
+        val full = normalize(candidate)
+        val stub = normalize(preview).removeSuffix("...").removeSuffix("…").trim()
+        if (stub.length < 8) return false
+        val head = stub.take(48)
+        return full.startsWith(head) || full.contains(head)
+    }
+
+    private fun normalize(value: String): String =
+        value.replace('\u00a0', ' ').replace(Regex("\\s+"), " ").trim()
+
+    private fun htmlBodies(html: String): List<String> {
+        val bodies = ArrayList<String>()
+        for (anchor in BODY_ANCHORS) {
+            var from = 0
+            while (from < html.length) {
+                val at = html.indexOf(anchor, from)
+                if (at < 0) break
+                val window = html.substring(at, minOf(html.length, at + 20_000))
+                val lines = DIR_AUTO.findAll(window)
+                    .map { stripTags(it.groupValues[1]) }
+                    .filter { it.isNotBlank() }
+                    .toList()
+                val joined = if (lines.isNotEmpty()) {
+                    lines.joinToString("\n")
+                } else {
+                    stripTags(window.substringBefore("</div></div></div>"))
+                }
+                if (joined.length >= 8) bodies += joined
+                from = at + anchor.length
+            }
+        }
+        return bodies
+    }
+
+    private fun messageTexts(html: String): List<String> {
+        val found = ArrayList<String>()
+        var from = 0
+        while (from < html.length) {
+            val at = html.indexOf(MESSAGE_KEY, from)
+            if (at < 0) break
+            var cursor = at + MESSAGE_KEY.length
+            while (cursor < html.length && html[cursor].isWhitespace()) cursor += 1
+            if (cursor < html.length && html[cursor] == '{') {
+                textFieldInObject(html, cursor)?.takeIf { it.isNotBlank() }?.let(found::add)
+            }
+            from = at + MESSAGE_KEY.length
+        }
+        return found
+    }
+
+    private fun textFieldInObject(html: String, openBrace: Int): String? {
+        var depth = 0
+        var index = openBrace
+        val limit = minOf(html.length, openBrace + 12_000)
+        while (index < limit) {
+            val char = html[index]
+            if (char == '"') {
+                val end = endOfString(html, index)
+                val literal = html.substring(index + 1, end.coerceAtMost(html.length))
+                if (depth == 1 && literal == "text") {
+                    var cursor = end + 1
+                    while (cursor < html.length && html[cursor].isWhitespace()) cursor += 1
+                    if (cursor < html.length && html[cursor] == ':') {
+                        cursor += 1
+                        while (cursor < html.length && html[cursor].isWhitespace()) cursor += 1
+                        if (cursor < html.length && html[cursor] == '"') {
+                            val valueEnd = endOfString(html, cursor)
+                            return unescapeJson(html.substring(cursor + 1, valueEnd.coerceAtMost(html.length)))
+                        }
+                    }
+                }
+                index = end + 1
+                continue
+            }
+            if (char == '{') depth += 1
+            else if (char == '}') {
+                depth -= 1
+                if (depth == 0) return null
+            }
+            index += 1
+        }
+        return null
+    }
+
+    private fun endOfString(html: String, openQuote: Int): Int {
+        var index = openQuote + 1
+        while (index < html.length) {
+            if (html[index] == '\\') {
+                index += 2
+                continue
+            }
+            if (html[index] == '"') return index
+            index += 1
+        }
+        return (html.length - 1).coerceAtLeast(openQuote)
+    }
+
+    private fun unescapeJson(raw: String): String =
+        runCatching { json.parseToJsonElement("\"$raw\"").jsonPrimitive.contentOrNull ?: raw }
+            .getOrDefault(raw)
+
+    private fun stripTags(html: String): String {
+        val withBreaks = html
+            .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("</p>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("<[^>]+>"), "")
+        return unescape(withBreaks)
+            .replace(Regex("[ \\t\\u00a0]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
     }
 
     private fun metas(html: String): Map<String, String> {
@@ -90,16 +230,32 @@ object FacebookDocument {
 
     private fun cleanUrl(url: String): String = unescape(url).replace("&amp;", "&").trim()
 
-    private fun unescape(value: String): String = value
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&#039;", "'")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
+    private fun unescape(value: String): String {
+        val named = value
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#039;", "'")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&nbsp;", " ")
+        return named
+            .replace(Regex("&#(\\d+);")) { match -> match.groupValues[1].toIntOrNull()?.toChar()?.toString() ?: match.value }
+            .replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
+                match.groupValues[1].toIntOrNull(16)?.toChar()?.toString() ?: match.value
+            }
+    }
 
     private val META_TAG = Regex("""<meta\b[^>]*>""", RegexOption.IGNORE_CASE)
+    private val DIR_AUTO = Regex("""<div[^>]*\bdir="auto"[^>]*>(.*?)</div>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val BODY_ANCHORS = listOf(
+        "data-testid=\"post_message\"",
+        "userContent",
+        "story_body_content",
+        "_5pbx",
+    )
+    private const val MESSAGE_KEY = "\"message\":"
     private val GENERIC = listOf(
         "log into facebook",
         "log in to facebook",

@@ -11,6 +11,13 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
+data class ParsedXReply(
+    val id: String,
+    val author: String,
+    val text: String,
+    val createdAtEpochMillis: Long,
+)
+
 data class ParsedXPost(
     val id: String,
     val canonicalUrl: String,
@@ -19,6 +26,7 @@ data class ParsedXPost(
     val imageUrls: List<String>,
     val videoUrl: String?,
     val commentCount: Int,
+    val replies: List<ParsedXReply> = emptyList(),
 )
 
 /**

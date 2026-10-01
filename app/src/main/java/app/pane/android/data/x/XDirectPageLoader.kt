@@ -34,8 +34,10 @@ class XDirectPageLoader(
         val syndication = runCatching { get(XSyndication.syndicationUrl(status.id), json = true) }.getOrNull()
         if (syndication != null) {
             XSyndication.parseJson(syndication, status.id, status.canonicalUrl)?.let { post ->
+                listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
+                val withReplies = post.copy(replies = loadReplies(status.id))
                 listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                return post
+                return withReplies
             }
         }
         listener.onProgress(LoadProgress(0.55f, LoadStage.FetchingPage))
@@ -51,6 +53,12 @@ class XDirectPageLoader(
         }
         throw IOException(XSyndication.UNAVAILABLE)
     }
+
+    private suspend fun loadReplies(statusId: String): List<ParsedXReply> =
+        runCatching { get("https://x.com/i/status/$statusId", json = false) }
+            .getOrNull()
+            ?.let { html -> XConversation.parseReplies(html, statusId) }
+            .orEmpty()
 
     private suspend fun get(url: String, json: Boolean): String = withContext(Dispatchers.IO) {
         val connection = connectionFactory(url)

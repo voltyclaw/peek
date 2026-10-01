@@ -36,6 +36,7 @@ data class PostActionCallbacks(
     val onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     val onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     val onSharePost: suspend (String, String?) -> Unit,
+    val onOpenInApp: suspend (String) -> Unit,
 )
 
 @Composable
@@ -136,6 +137,9 @@ fun rememberPostActionCallbacks(
                 context.startActivity(Intent.createChooser(sharePostIntent(url, title), null))
             }.isSuccess
             if (!launched) toast(actionFailed)
+        },
+        onOpenInApp = { url ->
+            if (!openPostInApp(context, url)) toast(actionFailed)
         },
     )
 }

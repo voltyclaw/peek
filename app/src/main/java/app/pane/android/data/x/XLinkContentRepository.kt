@@ -4,6 +4,7 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.PrioritizedUrlResolver
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.ExternalMediaItem
 import app.pane.android.domain.model.ExternalPostMetadata
 import app.pane.android.domain.model.LinkContent
@@ -14,6 +15,7 @@ import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -134,9 +136,28 @@ class XLinkContentRepository(
             ),
             author = Author(name = post.author, metadata = "X"),
             commentCount = post.commentCount,
-            comments = emptyList(),
+            comments = post.replies.map(::mapReply),
             sourceMetadata = ExternalPostMetadata(postId = post.id, mediaItems = items),
         )
+    }
+
+    private fun mapReply(reply: ParsedXReply): Comment = Comment(
+            id = reply.id,
+            author = reply.author,
+            initial = reply.author.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?",
+            age = formatAge(reply.createdAtEpochMillis),
+            body = reply.text,
+        )
+
+    private fun formatAge(createdAtEpochMillis: Long): String {
+        if (createdAtEpochMillis <= 0L) return ""
+        val ageSeconds = max(0L, (System.currentTimeMillis() - createdAtEpochMillis) / 1_000L)
+        return when {
+            ageSeconds < 60 -> "now"
+            ageSeconds < 3_600 -> "${ageSeconds / 60}m"
+            ageSeconds < 86_400 -> "${ageSeconds / 3_600}h"
+            else -> "${ageSeconds / 86_400}d"
+        }
     }
 
     private fun LinkContent.withUrl(url: String): LinkContent =

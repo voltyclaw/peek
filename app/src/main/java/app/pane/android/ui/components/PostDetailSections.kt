@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Share
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
+import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.theme.Geist
@@ -85,8 +87,10 @@ fun AuthorByline(
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
     onSharePost: suspend () -> Unit = {},
+    onOpenInApp: suspend () -> Unit = {},
     modifier: Modifier = Modifier,
     canCopyMedia: Boolean = true,
+    canDownload: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxWidth()) {
@@ -110,12 +114,15 @@ fun AuthorByline(
             exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(120)),
         ) {
             UtilityActionsRow(
+                postUrl = post.sourceUrl,
                 onCopyLink = onCopyLink,
                 onSharePost = onSharePost,
+                onOpenInApp = onOpenInApp,
                 onCopyMedia = onCopyMedia,
                 onDownload = onDownload,
                 onShare = onShare,
                 canCopyMedia = canCopyMedia,
+                canDownload = canDownload,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
@@ -142,12 +149,15 @@ private fun EllipsisToggleButton(expanded: Boolean, onToggle: () -> Unit) {
 
 @Composable
 private fun UtilityActionsRow(
+    postUrl: String,
     onCopyLink: suspend () -> Unit,
     onSharePost: suspend () -> Unit,
+    onOpenInApp: suspend () -> Unit,
     onCopyMedia: suspend () -> Unit,
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
     canCopyMedia: Boolean,
+    canDownload: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -162,11 +172,14 @@ private fun UtilityActionsRow(
     ) {
         UtilityActionButton(Icons.Rounded.Link, stringResource(R.string.copy_link), onCopyLink, Modifier.weight(1f))
         UtilityActionButton(Icons.Rounded.Share, stringResource(R.string.share_post), onSharePost, Modifier.weight(1f))
+        UtilityActionButton(Icons.AutoMirrored.Rounded.OpenInNew, stringResource(openInAppLabelRes(postUrl)), onOpenInApp, Modifier.weight(1f))
         if (canCopyMedia) {
             UtilityActionButton(Icons.Rounded.ContentCopy, stringResource(R.string.copy_media), onCopyMedia, Modifier.weight(1f))
         }
-        UtilityActionButton(Icons.Rounded.Download, stringResource(R.string.download), onDownload, Modifier.weight(1f))
-        UtilityActionButton(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.share), onShare, Modifier.weight(1f))
+        if (canDownload) {
+            UtilityActionButton(Icons.Rounded.Download, stringResource(R.string.download), onDownload, Modifier.weight(1f))
+            UtilityActionButton(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.share), onShare, Modifier.weight(1f))
+        }
     }
 }
 
@@ -251,6 +264,13 @@ fun CommentsSection(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.thread), color = PaneInk, style = TextStyle(fontFamily = Geist, fontSize = 16.sp, fontWeight = FontWeight.SemiBold))
             Text(stringResource(R.string.comments_count, post.commentCount), color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp))
+        }
+        if (post.comments.isEmpty() && post.commentCount > 0) {
+            Text(
+                text = stringResource(R.string.replies_unavailable),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+            )
         }
         post.comments.forEachIndexed { index, comment ->
             CommentThread(comment, accentLine = index == 0)

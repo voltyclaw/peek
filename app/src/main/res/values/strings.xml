@@ -65,6 +65,12 @@
     <string name="download">Download</string>
     <string name="share">Share</string>
     <string name="share_post">Share post</string>
+    <string name="open_in_app">Open in app</string>
+    <string name="open_in_x">Open in X</string>
+    <string name="open_in_facebook">Open in Facebook</string>
+    <string name="open_in_reddit">Open in Reddit</string>
+    <string name="open_in_instagram">Open in Instagram</string>
+    <string name="replies_unavailable">Replies didn\u2019t load. Try refresh.</string>
     <string name="link_copied">Link copied</string>
     <string name="media_copied">Copied to clipboard</string>
     <string name="action_failed">Something went wrong. Try again.</string>

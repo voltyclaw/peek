@@ -66,6 +66,7 @@ import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.ViewerMediaItemUiModel
+import app.pane.android.ui.model.hasDownloadableMedia
 import app.pane.android.ui.model.mediaItemsOrPrimary
 import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
@@ -96,6 +97,7 @@ fun ViewerView(
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
+    onOpenInApp: suspend (String) -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -117,6 +119,7 @@ fun ViewerView(
                     onDownload = onDownload,
                     onShare = onShare,
                     onSharePost = onSharePost,
+                    onOpenInApp = onOpenInApp,
                 )
             }
         }
@@ -136,6 +139,7 @@ private fun ColumnScope.ViewerContent(
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onSharePost: suspend (String, String?) -> Unit,
+    onOpenInApp: suspend (String) -> Unit,
 ) {
     ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
@@ -156,12 +160,14 @@ private fun ColumnScope.ViewerContent(
             post = post,
             onCopyLink = { onCopyLink(post.sourceUrl) },
             onCopyMedia = { onCopyMedia(currentItem) },
-            onDownload = { onDownload(items) },
-            onShare = { onShare(items) },
+            onDownload = { onDownload(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
+            onShare = { onShare(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
             onSharePost = { onSharePost(post.sourceUrl, post.title) },
+            onOpenInApp = { onOpenInApp(post.sourceUrl) },
             canCopyMedia = currentItem.videoUrl == null && currentItem.image.let { image ->
                 image !is UiImage.Url || image.value.isNotBlank()
             },
+            canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
         )
         CaptionText(post)
         CommentsSection(

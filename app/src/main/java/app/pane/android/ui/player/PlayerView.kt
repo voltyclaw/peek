@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -97,6 +100,7 @@ import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerUiState
+import app.pane.android.ui.model.hasDownloadableMedia
 import app.pane.android.ui.model.mediaItemsOrPrimary
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.PaneGround
@@ -123,6 +127,7 @@ fun PlayerView(
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
+    onOpenInApp: suspend (String) -> Unit = {},
 ) {
     val view = LocalView.current
     DisposableEffect(view) {
@@ -164,6 +169,7 @@ fun PlayerView(
                 onDownload = onDownload,
                 onShare = onShare,
                 onSharePost = onSharePost,
+                onOpenInApp = onOpenInApp,
             )
         }
     }
@@ -246,6 +252,7 @@ private fun MediaContent(
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onSharePost: suspend (String, String?) -> Unit,
+    onOpenInApp: suspend (String) -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
     val initialPage = initialMediaIndex.coerceIn(0, items.lastIndex)
@@ -282,6 +289,8 @@ private fun MediaContent(
     }
     var appliedInitialChrome by remember { mutableStateOf(false) }
     var playbackSpeed by remember(currentVideoUrl) { mutableFloatStateOf(1f) }
+    var contentWidthPx by remember(pagerState.currentPage) { mutableFloatStateOf(0f) }
+    var contentHeightPx by remember(pagerState.currentPage) { mutableFloatStateOf(0f) }
 
     DisposableEffect(exoPlayer) {
         val listener = exoPlayer?.let { player ->
@@ -293,7 +302,21 @@ private fun MediaContent(
                 override fun onEvents(player: Player, events: Player.Events) {
                     durationMs = player.duration.coerceAtLeast(0L)
                 }
-            }.also(player::addListener)
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (videoSize.width > 0 && videoSize.height > 0) {
+                        contentWidthPx = videoSize.width.toFloat()
+                        contentHeightPx = videoSize.height.toFloat()
+                    }
+                }
+            }.also { listener ->
+                player.addListener(listener)
+                val size = player.videoSize
+                if (size.width > 0 && size.height > 0) {
+                    contentWidthPx = size.width.toFloat()
+                    contentHeightPx = size.height.toFloat()
+                }
+            }
         }
         onDispose {
             if (listener != null) exoPlayer.removeListener(listener)
@@ -324,6 +347,7 @@ private fun MediaContent(
     }
 
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
     )
@@ -332,8 +356,25 @@ private fun MediaContent(
     )
     val sheetExpanded = bottomSheetState.currentValue == SheetValue.Expanded ||
         bottomSheetState.targetValue == SheetValue.Expanded
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val sparePx = spareBelowPeekPx(
+        constraints.maxWidth.toFloat(),
+        constraints.maxHeight.toFloat(),
+        contentWidthPx,
+        contentHeightPx,
+    )
+    val spareBelow = sparePx > 0f
+    val mediaFraction = if (spareBelow && constraints.maxHeight > 0) {
+        ((constraints.maxHeight - sparePx) / constraints.maxHeight).coerceIn(0.2f, 1f)
+    } else {
+        1f
+    }
     val sheetPeekHeight by animateDpAsState(
-        targetValue = if (controlsVisible || sheetExpanded) 200.dp else 0.dp,
+        targetValue = when {
+            spareBelow -> with(density) { sparePx.toDp() }
+            controlsVisible || sheetExpanded -> 200.dp
+            else -> 0.dp
+        },
         label = "sheetPeekHeight",
     )
 
@@ -356,6 +397,7 @@ private fun MediaContent(
                 onDownload = onDownload,
                 onShare = onShare,
                 onSharePost = onSharePost,
+                onOpenInApp = onOpenInApp,
             )
         },
     ) {
@@ -365,7 +407,7 @@ private fun MediaContent(
                 .raiseCommentsOnSwipeUp {
                     when (
                         commentsRaiseForSwipe(
-                            commentsLowered = !controlsVisible,
+                            commentsLowered = !controlsVisible && !spareBelow,
                             sheetExpanded = bottomSheetState.currentValue == SheetValue.Expanded ||
                                 bottomSheetState.targetValue == SheetValue.Expanded,
                         )
@@ -383,7 +425,11 @@ private fun MediaContent(
         ) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = if (spareBelow) {
+                    Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight(mediaFraction)
+                } else {
+                    Modifier.fillMaxSize()
+                },
                 beyondViewportPageCount = 1,
                 key = { items[it].id },
             ) { page ->
@@ -393,7 +439,14 @@ private fun MediaContent(
                         image = item.image,
                         contentDescription = item.contentDescription,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit,
+                        contentScale = if (spareBelow) ContentScale.Fit else ContentScale.Crop,
+                        alignment = if (spareBelow) Alignment.TopCenter else Alignment.Center,
+                        onIntrinsicSize = { width, height ->
+                            if (page == pagerState.currentPage && contentWidthPx == 0f) {
+                                contentWidthPx = width
+                                contentHeightPx = height
+                            }
+                        },
                     )
                     if (page == pagerState.currentPage && item.videoUrl != null && exoPlayer != null) {
                         VideoSurface(exoPlayer, resizeMode, Modifier.fillMaxSize())
@@ -446,8 +499,8 @@ private fun MediaContent(
                 exit = fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 210.dp),
+                    .then(if (spareBelow) Modifier else Modifier.navigationBarsPadding())
+                    .padding(bottom = if (spareBelow) with(density) { sparePx.toDp() } + 12.dp else 210.dp),
             ) {
                 if (exoPlayer != null) {
                     BottomPlaybackControls(
@@ -488,6 +541,7 @@ private fun MediaContent(
                 }
             }
         }
+    }
     }
 }
 
@@ -579,6 +633,7 @@ private fun PostDetailsSheet(
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit,
     onSharePost: suspend (String, String?) -> Unit,
+    onOpenInApp: suspend (String) -> Unit,
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -593,10 +648,12 @@ private fun PostDetailsSheet(
             post = post,
             onCopyLink = { onCopyLink(post.sourceUrl) },
             onCopyMedia = { onCopyMedia(currentItem) },
-            onDownload = { onDownload(listOf(currentItem)) },
-            onShare = { onShare(listOf(currentItem)) },
+            onDownload = { onDownload(listOf(currentItem).filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
+            onShare = { onShare(listOf(currentItem).filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
             onSharePost = { onSharePost(post.sourceUrl, post.title) },
-            canCopyMedia = currentItem.videoUrl == null,
+            onOpenInApp = { onOpenInApp(post.sourceUrl) },
+            canCopyMedia = currentItem.videoUrl == null && currentItem.hasDownloadableMedia(),
+            canDownload = currentItem.hasDownloadableMedia(),
         )
         CaptionText(post)
         CommentsSection(

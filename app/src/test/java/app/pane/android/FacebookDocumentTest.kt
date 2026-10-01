@@ -24,6 +24,87 @@ class FacebookDocumentTest {
     }
 
     @Test
+    fun aTruncatedPreviewKeepsTheRestOfTheCaption() {
+        val html = """
+            <html>
+              <meta property="og:title" content="Ben Ami Gallery - Facebook">
+              <meta property="og:description" content="קול קורא לאמנים לתערוכת הגורם האנושי...">
+              <meta property="og:image" content="https://scontent.example/show.jpg">
+              <div data-testid="post_message">
+                <div dir="auto">קול קורא לאמנים לתערוכת הגורם האנושי</div>
+                <div dir="auto">גלריה בן עמי מזמינה אמנים ואמניות לקחת חלק בתערוכה חדשה עד הסוף.</div>
+              </div>
+            </html>
+        """.trimIndent()
+
+        val post = FacebookDocument.parse(html, "pfbid0123", "https://www.facebook.com/benami/posts/pfbid0123")
+
+        assertTrue(post?.text?.contains("עד הסוף") == true)
+        assertTrue(post?.text?.startsWith("קול קורא לאמנים") == true)
+        assertTrue(FacebookDocument.isTruncatedPreview("קול קורא לאמנים..."))
+    }
+
+    @Test
+    fun aMessageObjectCanExtendATruncatedPreview() {
+        val html = """
+            <html>
+              <meta property="og:description" content="The moon, closer...">
+              <script>{"message":{"delight_ranges":[],"text":"The moon, closer than it looks from orbit tonight."}}</script>
+            </html>
+        """.trimIndent()
+
+        val post = FacebookDocument.parse(html, "1", "https://www.facebook.com/nasa/posts/1")
+
+        assertEquals("The moon, closer than it looks from orbit tonight.", post?.text)
+    }
+
+    @Test
+    fun anUnrelatedLongerStringDoesNotReplaceTheCaption() {
+        val html = """
+            <html>
+              <meta property="og:description" content="The moon, closer than it looks.">
+              <script>{"message":{"text":"This is a completely different and much longer piece of interface copy."}}</script>
+            </html>
+        """.trimIndent()
+
+        val post = FacebookDocument.parse(html, "1", "https://www.facebook.com/nasa/posts/1")
+
+        assertEquals("The moon, closer than it looks.", post?.text)
+    }
+
+    @Test
+    fun directLoaderKeepsLookingWhenTheFirstCaptionIsCutOff() = runTest {
+        val opened = mutableListOf<String>()
+        val loader = FacebookDirectPageLoader { url ->
+            opened += url
+            val html = if (url.contains("mbasic.facebook.com")) {
+                """
+                    <html>
+                      <meta property="og:title" content="NASA - Facebook">
+                      <div data-testid="post_message"><div dir="auto">The moon, closer than it looks from orbit tonight.</div></div>
+                    </html>
+                """.trimIndent()
+            } else {
+                """
+                    <html>
+                      <meta property="og:title" content="NASA - Facebook">
+                      <meta property="og:description" content="The moon, closer...">
+                      <meta property="og:image" content="https://scontent.example/moon.jpg">
+                    </html>
+                """.trimIndent()
+            }
+            htmlConnection(html)
+        }
+
+        val post = loader.resolve("https://www.facebook.com/nasa/posts/pfbid0123")
+
+        assertEquals("The moon, closer than it looks from orbit tonight.", post.text)
+        assertEquals(listOf("https://scontent.example/moon.jpg"), post.imageUrls)
+        assertTrue(opened[0].contains("plugins/post.php"))
+        assertTrue(opened.any { it.contains("mbasic.facebook.com") })
+    }
+
+    @Test
     fun aLoginWallWithoutAPostIsNotContent() {
         val html = """
             <html><meta property="og:title" content="Facebook">

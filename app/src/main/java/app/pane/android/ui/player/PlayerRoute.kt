@@ -32,6 +32,7 @@ fun PlayerRoute(
         onDownload = callbacks.onDownload,
         onShare = callbacks.onShare,
         onSharePost = callbacks.onSharePost,
+        onOpenInApp = callbacks.onOpenInApp,
         modifier = modifier.fillMaxSize(),
     )
 }

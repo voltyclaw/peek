@@ -4,6 +4,7 @@ import app.pane.android.ui.player.CommentsRaise
 import app.pane.android.ui.player.commentsRaiseForSwipe
 import app.pane.android.ui.player.playerShowsControlsAfterPageChange
 import app.pane.android.ui.player.playerShowsControlsOnOpen
+import app.pane.android.ui.player.spareBelowPeekPx
 import app.pane.android.ui.player.swipeRaisesComments
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,6 +30,19 @@ class PlayerChromeTest {
         assertFalse(swipeRaisesComments(totalDx = 0f, totalDy = -20f, thresholdPx = 56f))
         assertFalse(swipeRaisesComments(totalDx = 0f, totalDy = -80f, thresholdPx = 0f))
         assertFalse(swipeRaisesComments(totalDx = 0f, totalDy = 80f, thresholdPx = 56f))
+    }
+
+    @Test
+    fun wideMediaLeavesTheSpareHeightForTheCaptionAndTallMediaStaysFullBleed() {
+        val phoneWidth = 1080f
+        val phoneHeight = 2400f
+        val landscape = spareBelowPeekPx(phoneWidth, phoneHeight, contentWidthPx = 1920f, contentHeightPx = 1080f)
+        val portrait = spareBelowPeekPx(phoneWidth, phoneHeight, contentWidthPx = 1080f, contentHeightPx = 1920f)
+        val unknown = spareBelowPeekPx(phoneWidth, phoneHeight, contentWidthPx = 0f, contentHeightPx = 0f)
+
+        assertTrue(landscape > phoneHeight * 0.5f)
+        assertEquals(0f, portrait, 0.01f)
+        assertEquals(0f, unknown, 0.01f)
     }
 
     @Test

@@ -32,28 +32,64 @@ class FacebookDirectPageLoader(
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
         var last = FacebookDocument.UNAVAILABLE
+        var best: ParsedFacebookPost? = null
         targets(post).forEachIndexed { index, target ->
-            listener.onProgress(LoadProgress(0.2f + index * 0.25f, LoadStage.FetchingPage))
+            listener.onProgress(LoadProgress(0.2f + index * 0.15f, LoadStage.FetchingPage))
             val html = runCatching { get(target) }.getOrElse { error ->
                 last = error.message ?: last
                 return@forEachIndexed
             }
-            FacebookDocument.parse(html, post.id, post.canonicalUrl)?.let {
-                listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                return it
+            val parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
+            if (parsed != null) {
+                val chosen = longerCaption(best, parsed)
+                best = chosen
+                if (!FacebookDocument.isTruncatedPreview(chosen.text)) {
+                    listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                    return chosen
+                }
             }
             if (html.contains("login_form", ignoreCase = true)) last = FacebookDocument.LOGIN
         }
+        best?.let {
+            listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+            return it
+        }
         throw IOException(last)
+    }
+
+    private fun longerCaption(current: ParsedFacebookPost?, next: ParsedFacebookPost): ParsedFacebookPost {
+        if (current == null || next.text.length > current.text.length) {
+            return next.copy(
+                imageUrls = next.imageUrls.ifEmpty { current?.imageUrls.orEmpty() },
+                videoUrl = next.videoUrl ?: current?.videoUrl,
+                author = if (next.author == "Facebook") current?.author ?: next.author else next.author,
+            )
+        }
+        return current.copy(
+            imageUrls = current.imageUrls.ifEmpty { next.imageUrls },
+            videoUrl = current.videoUrl ?: next.videoUrl,
+        )
     }
 
     private fun targets(post: FacebookUrls.Post): List<String> {
         val encoded = URLEncoder.encode(post.canonicalUrl, StandardCharsets.UTF_8.name())
         val plugin = "https://www.facebook.com/plugins/post.php?href=$encoded&show_text=true&width=500"
+        val extras = mobileCopies(post.canonicalUrl)
         return when (post.kind) {
-            FacebookUrls.Kind.Post -> listOf(plugin, post.canonicalUrl)
-            else -> listOf(post.canonicalUrl, plugin)
-        }
+            FacebookUrls.Kind.Post -> (listOf(plugin) + extras + post.canonicalUrl)
+            else -> (listOf(post.canonicalUrl) + extras + plugin)
+        }.distinct()
+    }
+
+    private fun mobileCopies(canonical: String): List<String> {
+        val mbasic = canonical
+            .replace("://www.facebook.com/", "://mbasic.facebook.com/")
+            .replace("://m.facebook.com/", "://mbasic.facebook.com/")
+            .replace("://facebook.com/", "://mbasic.facebook.com/")
+        val touch = canonical
+            .replace("://www.facebook.com/", "://m.facebook.com/")
+            .replace("://mbasic.facebook.com/", "://m.facebook.com/")
+        return listOf(mbasic, touch).filter { it != canonical && it.startsWith("https://") }
     }
 
     private suspend fun get(url: String): String = withContext(Dispatchers.IO) {

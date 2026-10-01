@@ -1,5 +1,6 @@
 package app.pane.android
 
+import app.pane.android.data.x.XConversation
 import app.pane.android.data.x.XDirectPageLoader
 import app.pane.android.data.x.XSyndication
 import java.io.ByteArrayInputStream
@@ -76,6 +77,60 @@ class XSyndicationTest {
         val post = XSyndication.parseOEmbed(body, "5", "https://x.com/i/status/5")
         assertEquals("Ada", post?.author)
         assertEquals("Hello & welcome", post?.text)
+    }
+
+    @Test
+    fun loggedOutStatusHtmlIncludesRepliesBesidesThePost() {
+        val html = """
+            name:"jack" full_text:"just setting up my twttr" created_at_ms:1142974214000 entry_id:"tweet-20"
+            name:"Ada" full_text:"@jack hello there" created_at_ms:1710000000000 entry_id:"conversationthread-8-tweet-8"
+            entry_id:"cursor-bottom"
+        """.trimIndent()
+
+        val replies = XConversation.parseReplies(html, "20")
+
+        assertEquals(1, replies.size)
+        assertEquals("8", replies[0].id)
+        assertEquals("Ada", replies[0].author)
+        assertEquals("@jack hello there", replies[0].text)
+        assertEquals(1710000000000L, replies[0].createdAtEpochMillis)
+    }
+
+    @Test
+    fun repliesListedAfterTheirEntryIdKeepTheAuthorName() {
+        val html = """
+            entry_id:"tweet-20" full_text:"the post"
+            entry_id:"conversationthread-8-tweet-8" __typename:"TimelineTimelineItem" screen_name:"ada" name:"Ada" full_text:"a public reply" created_at_ms:1710000000000
+        """.trimIndent()
+
+        val replies = XConversation.parseReplies(html, "20")
+
+        assertEquals("Ada", replies.single().author)
+        assertEquals("a public reply", replies.single().text)
+    }
+
+    @Test
+    fun loaderAttachesRepliesFromTheStatusPage() = runTest {
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"just setting up my twttr","user":{"name":"jack"},"conversation_count":2}
+                """.trimIndent()
+                url.contains("x.com/i/status") -> """
+                    full_text:"just setting up my twttr" entry_id:"tweet-20"
+                    name:"Ada" full_text:"a public reply" created_at_ms:1710000000000 entry_id:"conversationthread-8-tweet-8"
+                """.trimIndent()
+                else -> """{"author_name":"jack","html":"<p>fallback</p>"}"""
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/jack/status/20")
+
+        assertEquals("just setting up my twttr", post.text)
+        assertEquals(2, post.commentCount)
+        assertEquals("a public reply", post.replies.single().text)
+        assertEquals("Ada", post.replies.single().author)
     }
 
     @Test

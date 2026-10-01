@@ -79,6 +79,11 @@ data class ViewerMediaItemUiModel(
     val videoUrl: String?,
 )
 
+fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {
+    if (!videoUrl.isNullOrBlank()) return true
+    return (image as? UiImage.Url)?.value?.isNotBlank() == true
+}
+
 fun ViewerPostUiModel.mediaItemsOrPrimary(): List<ViewerMediaItemUiModel> =
     mediaItems.ifEmpty {
         listOf(

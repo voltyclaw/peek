@@ -54,6 +54,7 @@ class AndroidFacebookPageLoader(
                         val webView = WebView(applicationContext)
                         var completed = false
                         var attempts = 0
+                        var best: ParsedFacebookPost? = null
 
                         fun cleanup() {
                             handler.removeCallbacksAndMessages(null)
@@ -93,13 +94,25 @@ class AndroidFacebookPageLoader(
                                     return@evaluateJavascript
                                 }
                                 val parsed = html?.let { FacebookDocument.parse(it, post.id, post.canonicalUrl) }
-                                if (parsed != null) {
-                                    listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                                    succeed(parsed)
-                                } else if (attempts >= 4) {
-                                    fail(IOException(FacebookDocument.UNAVAILABLE))
-                                } else {
-                                    handler.postDelayed(read, 700L)
+                                val previous = best
+                                val improved = when {
+                                    parsed == null -> previous
+                                    previous == null || parsed.text.length > previous.text.length -> parsed
+                                    else -> previous
+                                }
+                                best = improved
+                                val ready = improved?.takeIf { !FacebookDocument.isTruncatedPreview(it.text) }
+                                when {
+                                    ready != null -> {
+                                        listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                                        succeed(ready)
+                                    }
+                                    attempts >= 4 && improved != null -> {
+                                        listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                                        succeed(improved)
+                                    }
+                                    attempts >= 4 -> fail(IOException(FacebookDocument.UNAVAILABLE))
+                                    else -> handler.postDelayed(read, 700L)
                                 }
                             }
                         }
