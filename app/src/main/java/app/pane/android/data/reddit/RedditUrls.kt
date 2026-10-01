@@ -90,7 +90,7 @@ object RedditUrls {
     private fun shortId(path: String): String? =
         SHORT_PATH.matchEntire(path)?.groupValues?.get(1)
 
-    private const val COMMENT_LIMIT = 50
+    private const val COMMENT_LIMIT = 100
 
     private val POST_HOSTS = setOf(
         "reddit.com",

@@ -120,7 +120,7 @@ class PureViewTest {
     }
 
     @Test
-    fun fullScreenShowsTheSelectedPhotoAndTapClosesIt() {
+    fun fullScreenTapShowsChromeAndExitReturns() {
         var backed = false
         composeRule.setContent {
             PaneTheme {
@@ -136,7 +136,10 @@ class PureViewTest {
         composeRule.onNodeWithContentDescription("Kyoto photo").assertIsDisplayed()
         composeRule.onNodeWithText("Mara Chen").assertDoesNotExist()
         composeRule.onNodeWithText("PHOTO").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Exit fullscreen").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Kyoto photo").performClick()
+        assertEquals(false, backed)
+        composeRule.onNodeWithContentDescription("Exit fullscreen").performClick()
         assertEquals(true, backed)
     }
 

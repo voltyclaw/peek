@@ -9,8 +9,11 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -23,17 +26,26 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -45,12 +57,18 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import app.pane.android.R
 import app.pane.android.ui.components.PeekImage
+import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
+import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VideoSurface
+import app.pane.android.ui.media.contentAspectRatio
+import app.pane.android.ui.media.displayVideoSize
 import app.pane.android.ui.media.exoPlayerFor
+import app.pane.android.ui.media.fittedContentPx
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerUiState
@@ -200,13 +218,38 @@ private fun MediaContent(
             }
         }
     }
-    DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer?.release() }
-    }
     val density = LocalDensity.current
     val revealThreshold = with(density) { 56.dp.toPx() }
+    var chromeVisible by remember { mutableStateOf(false) }
+    var playbackSize by remember(currentVideoUrl) { mutableStateOf<Pair<Float, Float>?>(null) }
+    var playing by remember(exoPlayer) { mutableStateOf(exoPlayer?.playWhenReady == true) }
+    var muted by remember(exoPlayer) { mutableStateOf(false) }
+    DisposableEffect(exoPlayer) {
+        val player = exoPlayer
+        if (player == null) {
+            onDispose { }
+        } else {
+            val listener = object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    playbackSize = displayVideoSize(
+                        videoSize.width,
+                        videoSize.height,
+                        videoSize.pixelWidthHeightRatio,
+                    )
+                }
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    playing = isPlaying
+                }
+            }
+            player.addListener(listener)
+            onDispose {
+                player.removeListener(listener)
+                player.release()
+            }
+        }
+    }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
@@ -223,7 +266,7 @@ private fun MediaContent(
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         if (!change.pressed) {
-                            if (vertical && swipeRevealsPost(totalDx, totalDy, revealThreshold)) onBack()
+                            if (vertical && swipeExitsFullscreen(totalDx, totalDy, revealThreshold)) onBack()
                             break
                         }
                         val delta = change.position - change.previousPosition
@@ -231,7 +274,7 @@ private fun MediaContent(
                         totalDy += delta.y
                         if (!decided && (kotlin.math.abs(totalDx) > slop || kotlin.math.abs(totalDy) > slop)) {
                             decided = true
-                            vertical = kotlin.math.abs(totalDy) > kotlin.math.abs(totalDx) && totalDy > 0f
+                            vertical = kotlin.math.abs(totalDy) > kotlin.math.abs(totalDx)
                         }
                         if (vertical) change.consume()
                     }
@@ -240,9 +283,11 @@ private fun MediaContent(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onBack,
+                onClick = { chromeVisible = !chromeVisible },
             ),
     ) {
+        val boxW = constraints.maxWidth.toFloat()
+        val boxH = constraints.maxHeight.toFloat()
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -250,21 +295,120 @@ private fun MediaContent(
             key = { items[it].id },
         ) { page ->
             val item = items[page]
+            val reported = if (page == pagerState.currentPage) playbackSize else null
+            val contentW = reported?.first ?: item.width?.toFloat() ?: 0f
+            val contentH = reported?.second ?: item.height?.toFloat() ?: 0f
+            val fallback = if (item.videoUrl != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT
+            val aspect = contentAspectRatio(contentW, contentH, fallback)
+            val fitted = fittedContentPx(
+                boxW,
+                boxH,
+                if (contentW > 1f) contentW else aspect,
+                if (contentH > 1f) contentH else 1f,
+            )
+            val mediaModifier = if (fitted.widthPx > 1f && fitted.heightPx > 1f) {
+                Modifier.size(
+                    with(density) { fitted.widthPx.toDp() },
+                    with(density) { fitted.heightPx.toDp() },
+                )
+            } else {
+                Modifier.fillMaxSize()
+            }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 PeekImage(
                     image = item.image,
                     contentDescription = item.contentDescription,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = mediaModifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { chromeVisible = !chromeVisible },
+                    ),
                     contentScale = ContentScale.Fit,
                 )
                 if (page == pagerState.currentPage && item.videoUrl != null && exoPlayer != null) {
                     VideoSurface(
                         exoPlayer = exoPlayer,
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = mediaModifier,
                     )
                 }
             }
         }
+        if (chromeVisible) {
+            FullscreenChrome(
+                showTransport = currentVideoUrl != null && exoPlayer != null,
+                playing = playing,
+                muted = muted,
+                onTogglePlay = {
+                    val player = exoPlayer ?: return@FullscreenChrome
+                    val next = !player.playWhenReady
+                    player.playWhenReady = next
+                    playing = next
+                },
+                onToggleMute = {
+                    val player = exoPlayer ?: return@FullscreenChrome
+                    val nextMuted = player.volume > 0f
+                    player.volume = if (nextMuted) 0f else 1f
+                    muted = nextMuted
+                },
+                onExit = onBack,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullscreenChrome(
+    showTransport: Boolean,
+    playing: Boolean,
+    muted: Boolean,
+    onTogglePlay: () -> Unit,
+    onToggleMute: () -> Unit,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showTransport) {
+            ChromeButton(
+                icon = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                description = stringResource(if (playing) R.string.pause else R.string.play_video),
+                onClick = onTogglePlay,
+            )
+            ChromeButton(
+                icon = if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                description = stringResource(if (muted) R.string.unmute else R.string.mute),
+                onClick = onToggleMute,
+            )
+        }
+        ChromeButton(
+            icon = Icons.Rounded.FullscreenExit,
+            description = stringResource(R.string.exit_fullscreen),
+            onClick = onExit,
+        )
+    }
+}
+
+@Composable
+private fun ChromeButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(22.dp))
     }
 }

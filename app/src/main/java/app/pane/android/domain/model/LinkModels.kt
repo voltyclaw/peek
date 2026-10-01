@@ -112,6 +112,7 @@ data class RedditMetadata(
     val over18: Boolean,
     val spoiler: Boolean,
     val mediaItems: List<RedditMediaItem> = emptyList(),
+    val moreCommentIds: List<String> = emptyList(),
 ) : SourceMetadata
 
 @Serializable

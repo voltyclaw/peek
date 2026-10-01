@@ -7,8 +7,13 @@ import org.junit.Test
 
 class PeekBackTest {
     @Test
-    fun aSharedLinkFinishesBackToTheCallingApp() {
-        assertEquals(PeekBackAction.Finish, peekBackAction(launchedFromViewLink = true, stackSize = 3))
+    fun immersiveBackReturnsToTheFramedPost() {
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 3))
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 4))
+    }
+
+    @Test
+    fun aSharedLinkFinishesBackToTheCallingAppFromTheFramedPost() {
         assertEquals(PeekBackAction.Finish, peekBackAction(launchedFromViewLink = true, stackSize = 2))
     }
 

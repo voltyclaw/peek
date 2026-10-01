@@ -45,6 +45,14 @@ data class ParsedRedditPost(
     val comments: List<ParsedRedditComment>,
     /** Gallery pages keep loading slides after the first HTML snapshot. */
     val mediaPending: Boolean = false,
+    /** Top-level comment ids Reddit left behind a `more` child. */
+    val moreCommentIds: List<String> = emptyList(),
+)
+
+/** One public `morechildren` page: new comments, plus any further ids. */
+data class MoreComments(
+    val comments: List<ParsedRedditComment>,
+    val moreIds: List<String>,
 )
 
 /** Parses the public listing document Reddit returns for `.../comments/{id}.json`. */
@@ -88,11 +96,9 @@ class RedditJsonParser {
             ownMedia.isNotEmpty() -> ownMedia
             else -> parentMedia
         }
-        val comments = listings.getOrNull(1)
-            ?.obj("data")
-            ?.array("children")
-            .orEmpty()
-            .mapNotNull { parseComment(it, depth = 0) }
+        val (comments, moreIds) = parseCommentListing(
+            listings.getOrNull(1)?.obj("data")?.array("children").orEmpty(),
+        )
         return ParsedRedditPost(
             id = id.lowercase(Locale.US),
             title = title,
@@ -108,8 +114,73 @@ class RedditJsonParser {
             isSelf = post.bool("is_self"),
             media = media,
             comments = comments,
+            moreCommentIds = moreIds,
         )
     }
+
+    /** Flat `morechildren` things. Nested `more` nodes (parent `t1_`) are left for a later pass. */
+    fun parseMoreChildren(document: String): MoreComments {
+        val root = runCatching { json.parseToJsonElement(document) }.getOrNull()?.obj()
+            ?: return MoreComments(emptyList(), emptyList())
+        val things = root.obj("json")?.obj("data")?.array("things").orEmpty()
+        val flat = mutableListOf<Pair<String, ParsedRedditComment>>()
+        val moreIds = mutableListOf<String>()
+        for (element in things) {
+            val node = element.obj() ?: continue
+            when (node.string("kind")) {
+                "t1" -> {
+                    val data = node.obj("data") ?: continue
+                    val comment = parseComment(element, depth = 0) ?: continue
+                    flat += data.string("parent_id").orEmpty() to comment
+                }
+                "more" -> {
+                    val data = node.obj("data") ?: continue
+                    if (data.string("parent_id").orEmpty().startsWith("t1_")) continue
+                    moreIds += moreChildIds(data)
+                }
+            }
+        }
+        return MoreComments(threadComments(flat), moreIds.distinct())
+    }
+
+    private fun parseCommentListing(children: List<JsonElement>): Pair<List<ParsedRedditComment>, List<String>> {
+        val comments = mutableListOf<ParsedRedditComment>()
+        val moreIds = mutableListOf<String>()
+        for (element in children) {
+            val node = element.obj() ?: continue
+            when (node.string("kind")) {
+                "t1" -> parseComment(element, depth = 0)?.let { comments += it }
+                "more" -> {
+                    val data = node.obj("data") ?: continue
+                    if (data.string("parent_id").orEmpty().startsWith("t1_")) continue
+                    moreIds += moreChildIds(data)
+                }
+            }
+        }
+        return comments to moreIds.distinct()
+    }
+
+    private fun threadComments(flat: List<Pair<String, ParsedRedditComment>>): List<ParsedRedditComment> {
+        if (flat.isEmpty()) return emptyList()
+        val byParent = flat.groupBy { (parent, _) ->
+            if (parent.startsWith("t1_")) parent.removePrefix("t1_") else parent
+        }
+        fun nest(comment: ParsedRedditComment): ParsedRedditComment {
+            val kids = byParent[comment.id].orEmpty().map { nest(it.second) }
+            val replies = (comment.replies + kids).distinctBy { it.id }
+            return comment.copy(replies = replies)
+        }
+        return flat
+            .filter { (parent, _) -> parent.isBlank() || parent.startsWith("t3_") }
+            .map { nest(it.second) }
+            .distinctBy { it.id }
+    }
+
+    private fun moreChildIds(data: JsonObject): List<String> =
+        data.array("children")
+            ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            ?.filter { it.isNotBlank() && it != "_" }
+            .orEmpty()
 
     private fun extractMedia(data: JsonObject, fallbackId: String, description: String): List<ParsedRedditMedia> {
         val gallery = galleryMedia(data, description)

@@ -34,11 +34,11 @@ internal fun mediaFillsPortrait(
     return fittedHeight.isFinite() && fittedHeight >= viewportHeightPx * PORTRAIT_FILL_FRACTION
 }
 
-/** A downward swipe leaves immersive media for the framed post. Sideways stays a gallery swipe. */
-internal fun swipeRevealsPost(totalDx: Float, totalDy: Float, thresholdPx: Float): Boolean {
+/** A vertical swipe leaves immersive media for the framed post. Sideways stays a gallery swipe. */
+internal fun swipeExitsFullscreen(totalDx: Float, totalDy: Float, thresholdPx: Float): Boolean {
     if (thresholdPx <= 0f) return false
     if (kotlin.math.abs(totalDx) > kotlin.math.abs(totalDy)) return false
-    return totalDy >= thresholdPx
+    return kotlin.math.abs(totalDy) >= thresholdPx
 }
 
 private const val PORTRAIT_FILL_FRACTION = 0.72f

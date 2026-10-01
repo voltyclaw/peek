@@ -166,7 +166,14 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             authorMetadata = content.author.metadata,
             commentCount = content.commentCount,
             comments = content.comments.map(::mapComment),
-            canLoadMoreComments = (sourceMetadata as? InstagramMetadata)?.commentsEndCursor != null,
+            canLoadMoreComments = when (sourceMetadata) {
+                is InstagramMetadata -> sourceMetadata.commentsEndCursor != null
+                is RedditMetadata -> sourceMetadata.moreCommentIds.isNotEmpty()
+                else -> false
+            },
+            commentsTruncated = content.source == LinkSource.X &&
+                content.comments.isNotEmpty() &&
+                content.commentCount > content.comments.size,
             mediaItems = mediaItems,
             initialMediaIndex = requestedMediaIndex(content.url, mediaItems.size),
             sourceUrl = content.url,

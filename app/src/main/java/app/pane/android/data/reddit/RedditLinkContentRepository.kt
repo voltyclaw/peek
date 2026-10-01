@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 class RedditLinkContentRepository(
     pageLoaders: List<RedditPageLoader>,
     private val cacheStore: LinkContentCacheStore,
+    private val moreComments: RedditMoreComments = RedditMoreComments(),
 ) : LinkContentRepository {
     private val resolverChain = PrioritizedUrlResolver(pageLoaders)
     private val successfulCache = ConcurrentHashMap<String, LinkContent>()
@@ -47,6 +48,47 @@ class RedditLinkContentRepository(
         val id = cachedPostId(url) ?: return null
         successfulCache[id]?.let { return it.withUrl(url) }
         return cacheStore.get(cacheKey(id))?.content?.withUrl(url)?.also { successfulCache[id] = it }
+    }
+
+    override suspend fun loadMoreComments(url: String): Result<LinkContent> {
+        if (!supports(url)) {
+            return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
+        }
+        return try {
+            loadMutex.withLock {
+                val id = cachedPostId(url)
+                    ?: return@withLock Result.failure(IllegalStateException("Load the Reddit post before loading more comments"))
+                val current = cachedContent(id, url)
+                    ?: return@withLock Result.failure(IllegalStateException("Load the Reddit post before loading more comments"))
+                val metadata = current.sourceMetadata as? RedditMetadata
+                    ?: return@withLock Result.failure(IllegalStateException("Reddit post is missing comment pages"))
+                val pending = metadata.moreCommentIds.filter { it.isNotBlank() && it != "_" }
+                if (pending.isEmpty()) return@withLock Result.success(current.withUrl(url))
+                val batch = pending.take(MORE_BATCH)
+                val page = moreComments.fetch(metadata.postId, batch)
+                val known = current.comments.flatMap { it.ids() }.toSet()
+                val fresh = page.comments.filter { it.id !in known }
+                val nextIds = if (fresh.isEmpty()) {
+                    emptyList()
+                } else {
+                    val loaded = fresh.flatMap { it.ids() }.toSet()
+                    (pending.drop(batch.size) + page.moreIds)
+                        .filter { it.isNotBlank() && it != "_" && it !in known && it !in loaded }
+                        .distinct()
+                }
+                val updated = current.copy(
+                    comments = current.comments + fresh.map(::mapComment),
+                    sourceMetadata = metadata.copy(moreCommentIds = nextIds),
+                )
+                successfulCache[id] = updated
+                cacheStore.put(cacheKey(id), updated, "reddit-morechildren")
+                Result.success(updated.withUrl(url))
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
     }
 
     override suspend fun refresh(url: String): Result<LinkContent> =
@@ -152,6 +194,7 @@ class RedditLinkContentRepository(
                 over18 = post.over18,
                 spoiler = post.spoiler,
                 mediaItems = mediaItems,
+                moreCommentIds = post.moreCommentIds,
             ),
         )
     }
@@ -201,5 +244,13 @@ class RedditLinkContentRepository(
     private fun LinkContent.withUrl(url: String): LinkContent =
         if (this.url == url) this else copy(url = url)
 
+    private fun Comment.ids(): Set<String> = setOf(id) + replies.flatMap { it.ids() }
+
+    private fun ParsedRedditComment.ids(): Set<String> = setOf(id) + replies.flatMap { it.ids() }
+
     private fun cacheKey(id: String): String = "reddit:$id"
+
+    private companion object {
+        const val MORE_BATCH = 100
+    }
 }

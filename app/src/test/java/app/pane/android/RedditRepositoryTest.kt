@@ -6,13 +6,19 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.reddit.ParsedRedditComment
 import app.pane.android.data.reddit.ParsedRedditMedia
 import app.pane.android.data.reddit.ParsedRedditPost
+import app.pane.android.data.reddit.RedditFetchPlan
 import app.pane.android.data.reddit.RedditLinkContentRepository
+import app.pane.android.data.reddit.RedditMoreComments
 import app.pane.android.data.reddit.RedditPageLoader
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.model.RedditMetadata
+import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -144,6 +150,74 @@ class RedditRepositoryTest {
         assertEquals(LinkSource.Reddit, decoded.source)
     }
 
+    @Test
+    fun loadMoreCommentsAppendsTheNextPublicPage() = runTest {
+        val url = "https://www.reddit.com/comments/abc123/"
+        var requested: String? = null
+        lateinit var connection: MoreCommentsConnection
+        val more = RedditMoreComments { requestUrl ->
+            requested = requestUrl
+            MoreCommentsConnection(requestUrl, MORE_CHILDREN_PAGE).also { connection = it }
+        }
+        val repository = RedditLinkContentRepository(
+            listOf(FakeLoader(imagePost().copy(moreCommentIds = listOf("c3")))),
+            newCacheStore(),
+            more,
+        )
+
+        repository.resolve(url).getOrThrow()
+        val paged = repository.loadMoreComments(url).getOrThrow()
+
+        assertEquals(
+            "https://www.reddit.com/api/morechildren.json?api_type=json&raw_json=1&sort=confidence&limit_children=false&link_id=t3_abc123&children=c3",
+            requested,
+        )
+        assertFalse(requested.orEmpty().contains("%2C"))
+        assertEquals(RedditFetchPlan.DESKTOP_USER_AGENT, connection.getRequestProperty("User-Agent"))
+        assertEquals(listOf("Nice shot", "Later"), paged.comments.map { it.body })
+        assertEquals(listOf("c4"), (paged.sourceMetadata as RedditMetadata).moreCommentIds)
+    }
+
+    @Test
+    fun loadMoreCommentsClearsTheCursorWhenThePageAddsNothing() = runTest {
+        val url = "https://www.reddit.com/comments/abc123/"
+        val more = RedditMoreComments { requestUrl ->
+            MoreCommentsConnection(requestUrl, """{"json":{"data":{"things":[]}}}""")
+        }
+        val repository = RedditLinkContentRepository(
+            listOf(FakeLoader(imagePost().copy(moreCommentIds = listOf("c3")))),
+            newCacheStore(),
+            more,
+        )
+
+        repository.resolve(url).getOrThrow()
+        val paged = repository.loadMoreComments(url).getOrThrow()
+
+        assertEquals(listOf("Nice shot"), paged.comments.map { it.body })
+        assertTrue((paged.sourceMetadata as RedditMetadata).moreCommentIds.isEmpty())
+    }
+
+    @Test
+    fun loadMoreCommentsKeepsTheCursorWhenTheRequestFails() = runTest {
+        val url = "https://www.reddit.com/comments/abc123/"
+        val more = RedditMoreComments { requestUrl ->
+            MoreCommentsConnection(requestUrl, "nope", status = 404)
+        }
+        val repository = RedditLinkContentRepository(
+            listOf(FakeLoader(imagePost().copy(moreCommentIds = listOf("c3")))),
+            newCacheStore(),
+            more,
+        )
+
+        val loaded = repository.resolve(url).getOrThrow()
+        val failed = repository.loadMoreComments(url)
+
+        assertTrue(failed.isFailure)
+        assertEquals(listOf("c3"), (loaded.sourceMetadata as RedditMetadata).moreCommentIds)
+        val cached = repository.peekCached(url)
+        assertEquals(listOf("c3"), (cached?.sourceMetadata as RedditMetadata).moreCommentIds)
+    }
+
     private fun newCacheStore() = LinkContentCacheStore(FakeCacheDataStore())
 
     private class FakeCacheDataStore : DataStore<LinkContentCacheDocument> {
@@ -266,3 +340,23 @@ class RedditRepositoryTest {
         comments = emptyList(),
     )
 }
+
+private class MoreCommentsConnection(
+    url: String,
+    private val response: String,
+    private val status: Int = 200,
+) : HttpURLConnection(URL(url)) {
+    override fun getResponseCode(): Int = status
+    override fun getInputStream() = ByteArrayInputStream(response.toByteArray(StandardCharsets.UTF_8))
+    override fun getErrorStream() = inputStream
+    override fun connect() = Unit
+    override fun disconnect() = Unit
+    override fun usingProxy(): Boolean = false
+}
+
+private const val MORE_CHILDREN_PAGE = """
+{"json":{"data":{"things":[
+  {"kind":"t1","data":{"id":"c3","parent_id":"t3_abc123","author":"cara","body":"Later","created_utc":1,"replies":""}},
+  {"kind":"more","data":{"parent_id":"t3_abc123","children":["c4"]}}
+]}}}
+"""

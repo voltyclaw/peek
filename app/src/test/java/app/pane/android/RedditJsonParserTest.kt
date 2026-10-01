@@ -24,6 +24,25 @@ class RedditJsonParserTest {
         assertEquals("Nice shot", post?.comments?.single()?.body)
         assertEquals("Thanks", post?.comments?.single()?.replies?.single()?.body)
         assertTrue(post?.comments?.single()?.replies?.single()?.isSubmitter == true)
+        assertEquals(listOf("c3"), post?.moreCommentIds)
+    }
+
+    @Test
+    fun parsesMoreChildrenAndSkipsNestedMoreAndBlankPlaceholders() {
+        val page = parser.parseMoreChildren(
+            """
+            {"json":{"data":{"things":[
+              {"kind":"t1","data":{"id":"c3","parent_id":"t3_abc123","author":"cara","body":"Later","created_utc":1,"replies":""}},
+              {"kind":"t1","data":{"id":"c5","parent_id":"t1_c3","author":"dee","body":"Nested","created_utc":2,"replies":""}},
+              {"kind":"more","data":{"parent_id":"t1_c3","children":["skip-me"]}},
+              {"kind":"more","data":{"parent_id":"t3_abc123","children":["c4","_"]}}
+            ]}}}
+            """.trimIndent(),
+        )
+
+        assertEquals("Later", page.comments.single().body)
+        assertEquals("Nested", page.comments.single().replies.single().body)
+        assertEquals(listOf("c4"), page.moreIds)
     }
 
     @Test

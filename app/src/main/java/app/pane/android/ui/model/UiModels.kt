@@ -70,6 +70,8 @@ data class ViewerPostUiModel(
     val initialMediaIndex: Int = 0,
     val sourceUrl: String = "",
     val authorAvatar: UiImage? = null,
+    /** Public page returned some replies, and no further page is available. */
+    val commentsTruncated: Boolean = false,
 )
 
 @Immutable

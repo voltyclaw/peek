@@ -142,5 +142,5 @@ object XConversation {
     private val ENTRY_ID = Regex("""entry_id"?\s*:\s*"([^"]*)"""")
     private val TWEET_ID = Regex("""tweet-(\d+)""")
     private val CREATED = Regex("""created_at_ms"?\s*:\s*"?(\d+)""")
-    private const val MAX_REPLIES = 40
+    private const val MAX_REPLIES = 80
 }

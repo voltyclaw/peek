@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -71,6 +72,7 @@ import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
+import app.pane.android.ui.theme.LocalPaneColors
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
@@ -273,7 +275,7 @@ private fun UtilityActionButton(
 fun CaptionText(post: ViewerPostUiModel) {
     Text(
         text = autolinkedCaption(post.title, PaneAccent),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         color = PaneInk,
         style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
     )
@@ -286,27 +288,54 @@ fun CommentsSection(
     scrollOffset: Int,
     onLoadMore: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.thread), color = PaneInk, style = TextStyle(fontFamily = Geist, fontSize = 16.sp, fontWeight = FontWeight.SemiBold))
-            Text(stringResource(R.string.comments_count, post.commentCount), color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp))
-        }
-        if (post.comments.isEmpty() && post.commentCount > 0) {
-            Text(
-                text = stringResource(R.string.replies_unavailable),
-                color = PaneMuted,
-                style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
-            )
-        }
-        post.comments.forEachIndexed { index, comment ->
-            CommentThread(comment, accentLine = index == 0)
-        }
-        if (post.canLoadMoreComments) {
-            CommentPaginationSentinel(
-                isLoading = isLoadingMore,
-                scrollOffset = scrollOffset,
-                onLoadMore = onLoadMore,
-            )
+    val threadLabel = if (LocalPaneColors.current.night) PaneAccent.copy(alpha = 0.7f) else PaneMuted
+    val showThreadBody = post.comments.isNotEmpty() ||
+        post.commentCount > 0 ||
+        post.canLoadMoreComments ||
+        post.commentsTruncated
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(PaneBorder))
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.thread),
+            color = threadLabel,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+        )
+        if (showThreadBody) {
+            Spacer(Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .background(PaneTile)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (post.comments.isEmpty() && post.commentCount > 0) {
+                    Text(
+                        text = stringResource(R.string.replies_unavailable),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+                    )
+                }
+                post.comments.forEachIndexed { index, comment ->
+                    CommentThread(comment, accentLine = index == 0)
+                }
+                if (post.commentsTruncated) {
+                    Text(
+                        text = stringResource(R.string.replies_partial),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+                    )
+                }
+                if (post.canLoadMoreComments) {
+                    CommentPaginationSentinel(
+                        isLoading = isLoadingMore,
+                        scrollOffset = scrollOffset,
+                        onLoadMore = onLoadMore,
+                    )
+                }
+            }
         }
     }
 }
@@ -323,6 +352,7 @@ private fun CommentPaginationSentinel(
         modifier = Modifier
             .fillMaxWidth()
             .height(36.dp)
+            .clickable(enabled = !isLoading, role = Role.Button, onClick = onLoadMore)
             .onGloballyPositioned { coordinates ->
                 val visible = coordinates.boundsInWindow().top < rootView.height
                 if (scrollOffset > lastRequestedScrollOffset && visible && !isLoading) {
@@ -333,9 +363,9 @@ private fun CommentPaginationSentinel(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (isLoading) "Loading more comments…" else "Scroll for more comments",
+            text = stringResource(if (isLoading) R.string.loading_more_comments else R.string.load_more_comments),
             color = PaneMuted,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold),
+            style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
         )
     }
 }
@@ -357,8 +387,8 @@ fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) 
             .drawBehind {
                 drawLine(lineColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 2.dp.toPx())
             }
-            .padding(start = 10.dp, top = 2.dp, bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(start = 10.dp, top = 2.dp, bottom = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CommentRow(
             comment = comment,
@@ -397,13 +427,13 @@ fun CommentRow(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 10.sp, fontWeight = FontWeight.SemiBold))
-            Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp))
+            Text(comment.author, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+            Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
             if (folded) {
                 Text(
                     text = "+",
-                    color = PaneAccent,
-                    style = TextStyle(fontFamily = GeistMono, fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium),
                 )
             }
         }
@@ -416,7 +446,7 @@ fun CommentRow(
             ),
             modifier = Modifier.fillMaxWidth(),
             color = PaneInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 21.sp),
         )
     }
 }

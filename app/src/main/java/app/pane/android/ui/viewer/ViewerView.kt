@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -43,11 +44,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -61,7 +68,12 @@ import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
 import app.pane.android.ui.components.PeekImage
+import app.pane.android.ui.media.MAX_FRAMED_MEDIA_HEIGHT
 import app.pane.android.ui.media.MutedInlineVideo
+import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
+import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
+import app.pane.android.ui.media.contentAspectRatio
+import app.pane.android.ui.media.fittedContentPx
 import app.pane.android.ui.components.PaneLockup
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
@@ -175,13 +187,16 @@ private fun ColumnScope.ViewerContent(
             },
             canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
         )
-        CaptionText(post)
-        CommentsSection(
-            post = post,
-            isLoadingMore = isLoadingMoreComments,
-            scrollOffset = scrollState.value,
-            onLoadMore = onLoadMoreComments,
-        )
+        Column(Modifier.fillMaxWidth()) {
+            CaptionText(post)
+            Spacer(Modifier.height(24.dp))
+            CommentsSection(
+                post = post,
+                isLoadingMore = isLoadingMoreComments,
+                scrollOffset = scrollState.value,
+                onLoadMore = onLoadMoreComments,
+            )
+        }
         Spacer(Modifier.height(18.dp))
     }
 }
@@ -237,44 +252,87 @@ private fun MediaCanvas(
     onMediaMeasured: (Float, Float) -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val mediaHeight = if (items.any { it.videoUrl != null }) 288.dp else 244.dp
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(mediaHeight)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
-            .background(PaneFill),
-    ) {
+    val current = items[pagerState.currentPage]
+    var measured by remember { mutableStateOf<Map<String, Pair<Float, Float>>>(emptyMap()) }
+    val known = measured[current.id]
+    val knownW = known?.first ?: current.width?.toFloat() ?: 0f
+    val knownH = known?.second ?: current.height?.toFloat() ?: 0f
+    val frameAspect = contentAspectRatio(
+        knownW,
+        knownH,
+        if (current.videoUrl != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT,
+    )
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val density = LocalDensity.current
+        val boxW = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+        val boxH = (boxW / frameAspect)
+            .coerceAtMost(with(density) { MAX_FRAMED_MEDIA_HEIGHT.toPx() })
+            .coerceAtLeast(1f)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(with(density) { boxH.toDp() })
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
+                .background(Color.Black),
+        ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = items[page]
             val videoUrl = item.videoUrl
-            Box(Modifier.fillMaxSize()) {
+            val size = measured[item.id]
+            val pageW = size?.first ?: item.width?.toFloat() ?: 0f
+            val pageH = size?.second ?: item.height?.toFloat() ?: 0f
+            val pageAspect = contentAspectRatio(
+                pageW,
+                pageH,
+                if (videoUrl != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT,
+            )
+            val fitted = fittedContentPx(
+                boxW,
+                boxH,
+                if (pageW > 1f) pageW else pageAspect,
+                if (pageH > 1f) pageH else 1f,
+            )
+            val mediaModifier = if (fitted.widthPx > 1f && fitted.heightPx > 1f) {
+                Modifier.size(
+                    with(density) { fitted.widthPx.toDp() },
+                    with(density) { fitted.heightPx.toDp() },
+                )
+            } else {
+                Modifier.fillMaxSize()
+            }
+            val reportSize: (Float, Float) -> Unit = { width, height ->
+                measured = measured + (item.id to (width to height))
+                if (page == pagerState.currentPage) onMediaMeasured(width, height)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(role = Role.Button, onClick = { onOpenMedia(page) }),
+                contentAlignment = Alignment.Center,
+            ) {
                 PeekImage(
                     image = item.image,
                     contentDescription = if (videoUrl == null) item.contentDescription else null,
-                    modifier = Modifier.fillMaxSize().then(
+                    modifier = mediaModifier.then(
                         if (videoUrl == null) {
                             Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
                         } else {
                             Modifier
                         },
                     ),
-                    onIntrinsicSize = if (videoUrl == null && page == pagerState.currentPage) onMediaMeasured else null,
+                    contentScale = ContentScale.Fit,
+                    onIntrinsicSize = if (videoUrl == null) reportSize else null,
                 )
                 if (videoUrl != null && page == pagerState.currentPage) {
                     MutedInlineVideo(
                         videoUrl = videoUrl,
-                        modifier = Modifier.fillMaxSize(),
-                        onVideoSize = onMediaMeasured,
+                        modifier = mediaModifier,
+                        onVideoSize = reportSize,
                     )
                 }
                 if (videoUrl != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(role = Role.Button, onClick = { onOpenMedia(page) }),
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -352,6 +410,7 @@ private fun MediaCanvas(
                     Text(duration, color = PaneOnFill, style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold))
                 }
             }
+        }
         }
     }
 }

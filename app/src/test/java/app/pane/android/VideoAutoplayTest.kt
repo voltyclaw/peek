@@ -1,7 +1,7 @@
 package app.pane.android
 
 import app.pane.android.ui.player.mediaFillsPortrait
-import app.pane.android.ui.player.swipeRevealsPost
+import app.pane.android.ui.player.swipeExitsFullscreen
 import app.pane.android.ui.viewer.VideoAutoplay
 import app.pane.android.ui.viewer.isDirectPictureUrl
 import org.junit.Assert.assertFalse
@@ -63,11 +63,12 @@ class VideoAutoplayTest {
     }
 
     @Test
-    fun swipeDownLeavesImmersiveAndASidewaysMoveDoesNot() {
-        assertTrue(swipeRevealsPost(totalDx = 4f, totalDy = 80f, thresholdPx = 56f))
-        assertFalse(swipeRevealsPost(totalDx = 90f, totalDy = 40f, thresholdPx = 56f))
-        assertFalse(swipeRevealsPost(totalDx = 0f, totalDy = 20f, thresholdPx = 56f))
-        assertFalse(swipeRevealsPost(totalDx = 0f, totalDy = -80f, thresholdPx = 56f))
+    fun swipeUpOrDownLeavesImmersiveAndASidewaysMoveDoesNot() {
+        assertTrue(swipeExitsFullscreen(totalDx = 4f, totalDy = 80f, thresholdPx = 56f))
+        assertTrue(swipeExitsFullscreen(totalDx = 4f, totalDy = -80f, thresholdPx = 56f))
+        assertFalse(swipeExitsFullscreen(totalDx = 90f, totalDy = 40f, thresholdPx = 56f))
+        assertFalse(swipeExitsFullscreen(totalDx = 0f, totalDy = 20f, thresholdPx = 56f))
+        assertFalse(swipeExitsFullscreen(totalDx = 0f, totalDy = -80f, thresholdPx = 0f))
     }
 
     @Test

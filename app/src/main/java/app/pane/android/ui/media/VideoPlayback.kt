@@ -64,9 +64,12 @@ internal fun MutedInlineVideo(
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-                if (videoSize.width > 0 && videoSize.height > 0) {
-                    sizeCallback.value?.invoke(videoSize.width.toFloat(), videoSize.height.toFloat())
-                }
+                val display = displayVideoSize(
+                    videoSize.width,
+                    videoSize.height,
+                    videoSize.pixelWidthHeightRatio,
+                ) ?: return
+                sizeCallback.value?.invoke(display.first, display.second)
             }
         }
         exoPlayer.addListener(listener)
@@ -88,6 +91,7 @@ internal fun VideoSurface(
     exoPlayer: ExoPlayer,
     resizeMode: Int,
     modifier: Modifier = Modifier,
+    shutterColor: Int = android.graphics.Color.BLACK,
 ) {
     AndroidView(
         modifier = modifier,
@@ -95,7 +99,7 @@ internal fun VideoSurface(
             Media3PlayerView(context).apply {
                 player = exoPlayer
                 useController = false
-                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                setShutterBackgroundColor(shutterColor)
                 this.resizeMode = resizeMode
                 isClickable = false
                 isFocusable = false
