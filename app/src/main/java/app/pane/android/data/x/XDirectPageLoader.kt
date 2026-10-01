@@ -54,25 +54,43 @@ class XDirectPageLoader(
         throw IOException(XSyndication.UNAVAILABLE)
     }
 
-    private suspend fun loadReplies(statusId: String): List<ParsedXReply> =
-        runCatching { get("https://x.com/i/status/$statusId", json = false) }
-            .getOrNull()
-            ?.let { html -> XConversation.parseReplies(html, statusId) }
-            .orEmpty()
+    private suspend fun loadReplies(statusId: String): List<ParsedXReply> {
+        val attempts = listOf(
+            "https://x.com/i/status/$statusId" to USER_AGENT,
+            "https://twitter.com/i/status/$statusId" to USER_AGENT,
+            "https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT,
+        )
+        for ((url, agent) in attempts) {
+            val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: continue
+            val replies = XConversation.parseReplies(html, statusId)
+            if (replies.isNotEmpty()) return replies
+        }
+        return emptyList()
+    }
 
-    private suspend fun get(url: String, json: Boolean): String = withContext(Dispatchers.IO) {
+    private suspend fun get(url: String, json: Boolean, userAgent: String = USER_AGENT): String = withContext(Dispatchers.IO) {
         val connection = connectionFactory(url)
         try {
             connection.instanceFollowRedirects = true
             connection.requestMethod = "GET"
             connection.connectTimeout = 8_000
-            connection.readTimeout = 12_000
+            connection.readTimeout = 20_000
             connection.setRequestProperty(
                 "Accept",
-                if (json) "application/json,text/plain,*/*" else "text/html",
+                if (json) {
+                    "application/json,text/plain,*/*"
+                } else {
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                },
             )
+            if (!json) {
+                connection.setRequestProperty("Sec-Fetch-Dest", "document")
+                connection.setRequestProperty("Sec-Fetch-Mode", "navigate")
+                connection.setRequestProperty("Sec-Fetch-Site", "none")
+                connection.setRequestProperty("Upgrade-Insecure-Requests", "1")
+            }
             connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-            connection.setRequestProperty("User-Agent", USER_AGENT)
+            connection.setRequestProperty("User-Agent", userAgent)
             val status = connection.responseCode
             val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(StandardCharsets.UTF_8)
@@ -97,9 +115,12 @@ class XDirectPageLoader(
     }
 
     private companion object {
-        const val MAX_CHARS = 750_000
+        const val MAX_CHARS = 2_000_000
         const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        const val MOBILE_USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
     }
 }

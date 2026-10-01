@@ -20,11 +20,20 @@ import android.provider.Settings
  *
  * A normal app can read that state. It cannot write it; the system settings screen is
  * the only supported way to change the switches.
+ *
+ * facebook.com, instagram.com, fb.com, fb.watch, and fb.me publish assetlinks.json for
+ * Meta's own packages. On phones that honor that verification, Open by default cannot
+ * stay on Pane for those hosts, and Chrome will not offer Open with. The share sheet
+ * is separate: ACTION_SEND does not check assetlinks. l.facebook.com, lm.facebook.com,
+ * l.instagram.com, and m.instagram.com redirect their assetlinks file, so they are not
+ * verified owners and a VIEW choice for Pane can stick there.
  */
 object LinkSettings {
     val webHosts: List<String> = listOf(
         "www.instagram.com",
         "instagram.com",
+        "m.instagram.com",
+        "l.instagram.com",
         "www.reddit.com",
         "reddit.com",
         "old.reddit.com",
@@ -40,6 +49,8 @@ object LinkSettings {
         "fb.com",
         "www.fb.com",
         "fb.watch",
+        "l.facebook.com",
+        "lm.facebook.com",
         "x.com",
         "www.x.com",
         "mobile.x.com",

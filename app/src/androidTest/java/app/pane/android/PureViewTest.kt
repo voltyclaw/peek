@@ -1,14 +1,12 @@
 package app.pane.android
 
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import app.pane.android.ui.home.HomeView
 import app.pane.android.ui.model.ViewerUiState
@@ -122,27 +120,24 @@ class PureViewTest {
     }
 
     @Test
-    fun fullScreenCarouselStartsAtSelectedPhoto() {
+    fun fullScreenShowsTheSelectedPhotoAndTapClosesIt() {
+        var backed = false
         composeRule.setContent {
             PaneTheme {
                 PlayerView(
                     uiState = PeekPreviewFixtures.carousel,
                     initialMediaIndex = 1,
-                    onBack = {},
+                    onBack = { backed = true },
                     onMore = {},
                 )
             }
         }
 
         composeRule.onNodeWithContentDescription("Kyoto photo").assertIsDisplayed()
-        composeRule.onNodeWithText("2 / 3").assertIsDisplayed()
-        composeRule.onNodeWithText("PHOTO").assertIsDisplayed()
-
-        composeRule.onNodeWithContentDescription("Kyoto photo").performTouchInput {
-            swipeLeft()
-        }
-        composeRule.onNodeWithText("3 / 3").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription("Play video").assertCountEquals(2)
+        composeRule.onNodeWithText("Mara Chen").assertDoesNotExist()
+        composeRule.onNodeWithText("PHOTO").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Kyoto photo").performClick()
+        assertEquals(true, backed)
     }
 
     @Test

@@ -7,9 +7,12 @@ import java.net.URI
 import java.util.Locale
 
 internal object VideoAutoplay {
-    /** Video, photo, and gallery posts open on the media once. Text posts stay on the preview. */
-    fun shouldOpen(alreadyOpened: Boolean, hasVisualMedia: Boolean): Boolean =
-        !alreadyOpened && hasVisualMedia
+    /**
+     * Every post opens on the framed screen. Video plays muted there.
+     * Fullscreen is a tap on the media, never an automatic navigation.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun shouldOpen(alreadyOpened: Boolean, hasVisualMedia: Boolean): Boolean = false
 }
 
 internal fun ViewerPostUiModel.hasVisualMedia(): Boolean =

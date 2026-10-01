@@ -291,6 +291,11 @@ class InstagramLinkContentRepository(
 
     private companion object {
         val POST_PATH = Regex("/(p|reel|reels)/([A-Za-z0-9_-]+)")
-        val INSTAGRAM_HOSTS = setOf("instagram.com", "www.instagram.com")
+        val INSTAGRAM_HOSTS = setOf(
+            "instagram.com",
+            "www.instagram.com",
+            "m.instagram.com",
+            "l.instagram.com",
+        )
     }
 }

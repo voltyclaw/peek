@@ -26,19 +26,42 @@
         </provider>
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTop"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <!--
-                autoVerify stays false. Instagram and Reddit host assetlinks.json for their own
-                apps, not for this debug package. Turning verification on makes Android check
-                those files and then refuse the Open by default switches. One host per filter
-                keeps a refused address from taking the others with it. Paths stay on the same
-                data element as the host so Android does not cross-multiply them.
+                Share sheet target. Domain verification does not apply to ACTION_SEND, so
+                Facebook, Instagram, and browsers can list Pane when a post is shared as
+                text/plain or text/html. These filters stay separate from VIEW so a mime type
+                is not crossed with a host.
+            -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/html" />
+            </intent-filter>
+            <!--
+                autoVerify stays false. Instagram, Facebook, and Reddit host assetlinks.json
+                for their own apps, not for this debug package. Turning verification on makes
+                Android check those files and then refuse the Open by default switches.
+                facebook.com, instagram.com, fb.com, fb.watch, and fb.me are verified for Meta,
+                so a tap there still opens Meta's app on phones that honor verification.
+                l.facebook.com, lm.facebook.com, l.instagram.com, and m.instagram.com only
+                redirect that file, so they are not verified and a VIEW choice can stick.
+                One host per filter keeps a refused address from taking the others with it.
+                Paths stay on the same data element as the host so Android does not
+                cross-multiply them.
             -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
@@ -55,6 +78,20 @@
                 <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/p/" />
                 <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/reel/" />
                 <data android:scheme="https" android:host="instagram.com" android:pathPrefix="/reels/" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="m.instagram.com" android:pathPrefix="/p/" />
+                <data android:scheme="https" android:host="m.instagram.com" android:pathPrefix="/reel/" />
+                <data android:scheme="https" android:host="m.instagram.com" android:pathPrefix="/reels/" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="l.instagram.com" />
             </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
@@ -223,6 +260,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="fb.watch" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="l.facebook.com" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="lm.facebook.com" />
             </intent-filter>
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />

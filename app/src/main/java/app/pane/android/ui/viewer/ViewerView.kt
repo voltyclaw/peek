@@ -35,7 +35,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,6 +61,7 @@ import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
 import app.pane.android.ui.components.PeekImage
+import app.pane.android.ui.media.MutedInlineVideo
 import app.pane.android.ui.components.PaneLockup
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
@@ -154,7 +155,9 @@ private fun ColumnScope.ViewerContent(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (items.any(::hasVisualMedia)) {
-            MediaCanvas(post, items, pagerState, onOpenMedia)
+            Column(Modifier.padding(bottom = 18.dp)) {
+                MediaCanvas(post, items, pagerState, onOpenMedia)
+            }
         }
         AuthorByline(
             post = post,
@@ -232,28 +235,55 @@ private fun MediaCanvas(
     val coroutineScope = rememberCoroutineScope()
     val mediaHeight = if (items.any { it.videoUrl != null }) 288.dp else 244.dp
     Box(
-        modifier = Modifier.fillMaxWidth().height(mediaHeight).clip(RoundedCornerShape(12.dp)).border(1.dp, PaneBorder, RoundedCornerShape(12.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(mediaHeight)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
+            .background(PaneFill),
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = items[page]
+            val videoUrl = item.videoUrl
             Box(Modifier.fillMaxSize()) {
                 PeekImage(
                     image = item.image,
-                    contentDescription = item.contentDescription,
-                    modifier = Modifier.fillMaxSize().clickable(
-                        role = Role.Button,
-                        onClick = { onOpenMedia(page) },
+                    contentDescription = if (videoUrl == null) item.contentDescription else null,
+                    modifier = Modifier.fillMaxSize().then(
+                        if (videoUrl == null) {
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                        } else {
+                            Modifier
+                        },
                     ),
                 )
-                if (item.videoUrl != null) {
+                if (videoUrl != null && page == pagerState.currentPage) {
+                    MutedInlineVideo(videoUrl = videoUrl, modifier = Modifier.fillMaxSize())
+                }
+                if (videoUrl != null) {
                     Box(
-                        modifier = Modifier.align(Alignment.Center).size(62.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(PaneGround.copy(alpha = 0.91f)).clickable(
-                            role = Role.Button,
-                            onClick = { onOpenMedia(page) },
-                        ),
-                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(role = Role.Button, onClick = { onOpenMedia(page) }),
                     ) {
-                        Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.play_video), tint = PaneAccent, modifier = Modifier.size(30.dp))
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp)
+                                .height(28.dp)
+                                .clip(CircleShape)
+                                .background(PaneFill.copy(alpha = 0.85f))
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.VolumeOff,
+                                contentDescription = stringResource(R.string.play_video),
+                                tint = PaneOnFill,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                     }
                 }
             }

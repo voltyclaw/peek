@@ -1,6 +1,7 @@
 package app.pane.android.data.resolver
 
 import app.pane.android.domain.model.LinkContent
+import app.pane.android.domain.model.LinkShims
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
 
@@ -23,19 +24,28 @@ class RoutingLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
-        route(url)?.resolve(url, onProgress) ?: unsupported(url)
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+        val opened = LinkShims.unwrap(url)
+        return route(opened)?.resolve(opened, onProgress) ?: unsupported(opened)
+    }
 
-    override suspend fun peekCached(url: String): LinkContent? = route(url)?.peekCached(url)
+    override suspend fun peekCached(url: String): LinkContent? {
+        val opened = LinkShims.unwrap(url)
+        return route(opened)?.peekCached(opened)
+    }
 
-    override suspend fun loadMoreComments(url: String): Result<LinkContent> =
-        route(url)?.loadMoreComments(url) ?: unsupported(url)
+    override suspend fun loadMoreComments(url: String): Result<LinkContent> {
+        val opened = LinkShims.unwrap(url)
+        return route(opened)?.loadMoreComments(opened) ?: unsupported(opened)
+    }
 
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
-        route(url)?.refresh(url, onProgress) ?: unsupported(url)
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+        val opened = LinkShims.unwrap(url)
+        return route(opened)?.refresh(opened, onProgress) ?: unsupported(opened)
+    }
 
     private fun route(url: String): LinkContentRepository? =
         routes.firstOrNull { it.supports(url) }?.repository

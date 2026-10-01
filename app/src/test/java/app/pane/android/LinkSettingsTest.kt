@@ -79,4 +79,22 @@ class LinkSettingsTest {
         assertTrue(manifest.contains("android:pathPattern=\"/r/.*/comments/.*\""))
         assertTrue(manifest.contains("android:pathPattern=\"/r/.*/s/.*\""))
     }
+
+    @Test
+    fun shareSheetReceivesPlainAndHtmlTextWithoutAHost() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        val filters = Regex("<intent-filter[\\s\\S]*?</intent-filter>").findAll(manifest).map { it.value }.toList()
+        val sendFilters = filters.filter { it.contains("android.intent.action.SEND") }
+        assertEquals(2, sendFilters.size)
+        assertTrue(sendFilters.any { it.contains("android:mimeType=\"text/plain\"") })
+        assertTrue(sendFilters.any { it.contains("android:mimeType=\"text/html\"") })
+        sendFilters.forEach { filter ->
+            assertTrue(filter.contains("android.intent.category.DEFAULT"))
+            assertFalse(filter.contains("android.intent.action.VIEW"))
+            assertFalse(filter.contains("android:host="))
+        }
+        listOf("l.facebook.com", "lm.facebook.com", "l.instagram.com", "m.instagram.com").forEach { host ->
+            assertTrue(manifest.contains("android:host=\"$host\""))
+        }
+    }
 }

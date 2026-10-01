@@ -29,8 +29,8 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
         themeMode = ThemePreferences.read(this)
-        viewIntentUrl.value = extractViewUrl(intent)
-        val launchedFromViewLink = intent?.action == Intent.ACTION_VIEW
+        viewIntentUrl.value = IncomingLink.urlFrom(intent)
+        val launchedFromViewLink = IncomingLink.isExternalOpen(intent)
         val container = (application as PaneApplication).container
         setContent {
             PaneTheme(themeMode) {
@@ -54,9 +54,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        extractViewUrl(intent)?.let { viewIntentUrl.value = it }
+        setIntent(intent)
+        IncomingLink.urlFrom(intent)?.let { viewIntentUrl.value = it }
     }
-
-    private fun extractViewUrl(intent: Intent?): String? =
-        intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data?.toString()
 }

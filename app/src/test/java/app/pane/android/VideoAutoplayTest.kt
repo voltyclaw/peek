@@ -8,14 +8,8 @@ import org.junit.Test
 
 class VideoAutoplayTest {
     @Test
-    fun aVideoPostOpensThePlayerOnce() {
-        assertTrue(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = true))
-        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, hasVisualMedia = true))
-    }
-
-    @Test
-    fun aPhotoOrGalleryOpensThePlayerOnce() {
-        assertTrue(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = true))
+    fun visualPostsStayOnTheFramedScreen() {
+        assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = false, hasVisualMedia = true))
         assertFalse(VideoAutoplay.shouldOpen(alreadyOpened = true, hasVisualMedia = true))
     }
 

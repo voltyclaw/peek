@@ -20,7 +20,7 @@ class ExtractUrlFromTextUseCase {
     }
 
     private companion object {
-        val URL_PATTERN = Regex("https?://\\S+", RegexOption.IGNORE_CASE)
+        val URL_PATTERN = Regex("https?://[^\\s<>\"']+", RegexOption.IGNORE_CASE)
         val TRAILING_PUNCTUATION = charArrayOf('.', ',', ';', ':', '!', '?', ')', ']', '}', '\'', '"')
     }
 }

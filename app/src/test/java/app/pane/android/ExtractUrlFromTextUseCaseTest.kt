@@ -21,6 +21,14 @@ class ExtractUrlFromTextUseCaseTest {
     }
 
     @Test
+    fun extractsAnHrefWithoutSwallowingTheMarkup() {
+        assertEquals(
+            "https://www.facebook.com/share/p/AbCdEf/",
+            extractUrl("""<a href="https://www.facebook.com/share/p/AbCdEf/">post</a>"""),
+        )
+    }
+
+    @Test
     fun acceptsHttpAndHttpsUrlsWithHosts() {
         assertEquals("http://example.com/path", extractUrl("http://example.com/path"))
         assertEquals("https://example.com", extractUrl("https://example.com"))

@@ -38,6 +38,8 @@ class InstagramRepositoryTest {
 
         assertTrue(repository.supports("https://www.instagram.com/p/DapVyootsZw/"))
         assertTrue(repository.supports("https://instagram.com/reel/DapVyootsZw/?utm_source=copy_link"))
+        assertTrue(repository.supports("https://m.instagram.com/reel/DapVyootsZw/"))
+        assertTrue(repository.supports("https://l.instagram.com/p/DapVyootsZw/"))
         assertFalse(repository.supports("https://www.reddit.com/r/pics/comments/abc123/title/"))
         assertFalse(repository.supports("http://www.instagram.com/p/DapVyootsZw/"))
     }

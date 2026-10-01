@@ -110,6 +110,43 @@ class XSyndicationTest {
     }
 
     @Test
+    fun jsonAndEscapedReplyPayloadsStillParse() {
+        val json = """
+            {"entry_id":"conversationthread-8-tweet-8","__typename":"TimelineTimelineItem","screen_name":"ada","name":"Ada","full_text":"json reply","created_at_ms":1710000000000}
+        """.trimIndent()
+        val escaped = """
+            entry_id:\"conversationthread-9-tweet-9\" name:\"Bea\" full_text:\"escaped reply\" created_at_ms:1710000000001
+        """.trimIndent()
+
+        assertEquals("json reply", XConversation.parseReplies(json, "20").single().text)
+        assertEquals("Ada", XConversation.parseReplies(json, "20").single().author)
+        assertEquals("escaped reply", XConversation.parseReplies(escaped, "20").single().text)
+        assertEquals("Bea", XConversation.parseReplies(escaped, "20").single().author)
+    }
+
+    @Test
+    fun loaderTriesTheNextStatusPageWhenTheFirstHasNoReplies() = runTest {
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"hello","user":{"name":"jack"},"conversation_count":1}
+                """.trimIndent()
+                url.contains("https://x.com/i/status") -> "<html>login wall</html>"
+                url.contains("twitter.com/i/status") -> """
+                    entry_id:"conversationthread-9-tweet-9" name:"Bea" full_text:"from twitter" created_at_ms:1710000000000
+                """.trimIndent()
+                else -> """{"author_name":"jack","html":"<p>fallback</p>"}"""
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/jack/status/20")
+
+        assertEquals("from twitter", post.replies.single().text)
+        assertEquals("Bea", post.replies.single().author)
+    }
+
+    @Test
     fun loaderAttachesRepliesFromTheStatusPage() = runTest {
         val loader = XDirectPageLoader { url ->
             val body = when {

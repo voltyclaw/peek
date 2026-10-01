@@ -6,18 +6,19 @@ package app.pane.android.data.x
  */
 object XConversation {
     fun parseReplies(html: String, focalId: String): List<ParsedXReply> {
-        if (!html.contains("full_text")) return emptyList()
-        val matches = ENTRY_ID.findAll(html).toList()
+        val source = normalize(html)
+        if (!source.contains("full_text")) return emptyList()
+        val matches = ENTRY_ID.findAll(source).toList()
         val replies = mutableListOf<ParsedXReply>()
         for ((index, match) in matches.withIndex()) {
             val entryId = match.groupValues[1]
             if (entryId.startsWith("cursor")) continue
             val tweetId = TWEET_ID.findAll(entryId).lastOrNull()?.groupValues?.get(1) ?: continue
             if (tweetId == focalId) continue
-            val afterEnd = matches.getOrNull(index + 1)?.range?.first ?: minOf(html.length, match.range.last + 12_000)
-            val after = html.substring(match.range.last + 1, afterEnd)
+            val afterEnd = matches.getOrNull(index + 1)?.range?.first ?: minOf(source.length, match.range.last + 12_000)
+            val after = source.substring(match.range.last + 1, afterEnd)
             val beforeStart = if (index == 0) 0 else matches[index - 1].range.last + 1
-            val before = html.substring(beforeStart, match.range.first)
+            val before = source.substring(beforeStart, match.range.first)
             val slice = if (after.contains("full_text")) after else before
             val text = firstJsString(slice, "full_text")?.trim().orEmpty()
             if (text.isBlank()) continue
@@ -36,19 +37,30 @@ object XConversation {
         return replies.distinctBy(ParsedXReply::id)
     }
 
+    /** Logged-out HTML is sometimes a JSON blob with escaped quotes. Both shapes share one parser. */
+    internal fun normalize(html: String): String =
+        html.replace("\\u0022", "\"").replace("\\\"", "\"")
+
     private fun firstJsString(slice: String, key: String): String? {
-        val marker = "$key:\""
-        var from = 0
-        while (from < slice.length) {
-            val start = slice.indexOf(marker, from)
-            if (start < 0) return null
-            val previous = if (start == 0) ' ' else slice[start - 1]
-            if (!previous.isLetterOrDigit() && previous != '_') {
-                return readJsString(slice, start + marker.length)
+        var best: String? = null
+        var bestAt = Int.MAX_VALUE
+        for (marker in listOf("$key:\"", "$key\":\"")) {
+            var from = 0
+            while (from < slice.length) {
+                val start = slice.indexOf(marker, from)
+                if (start < 0) break
+                val previous = if (start == 0) ' ' else slice[start - 1]
+                if (!previous.isLetterOrDigit() && previous != '_') {
+                    if (start < bestAt) {
+                        bestAt = start
+                        best = readJsString(slice, start + marker.length)
+                    }
+                    break
+                }
+                from = start + marker.length
             }
-            from = start + marker.length
         }
-        return null
+        return best
     }
 
     private fun readJsString(source: String, start: Int): String {
@@ -82,8 +94,8 @@ object XConversation {
         return out.toString()
     }
 
-    private val ENTRY_ID = Regex("""entry_id:"([^"]*)"""")
+    private val ENTRY_ID = Regex("""entry_id"?\s*:\s*"([^"]*)"""")
     private val TWEET_ID = Regex("""tweet-(\d+)""")
-    private val CREATED = Regex("""created_at_ms:(\d+)""")
+    private val CREATED = Regex("""created_at_ms"?\s*:\s*"?(\d+)""")
     private const val MAX_REPLIES = 40
 }

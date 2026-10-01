@@ -315,29 +315,46 @@ private fun CommentPaginationSentinel(
 }
 
 @Composable
-fun CommentThread(comment: CommentUiModel, accentLine: Boolean) {
+fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) {
     val lineColor = if (accentLine) PaneMuted else PaneBorder
+    val step = commentNestingStepDp(depth)
     Column(
-        modifier = Modifier.fillMaxWidth().drawBehind {
-            drawLine(lineColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 2.dp.toPx())
-        }.padding(start = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = step.dp)
+            .drawBehind {
+                drawLine(lineColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 2.dp.toPx())
+            }
+            .padding(start = 10.dp, top = 2.dp, bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        CommentRow(comment, isReply = false)
-        comment.replies.forEach { CommentRow(it, isReply = true) }
+        CommentRow(comment)
+        comment.replies.forEach { reply ->
+            CommentThread(reply, accentLine = false, depth = depth + 1)
+        }
     }
 }
 
 @Composable
-fun CommentRow(comment: CommentUiModel, isReply: Boolean) {
+fun CommentRow(comment: CommentUiModel) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = if (isReply) 30.dp else 0.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 10.sp, fontWeight = FontWeight.SemiBold))
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp))
         }
-        Text(comment.body, modifier = Modifier.fillMaxWidth(), color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp))
+        Text(
+            text = redditCommentAnnotated(
+                source = comment.body,
+                linkColor = PaneAccent,
+                quoteColor = PaneSecondary,
+                codeFont = GeistMono,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            color = PaneInk,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+        )
     }
 }

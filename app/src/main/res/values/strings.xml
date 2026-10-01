@@ -43,7 +43,7 @@
     <string name="back_goes_home">Back goes home</string>
     <string name="back_closes_pane_help">A shared link returns to the app that opened it.</string>
     <string name="back_goes_home_help">Back stays in Pane and returns home.</string>
-    <string name="link_settings_tip">These switches snap off when another app already verified the address. This debug build cannot take that over. Turn off Open supported links in the official app, then turn the addresses on here. Paste still opens the link.</string>
+    <string name="link_settings_tip">Facebook and Instagram verified their own addresses, so those Open by default switches will not stay on Pane, and Chrome will not offer Open with. Share the post to Pane instead. Paste still opens the link. Redirect hosts Meta does not verify, such as l.facebook.com, can stick.</string>
     <string name="link_settings_kept">Android kept the addresses on.</string>
     <string name="link_settings_partial">Android kept some addresses on. The ones that snap off belong to an app that already verified them.</string>
     <string name="link_settings_still_off">Android left the addresses off. Turn off Open supported links in the official apps, then try the switches again.</string>
