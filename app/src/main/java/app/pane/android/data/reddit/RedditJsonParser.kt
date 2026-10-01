@@ -9,6 +9,13 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
+data class ParsedRedditVideo(
+    val url: String,
+    val adaptive: Boolean,
+    val width: Int? = null,
+    val height: Int? = null,
+)
+
 data class ParsedRedditMedia(
     val id: String,
     val imageUrl: String,
@@ -17,6 +24,7 @@ data class ParsedRedditMedia(
     val height: Int?,
     val durationSeconds: Int?,
     val contentDescription: String,
+    val videos: List<ParsedRedditVideo> = emptyList(),
 )
 
 data class ParsedRedditComment(
@@ -225,20 +233,32 @@ class RedditJsonParser {
         val dash = video.string("dash_url")?.let(::httpsUrl)
         val hls = video.string("hls_url")?.let(::httpsUrl)
         val audioIsSeparate = video.bool("has_audio") || video["has_audio"] == null
+        val width = video.intOrNull("width")
+        val height = video.intOrNull("height")
         val videoUrl = when {
             audioIsSeparate && dash != null -> dash
             audioIsSeparate && hls != null -> hls
             fallback != null -> fallback
             else -> hls ?: dash
         } ?: return null
+        val videos = buildList {
+            if (audioIsSeparate) {
+                val adaptive = dash ?: hls
+                if (adaptive != null) add(ParsedRedditVideo(adaptive, adaptive = true, width, height))
+            }
+            if (fallback != null && none { it.url == fallback }) {
+                add(ParsedRedditVideo(fallback, adaptive = false, width, height))
+            }
+        }
         return ParsedRedditMedia(
             id = data.string("id") ?: fallbackId,
             imageUrl = previewUrl(data).orEmpty(),
             videoUrl = videoUrl,
-            width = video.intOrNull("width"),
-            height = video.intOrNull("height"),
+            width = width,
+            height = height,
             durationSeconds = video.intOrNull("duration"),
             contentDescription = description,
+            videos = videos,
         )
     }
 

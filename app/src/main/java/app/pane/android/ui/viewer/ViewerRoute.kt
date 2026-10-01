@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
 import app.pane.android.ui.actions.rememberPostActionCallbacks
+import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.mediaItemsOrPrimary
 
@@ -30,6 +31,7 @@ fun ViewerRoute(
     onBack: () -> Unit,
     onOpenMedia: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    videoQuality: VideoQuality = VideoQuality.Auto,
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
@@ -77,6 +79,7 @@ fun ViewerRoute(
         onShare = callbacks.onShare,
         onSharePost = callbacks.onSharePost,
         onOpenInApp = callbacks.onOpenInApp,
+        videoQuality = videoQuality,
         onMediaMeasured = { width, height ->
             if (width > 1f && height > 1f) {
                 measuredWidth = width

@@ -72,6 +72,15 @@ class RedditJsonParserTest {
 
         assertEquals("https://v.redd.it/clip/DASHPlaylist.mpd", post?.media?.single()?.videoUrl)
         assertEquals("https://preview.redd.it/poster.jpg", post?.media?.single()?.imageUrl)
+        assertEquals(
+            listOf(
+                "https://v.redd.it/clip/DASHPlaylist.mpd",
+                "https://v.redd.it/clip/DASH_720.mp4?source=fallback",
+            ),
+            post?.media?.single()?.videos?.map { it.url },
+        )
+        assertEquals(true, post?.media?.single()?.videos?.first()?.adaptive)
+        assertEquals(false, post?.media?.single()?.videos?.last()?.adaptive)
     }
 
     @Test

@@ -45,7 +45,14 @@ class InstagramLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        resolve(url, onProgress) {}
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val post = canonicalize(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported Instagram post URL: $url"),
         )
@@ -55,7 +62,7 @@ class InstagramLinkContentRepository(
             return Result.success(it.content.withUrl(url))
         }
 
-        return loadAndCache(url, post, onProgress)
+        return loadAndCache(url, post, onProgress, onPreview)
     }
 
     override suspend fun peekCached(url: String): LinkContent? {
@@ -102,24 +109,36 @@ class InstagramLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        refresh(url, onProgress) {}
+
+    override suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val post = canonicalize(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported Instagram post URL: $url"),
         )
         successfulCache.remove(post.shortcode)
         resolverForShortcode.remove(post.shortcode)
         cacheStore.remove(post.shortcode)
-        return loadAndCache(url, post, onProgress)
+        return loadAndCache(url, post, onProgress, onPreview)
     }
 
     private suspend fun loadAndCache(
         url: String,
         post: CanonicalPost,
         onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> = try {
         loadMutex.withLock {
             successfulCache[post.shortcode]?.let { return@withLock Result.success(it.withUrl(url)) }
-            val resolved = withContext(PageLoadProgressElement(onProgress)) {
+            val resolved = withContext(
+                PageLoadProgressElement(onProgress) + InstagramPreviewElement { media ->
+                    runCatching { onPreview(mapToLinkContent(url, post.shortcode, media)) }
+                },
+            ) {
                 resolverChain.resolveWithSource(post.canonicalUrl)
             }
             val content = mapToLinkContent(url, post.shortcode, resolved.value)

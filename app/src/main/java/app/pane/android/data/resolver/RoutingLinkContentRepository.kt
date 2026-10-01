@@ -24,9 +24,16 @@ class RoutingLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        resolve(url, onProgress) {}
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val opened = LinkShims.unwrap(url)
-        return route(opened)?.resolve(opened, onProgress) ?: unsupported(opened)
+        return route(opened)?.resolve(opened, onProgress, onPreview) ?: unsupported(opened)
     }
 
     override suspend fun peekCached(url: String): LinkContent? {
@@ -42,9 +49,16 @@ class RoutingLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        refresh(url, onProgress) {}
+
+    override suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val opened = LinkShims.unwrap(url)
-        return route(opened)?.refresh(opened, onProgress) ?: unsupported(opened)
+        return route(opened)?.refresh(opened, onProgress, onPreview) ?: unsupported(opened)
     }
 
     private fun route(url: String): LinkContentRepository? =

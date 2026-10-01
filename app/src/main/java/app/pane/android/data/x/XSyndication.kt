@@ -36,6 +36,11 @@ data class ParsedAuthorThread(
     val partial: Boolean = false,
 )
 
+data class ParsedXVideo(
+    val url: String,
+    val bitrate: Int?,
+)
+
 data class ParsedXPost(
     val id: String,
     val canonicalUrl: String,
@@ -48,6 +53,7 @@ data class ParsedXPost(
     val screenName: String? = null,
     val authorThread: List<ParsedXThreadPost> = emptyList(),
     val authorThreadPartial: Boolean = false,
+    val videos: List<ParsedXVideo> = emptyList(),
 )
 
 /**
@@ -89,7 +95,8 @@ object XSyndication {
         video?.string("poster")?.takeIf { it.startsWith("http") }?.let { poster ->
             if (images.none { it == poster }) images += poster
         }
-        val videoUrl = bestMp4(video?.get("variants") as? JsonArray)
+        val videos = mp4Variants(video?.get("variants") as? JsonArray)
+        val videoUrl = videos.maxByOrNull { it.bitrate ?: 0 }?.url
         val comments = root.int("conversation_count") ?: root.int("reply_count") ?: 0
         return ParsedXPost(
             id = root.string("id_str") ?: id,
@@ -100,6 +107,7 @@ object XSyndication {
             videoUrl = videoUrl,
             commentCount = comments,
             screenName = screenName,
+            videos = videos,
         )
     }
 
@@ -126,16 +134,19 @@ object XSyndication {
         )
     }
 
-    private fun bestMp4(variants: JsonArray?): String? {
-        if (variants == null) return null
+    private fun mp4Variants(variants: JsonArray?): List<ParsedXVideo> {
+        if (variants == null) return emptyList()
         return variants.mapNotNull { it as? JsonObject }
             .filter { item ->
                 val type = item.string("type") ?: item.string("content_type")
                 type == "video/mp4"
             }
-            .maxByOrNull { it.int("bitrate") ?: 0 }
-            ?.let { it.string("src") ?: it.string("url") }
-            ?.takeIf { it.startsWith("http") }
+            .mapNotNull { item ->
+                val url = (item.string("src") ?: item.string("url"))?.takeIf { it.startsWith("http") }
+                    ?: return@mapNotNull null
+                ParsedXVideo(url = url, bitrate = item.int("bitrate"))
+            }
+            .distinctBy { it.url }
     }
 
     private fun JsonObject.string(key: String): String? =

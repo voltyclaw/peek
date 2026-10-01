@@ -74,7 +74,7 @@ class FacebookDocumentTest {
 
     @Test
     fun directLoaderKeepsLookingWhenTheFirstCaptionIsCutOff() = runTest {
-        val opened = mutableListOf<String>()
+        val opened = java.util.Collections.synchronizedList(mutableListOf<String>())
         val loader = FacebookDirectPageLoader { url ->
             opened += url
             val html = if (url.contains("mbasic.facebook.com")) {
@@ -100,8 +100,8 @@ class FacebookDocumentTest {
 
         assertEquals("The moon, closer than it looks from orbit tonight.", post.text)
         assertEquals(listOf("https://scontent.example/moon.jpg"), post.imageUrls)
-        assertTrue(opened[0].contains("plugins/post.php"))
         assertTrue(opened.any { it.contains("mbasic.facebook.com") })
+        assertTrue(opened.any { it.contains("facebook.com") && !it.contains("mbasic.facebook.com") })
     }
 
     @Test
@@ -165,17 +165,20 @@ class FacebookDocumentTest {
 
     @Test
     fun directLoaderUsesTheEmbedPluginThenParsesThePost() = runTest {
-        val opened = mutableListOf<String>()
+        val opened = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val started = java.util.concurrent.CountDownLatch(4)
         val loader = FacebookDirectPageLoader { url ->
             opened += url
+            started.countDown()
+            check(started.await(3, java.util.concurrent.TimeUnit.SECONDS))
             htmlConnection(PUBLIC_HTML)
         }
 
         val post = loader.resolve("https://www.facebook.com/nasa/posts/pfbid0123")
 
         assertEquals("NASA", post.author)
-        assertTrue(opened.first().startsWith("https://www.facebook.com/plugins/post.php?href="))
-        assertTrue(opened.first().contains("nasa"))
+        assertEquals("The moon, closer than it looks.", post.text)
+        assertTrue(opened.any { it.contains("plugins/post.php") && it.contains("nasa") })
     }
 
     private fun htmlConnection(html: String): HttpURLConnection =

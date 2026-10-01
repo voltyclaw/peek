@@ -2,6 +2,7 @@ package app.pane.android
 
 import app.pane.android.data.reddit.RedditDirectPageLoader
 import app.pane.android.data.reddit.RedditFetchPlan
+import app.pane.android.data.reddit.RedditPreviewElement
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
@@ -10,6 +11,13 @@ import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -20,20 +28,25 @@ import org.junit.Test
 class RedditDirectPageLoaderTest {
     @Test
     fun requestsLoggedOutPostJsonAndParsesIt() = runTest {
-        val connection = FakeHttpConnection(RedditUrls.jsonUrl("abc123"), IMAGE_RESPONSE)
-        var requestedUrl: String? = null
+        val page = "https://old.reddit.com/r/pics/comments/abc123/title/?utm_source=share"
+        val planned = RedditFetchPlan.requests(page, "abc123")
+        val opened = Collections.synchronizedList(mutableListOf<String>())
+        val connections = ConcurrentHashMap<String, FakeHttpConnection>()
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
-            requestedUrl = url
-            connection
+            opened += url
+            holdUntilJsonStarts(url, opened, planned)
+            FakeHttpConnection(url, IMAGE_RESPONSE).also { connections[url] = it }
         })
         val progress = mutableListOf<LoadProgress>()
 
         val post = withContext(PageLoadProgressElement(LoadProgressListener { progress += it })) {
-            loader.resolve("https://old.reddit.com/r/pics/comments/abc123/title/?utm_source=share")
+            loader.resolve(page)
         }
 
-        val page = "https://old.reddit.com/r/pics/comments/abc123/title/?utm_source=share"
-        assertEquals(RedditFetchPlan.requests(page, "abc123").first().url, requestedUrl)
+        val full = planned.first()
+        assertTrue(opened.contains(full.url))
+        assertTrue(opened.any { it.contains("limit=1") })
+        val connection = connections.getValue(full.url)
         assertEquals("abc123", post.id)
         assertEquals("alice", post.author)
         assertEquals("GET", connection.requestedMethod)
@@ -50,9 +63,11 @@ class RedditDirectPageLoaderTest {
     @Test
     fun followsHttpRedirectShareLinksBeforeRequestingJson() = runTest {
         val share = "https://www.reddit.com/r/pics/s/Ab12Cd"
-        val opened = mutableListOf<String>()
+        val planned = RedditFetchPlan.requests("https://www.reddit.com/r/pics/comments/abc123/title", "abc123")
+        val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
+            holdUntilJsonStarts(url, opened, planned)
             if (url.contains("/s/")) {
                 FakeHttpConnection(
                     url = url,
@@ -70,9 +85,11 @@ class RedditDirectPageLoaderTest {
         val post = loader.resolve(share)
 
         assertEquals("abc123", post.id)
-        assertEquals(
-            listOf(share, RedditFetchPlan.requests("https://www.reddit.com/r/pics/comments/abc123/title", "abc123").first().url),
-            opened,
+        assertEquals(share, opened.first())
+        assertTrue(
+            opened.contains(
+                RedditFetchPlan.requests("https://www.reddit.com/r/pics/comments/abc123/title", "abc123").first().url,
+            ),
         )
     }
 
@@ -80,9 +97,14 @@ class RedditDirectPageLoaderTest {
     fun shareRedirectToACommentsUrlSkipsTheJavascriptChallenge() = runTest {
         val share = "https://www.reddit.com/r/interestingasfuck/s/VDgXcEIG1q"
         val challenge = "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title/?js_challenge=1&jsc_token=abc"
-        val opened = mutableListOf<String>()
+        val planned = RedditFetchPlan.requests(
+            "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title",
+            "1wubxdy",
+        )
+        val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
+            holdUntilJsonStarts(url, opened, planned)
             if (url.contains("/s/")) {
                 FakeHttpConnection(
                     url = url,
@@ -98,12 +120,14 @@ class RedditDirectPageLoaderTest {
         val post = loader.resolve(share)
 
         assertEquals("1wubxdy", post.id)
-        assertEquals(
-            listOf(
-                share,
-                RedditFetchPlan.requests("https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title", "1wubxdy").first().url,
+        assertEquals(share, opened.first())
+        assertTrue(
+            opened.contains(
+                RedditFetchPlan.requests(
+                    "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/title",
+                    "1wubxdy",
+                ).first().url,
             ),
-            opened,
         )
         assertFalse(opened.any { it.contains("js_challenge") })
     }
@@ -112,9 +136,10 @@ class RedditDirectPageLoaderTest {
     fun retriesJsonOnOldRedditWhenWwwReturnsABlockPage() = runTest {
         val pasted = "https://www.reddit.com/r/interestingasfuck/comments/1w3fcl7/in_1960_david_latimer_planted_a_garden_inside_of/"
         val planned = RedditFetchPlan.requests(pasted, "1w3fcl7")
-        val opened = mutableListOf<String>()
+        val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
+            holdUntilJsonStarts(url, opened, planned)
             if (url == planned.first().url) {
                 FakeHttpConnection(url, "<html><p>whoa there, pardner</p></html>", status = 403)
             } else {
@@ -126,7 +151,8 @@ class RedditDirectPageLoaderTest {
 
         assertEquals("1w3fcl7", post.id)
         assertEquals("In 1960, David Latimer planted a garden", post.title)
-        assertEquals(listOf(planned[0].url, planned[1].url), opened)
+        assertTrue(opened.contains(planned[0].url))
+        assertTrue(opened.contains(planned[1].url))
         assertTrue(planned[0].url.startsWith("https://old.reddit.com/r/interestingasfuck/comments/1w3fcl7/"))
         assertFalse(planned[0].userAgent.contains("Android"))
     }
@@ -134,9 +160,12 @@ class RedditDirectPageLoaderTest {
     @Test
     fun resolvesShareShortlinkFromCanonicalHtml() = runTest {
         val share = "https://www.reddit.com/r/interestingasfuck/s/VDgXcEIG1q"
-        val opened = mutableListOf<String>()
+        val page = "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/the_new_us_passport_reveal_akin_to_apple_product"
+        val planned = RedditFetchPlan.requests(page, "1wubxdy")
+        val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
+            holdUntilJsonStarts(url, opened, planned)
             if (url.contains("/s/")) {
                 FakeHttpConnection(url = url, response = SHARE_HTML, status = HTTP_OK)
             } else {
@@ -148,8 +177,8 @@ class RedditDirectPageLoaderTest {
 
         assertEquals("1wubxdy", post.id)
         assertEquals("A public photo", post.title)
-        val page = "https://www.reddit.com/r/interestingasfuck/comments/1wubxdy/the_new_us_passport_reveal_akin_to_apple_product"
-        assertEquals(listOf(share, RedditFetchPlan.requests(page, "1wubxdy").first().url), opened)
+        assertEquals(share, opened.first())
+        assertTrue(opened.contains(RedditFetchPlan.requests(page, "1wubxdy").first().url))
     }
 
     @Test
@@ -204,9 +233,42 @@ class RedditDirectPageLoaderTest {
     }
 
     @Test
+    fun previewPaintsBeforeTheFullCommentPage() = runBlocking {
+        val page = "https://www.reddit.com/r/pics/comments/abc123/title/"
+        val previews = Collections.synchronizedList(mutableListOf<String>())
+        val fullStarted = CountDownLatch(1)
+        val releaseFull = CountDownLatch(1)
+        val loader = RedditDirectPageLoader(connectionFactory = { url ->
+            val body = if (Regex("limit=1(&|$)").containsMatchIn(url)) {
+                IMAGE_RESPONSE
+            } else if (url.contains(".json")) {
+                fullStarted.countDown()
+                check(releaseFull.await(5, TimeUnit.SECONDS))
+                IMAGE_RESPONSE
+            } else {
+                IMAGE_RESPONSE
+            }
+            FakeHttpConnection(url, body)
+        })
+
+        val deferred = async(Dispatchers.IO + RedditPreviewElement { previews += it.title }) {
+            loader.resolve(page)
+        }
+        assertTrue(fullStarted.await(5, TimeUnit.SECONDS))
+        val deadline = System.currentTimeMillis() + 2_000
+        while (previews.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
+        assertEquals(listOf("A public photo"), previews.toList())
+        releaseFull.countDown()
+        val post = deferred.await()
+        assertEquals("abc123", post.id)
+    }
+
+    @Test
     fun failsWhenRedditHidesThePost() = runTest {
-        val loader = RedditDirectPageLoader(connectionFactory = {
-            FakeHttpConnection(it, """{"message":"Forbidden","error":403}""", status = 403)
+        val loader = RedditDirectPageLoader(connectionFactory = { url ->
+            FakeHttpConnection(url, """{"message":"Forbidden","error":403}""", status = 403)
         })
 
         val result = runCatching {
@@ -215,6 +277,22 @@ class RedditDirectPageLoaderTest {
 
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("HTTP 403"))
+    }
+
+    private fun holdUntilJsonStarts(
+        url: String,
+        opened: MutableList<String>,
+        planned: List<RedditFetchPlan.Request>,
+    ) {
+        if (!url.contains(".json")) return
+        val expected = planned.count { it.url.contains(".json") } + 1
+        val ready = opened.count { it.contains(".json") } >= expected
+        if (!ready) {
+            val deadline = System.currentTimeMillis() + 2_000
+            while (opened.count { it.contains(".json") } < expected && System.currentTimeMillis() < deadline) {
+                Thread.sleep(5)
+            }
+        }
     }
 
     private class FakeHttpConnection(

@@ -12,6 +12,7 @@ import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.Media
+import app.pane.android.domain.model.PlayableVideo
 import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
@@ -118,6 +119,7 @@ class XLinkContentRepository(
     private fun map(requestedUrl: String, post: ParsedXPost): LinkContent {
         val images = post.imageUrls
         val video = post.videoUrl
+        val videos = post.videos.map { PlayableVideo(url = it.url, bitrate = it.bitrate) }
         val items = if (images.isEmpty() && video != null) {
             listOf(
                 ExternalMediaItem(
@@ -125,6 +127,7 @@ class XLinkContentRepository(
                     imageUrl = "",
                     contentDescription = post.text.take(200),
                     videoUrl = video,
+                    videos = videos,
                 ),
             )
         } else {
@@ -134,6 +137,7 @@ class XLinkContentRepository(
                     imageUrl = image,
                     contentDescription = post.text.take(200),
                     videoUrl = if (index == 0) video else null,
+                    videos = if (index == 0) videos else emptyList(),
                 )
             }
         }

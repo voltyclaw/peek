@@ -46,6 +46,16 @@ data class InstagramVideoVariant(
     val height: Int? = null,
 )
 
+/** One playable URL the source actually returned. Adaptive streams are DASH or HLS. */
+@Serializable
+data class PlayableVideo(
+    val url: String,
+    val width: Int? = null,
+    val height: Int? = null,
+    val bitrate: Int? = null,
+    val adaptive: Boolean = false,
+)
+
 @Serializable
 data class InstagramMediaItem(
     val id: String,
@@ -83,6 +93,7 @@ data class RedditMediaItem(
     val width: Int? = null,
     val height: Int? = null,
     val durationSeconds: Int? = null,
+    val videos: List<PlayableVideo> = emptyList(),
 )
 
 @Serializable
@@ -91,6 +102,7 @@ data class ExternalMediaItem(
     val imageUrl: String,
     val contentDescription: String,
     val videoUrl: String? = null,
+    val videos: List<PlayableVideo> = emptyList(),
 )
 
 /** One post in an X author's own chain. Empty for Facebook. */

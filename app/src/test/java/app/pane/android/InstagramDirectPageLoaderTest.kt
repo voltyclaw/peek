@@ -20,7 +20,9 @@ class InstagramDirectPageLoaderTest {
     @Test
     fun postsAnonymousMediaQueryAndParsesInitialCommentPage() = runTest {
         val connection = FakeHttpConnection(GRAPHQL_RESPONSE)
-        val loader = InstagramDirectPageLoader(connectionFactory = { connection })
+        val loader = InstagramDirectPageLoader(connectionFactory = { url ->
+            if (url.contains("/api/graphql")) connection else FakeHttpConnection("<html></html>")
+        })
         val progress = mutableListOf<LoadProgress>()
 
         val media = kotlinx.coroutines.withContext(

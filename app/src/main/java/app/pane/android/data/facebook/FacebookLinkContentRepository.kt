@@ -32,12 +32,19 @@ class FacebookLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        resolve(url, onProgress) {}
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val post = FacebookUrls.parse(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported Facebook post URL: $url"),
         )
         cached(post.id, url)?.let { return Result.success(it) }
-        return load(url, post, onProgress)
+        return load(url, post, onProgress, onPreview)
     }
 
     override suspend fun peekCached(url: String): LinkContent? {
@@ -57,13 +64,20 @@ class FacebookLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        refresh(url, onProgress) {}
+
+    override suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         val post = FacebookUrls.parse(url) ?: return Result.failure(
             IllegalArgumentException("Unsupported Facebook post URL: $url"),
         )
         successfulCache.remove(post.id)
         cacheStore.remove(cacheKey(post.id))
-        return load(url, post, onProgress)
+        return load(url, post, onProgress, onPreview)
     }
 
     private suspend fun cached(id: String, url: String): LinkContent? {
@@ -75,10 +89,15 @@ class FacebookLinkContentRepository(
         url: String,
         post: FacebookUrls.Post,
         onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> = try {
         loadMutex.withLock {
             successfulCache[post.id]?.let { return@withLock Result.success(it.withUrl(url)) }
-            val resolved = withContext(PageLoadProgressElement(onProgress)) {
+            val resolved = withContext(
+                PageLoadProgressElement(onProgress) + FacebookPreviewElement { preview ->
+                    runCatching { onPreview(map(url, preview)) }
+                },
+            ) {
                 resolverChain.resolveWithSource(post.canonicalUrl)
             }
             val content = map(url, resolved.value)

@@ -54,6 +54,16 @@
     <string name="back_goes_home">Back goes home</string>
     <string name="back_closes_pane_help">A shared link returns to the app that opened it.</string>
     <string name="back_goes_home_help">Back stays in Pane and returns home.</string>
+    <string name="video_quality">Video quality</string>
+    <string name="quality_auto">Auto</string>
+    <string name="quality_high">High</string>
+    <string name="quality_medium">Medium</string>
+    <string name="quality_low">Low</string>
+    <string name="quality_auto_help">Adaptive playback, or a middle rendition.</string>
+    <string name="quality_high_help">Highest file the post includes.</string>
+    <string name="quality_medium_help">A middle rendition when the post has several.</string>
+    <string name="quality_low_help">The smallest file.</string>
+    <string name="playback_quality">Quality</string>
     <string name="link_settings_tip">Facebook and Instagram verified their own addresses, so those Open by default switches will not stay on Pane, and Chrome will not offer Open with. Share the post to Pane instead. Paste still opens the link. Redirect hosts Meta does not verify, such as l.facebook.com, can stick.</string>
     <string name="link_settings_kept">Android kept the addresses on.</string>
     <string name="link_settings_partial">Android kept some addresses on. The ones that snap off belong to an app that already verified them.</string>

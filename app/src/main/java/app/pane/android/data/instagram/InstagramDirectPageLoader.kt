@@ -4,6 +4,7 @@ import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
+import android.util.Log
 import java.io.IOException
 import java.math.BigInteger
 import java.net.HttpURLConnection
@@ -12,12 +13,23 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.Base64
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+
+/** Fired when a public embed page has a caption before the GraphQL post arrives. */
+class InstagramPreviewElement(val emit: (ParsedInstagramMedia) -> Unit) :
+    AbstractCoroutineContextElement(InstagramPreviewElement) {
+    companion object Key : CoroutineContext.Key<InstagramPreviewElement>
+}
 
 /**
  * Fetches the same logged-out post payload Kittygram uses. The response includes the post's
@@ -39,16 +51,108 @@ class InstagramDirectPageLoader(
             ?: throw IllegalArgumentException("Unsupported Instagram post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.report(0.05f, LoadStage.Connecting)
-
-        val variables = buildJsonObject {
-            put("media_id", shortcodeToMediaId(shortcode).toString())
+        val started = System.nanoTime()
+        coroutineScope {
+            val graphql = async {
+                val variables = buildJsonObject {
+                    put("media_id", shortcodeToMediaId(shortcode).toString())
+                }
+                request(url) { lsd -> mediaQueryBody(variables, lsd) }
+            }
+            val preview = async { runCatching { fetchEmbed(shortcode) }.getOrNull() }
+            select {
+                preview.onAwait { media ->
+                    if (media != null && !graphql.isCompleted) {
+                        coroutineContext[InstagramPreviewElement]?.emit(media)
+                        logOpen("instagram preview ${elapsed(started)}ms code=$shortcode")
+                    }
+                }
+                graphql.onAwait { }
+            }
+            val response = graphql.await()
+            preview.cancel()
+            listener.report(0.85f, LoadStage.ExtractingContent)
+            val media = parser.parse(response)
+                ?: throw IOException(graphQlErrorMessage(response) ?: "Instagram response contained no public post")
+            logOpen("instagram ready ${elapsed(started)}ms code=$shortcode")
+            listener.report(1f, LoadStage.ExtractingContent)
+            media
         }
-        val response = request(url) { lsd -> mediaQueryBody(variables, lsd) }
-        listener.report(0.85f, LoadStage.ExtractingContent)
-        val media = parser.parse(response)
-            ?: throw IOException(graphQlErrorMessage(response) ?: "Instagram response contained no public post")
-        listener.report(1f, LoadStage.ExtractingContent)
-        media
+    }
+
+    private fun fetchEmbed(shortcode: String): ParsedInstagramMedia? {
+        val embedUrl = "https://www.instagram.com/p/$shortcode/embed/captioned/"
+        val connection = connectionFactory(embedUrl)
+        try {
+            connection.instanceFollowRedirects = true
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.setRequestProperty("Accept", "text/html")
+            connection.setRequestProperty("User-Agent", USER_AGENT)
+            val status = connection.responseCode
+            if (status !in 200..299) return null
+            val html = connection.inputStream?.bufferedReader(StandardCharsets.UTF_8)?.use { reader ->
+                val buffer = CharArray(8_192)
+                val text = StringBuilder()
+                while (text.length < MAX_EMBED_CHARS) {
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    text.append(buffer, 0, minOf(count, MAX_EMBED_CHARS - text.length))
+                }
+                text.toString()
+            }.orEmpty()
+            return parseEmbed(html, shortcode)
+        } catch (_: Exception) {
+            return null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun parseEmbed(html: String, shortcode: String): ParsedInstagramMedia? {
+        val caption = metaContent(html, "og:description")
+            ?: metaContent(html, "twitter:description")
+            ?: return null
+        if (caption.equals("Instagram", ignoreCase = true)) return null
+        val image = metaContent(html, "og:image") ?: metaContent(html, "twitter:image") ?: return null
+        if (!image.startsWith("http")) return null
+        val title = metaContent(html, "og:title").orEmpty()
+        val username = title.substringBefore(" on Instagram").trim().ifBlank { "instagram" }
+        return ParsedInstagramMedia(
+            pk = shortcode,
+            code = shortcode,
+            videoVersions = emptyList(),
+            imageVersions = ImageVersions(listOf(ImageCandidate(url = image))),
+            caption = Caption(caption),
+            likeCount = 0,
+            commentCount = 0,
+            takenAt = 0L,
+            owner = Owner(username = username),
+            comments = emptyList(),
+        )
+    }
+
+    private fun metaContent(html: String, property: String): String? {
+        val escaped = Regex.escape(property)
+        val patterns = listOf(
+            Regex("""<meta[^>]+(?:property|name)=["']$escaped["'][^>]+content=["']([^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']$escaped["']""", RegexOption.IGNORE_CASE),
+        )
+        val raw = patterns.firstNotNullOfOrNull { it.find(html)?.groupValues?.get(1) } ?: return null
+        return raw.replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .trim()
+            .ifBlank { null }
+    }
+
+    private fun elapsed(started: Long): Long = (System.nanoTime() - started) / 1_000_000L
+
+    private fun logOpen(message: String) {
+        runCatching { Log.i("PaneOpen", message) }
     }
 
     override suspend fun loadComments(postId: String, cursor: String): ParsedInstagramCommentsPage {
@@ -189,6 +293,7 @@ class InstagramDirectPageLoader(
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         const val CONNECT_TIMEOUT_MILLIS = 15_000
         const val READ_TIMEOUT_MILLIS = 30_000
+        const val MAX_EMBED_CHARS = 400_000
         const val SHORTCODE_ALPHABET =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
         val BASE_64: BigInteger = BigInteger.valueOf(64)

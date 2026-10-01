@@ -10,6 +10,7 @@ import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.Media
 import app.pane.android.domain.model.MediaLocation
+import app.pane.android.domain.model.PlayableVideo
 import app.pane.android.domain.model.RedditMediaItem
 import app.pane.android.domain.model.RedditMetadata
 import app.pane.android.domain.repository.LinkContentRepository
@@ -37,11 +38,18 @@ class RedditLinkContentRepository(
     override suspend fun resolve(url: String): Result<LinkContent> =
         resolve(url, LoadProgressListener {})
 
-    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun resolve(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        resolve(url, onProgress) {}
+
+    override suspend fun resolve(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         if (!supports(url)) {
             return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
         }
-        return load(url, onProgress, forceNetwork = false)
+        return load(url, onProgress, forceNetwork = false, onPreview = onPreview)
     }
 
     override suspend fun peekCached(url: String): LinkContent? {
@@ -94,7 +102,14 @@ class RedditLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> =
         refresh(url, LoadProgressListener {})
 
-    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> {
+    override suspend fun refresh(url: String, onProgress: LoadProgressListener): Result<LinkContent> =
+        refresh(url, onProgress) {}
+
+    override suspend fun refresh(
+        url: String,
+        onProgress: LoadProgressListener,
+        onPreview: (LinkContent) -> Unit,
+    ): Result<LinkContent> {
         if (!supports(url)) {
             return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
         }
@@ -103,20 +118,25 @@ class RedditLinkContentRepository(
             successfulCache.remove(id)
             cacheStore.remove(cacheKey(id))
         }
-        return load(url, onProgress, forceNetwork = true)
+        return load(url, onProgress, forceNetwork = true, onPreview = onPreview)
     }
 
     private suspend fun load(
         url: String,
         onProgress: LoadProgressListener,
         forceNetwork: Boolean,
+        onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> = try {
         loadMutex.withLock {
             val knownId = cachedPostId(url)
             if (!forceNetwork && knownId != null) {
                 cachedContent(knownId, url)?.let { return@withLock Result.success(it) }
             }
-            val resolved = withContext(PageLoadProgressElement(onProgress)) {
+            val resolved = withContext(
+                PageLoadProgressElement(onProgress) + RedditPreviewElement { post ->
+                    runCatching { onPreview(mapToLinkContent(url, post)) }
+                },
+            ) {
                 resolverChain.resolveWithSource(url)
             }
             val content = mapToLinkContent(url, resolved.value)
@@ -149,6 +169,14 @@ class RedditLinkContentRepository(
                 width = item.width,
                 height = item.height,
                 durationSeconds = item.durationSeconds,
+                videos = item.videos.map { source ->
+                    PlayableVideo(
+                        url = source.url,
+                        width = source.width,
+                        height = source.height,
+                        adaptive = source.adaptive,
+                    )
+                },
             )
         }
         val primary = mediaItems.firstOrNull()

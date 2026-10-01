@@ -72,6 +72,8 @@ import app.pane.android.ui.components.CommentsSection
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.media.MAX_FRAMED_MEDIA_HEIGHT
 import app.pane.android.ui.media.MutedInlineVideo
+import app.pane.android.ui.media.VideoPlaybackQuality
+import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
 import app.pane.android.ui.media.contentAspectRatio
@@ -114,6 +116,7 @@ fun ViewerView(
     onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
     onOpenInApp: suspend (String) -> Unit = {},
     onMediaMeasured: (Float, Float) -> Unit = { _, _ -> },
+    videoQuality: VideoQuality = VideoQuality.Auto,
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -137,6 +140,7 @@ fun ViewerView(
                     onSharePost = onSharePost,
                     onOpenInApp = onOpenInApp,
                     onMediaMeasured = onMediaMeasured,
+                    videoQuality = videoQuality,
                 )
             }
         }
@@ -158,6 +162,7 @@ private fun ColumnScope.ViewerContent(
     onSharePost: suspend (String, String?) -> Unit,
     onOpenInApp: suspend (String) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
+    videoQuality: VideoQuality,
 ) {
     ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
@@ -173,7 +178,7 @@ private fun ColumnScope.ViewerContent(
     ) {
         if (items.any(::hasVisualMedia)) {
             Column(Modifier.padding(bottom = 18.dp)) {
-                MediaCanvas(post, items, pagerState, onOpenMedia, onMediaMeasured)
+                MediaCanvas(post, items, pagerState, onOpenMedia, onMediaMeasured, videoQuality)
             }
         }
         AuthorByline(
@@ -256,6 +261,7 @@ private fun MediaCanvas(
     pagerState: PagerState,
     onOpenMedia: (Int) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
+    videoQuality: VideoQuality,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val current = items[pagerState.currentPage]
@@ -284,7 +290,7 @@ private fun MediaCanvas(
         ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = items[page]
-            val videoUrl = item.videoUrl
+            val videoUrl = VideoPlaybackQuality.urlFor(item.videoSources, videoQuality, item.videoUrl)
             val size = measured[item.id]
             val pageW = size?.first ?: item.width?.toFloat() ?: 0f
             val pageH = size?.second ?: item.height?.toFloat() ?: 0f

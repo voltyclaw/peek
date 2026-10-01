@@ -68,6 +68,10 @@ class XSyndicationTest {
         """.trimIndent()
         val post = XSyndication.parseJson(body, "9", "https://x.com/i/status/9")
         assertEquals("https://video.twimg.com/high.mp4", post?.videoUrl)
+        assertEquals(
+            listOf("https://video.twimg.com/low.mp4", "https://video.twimg.com/high.mp4"),
+            post?.videos?.map { it.url },
+        )
         assertTrue(post?.imageUrls?.contains("https://pbs.twimg.com/poster.jpg") == true)
     }
 

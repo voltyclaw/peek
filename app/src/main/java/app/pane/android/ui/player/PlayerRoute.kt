@@ -8,6 +8,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
 import app.pane.android.ui.actions.rememberPostActionCallbacks
+import app.pane.android.ui.media.VideoQuality
 
 @Composable
 fun PlayerRoute(
@@ -16,6 +17,7 @@ fun PlayerRoute(
     downloadMedia: DownloadMediaUseCase,
     initialMediaIndex: Int,
     onBack: () -> Unit,
+    videoQuality: VideoQuality = VideoQuality.Auto,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -24,6 +26,7 @@ fun PlayerRoute(
     PlayerView(
         uiState = uiState,
         initialMediaIndex = initialMediaIndex,
+        videoQuality = videoQuality,
         onBack = onBack,
         onMore = {},
         onLoadMoreComments = viewModel::onLoadMoreComments,

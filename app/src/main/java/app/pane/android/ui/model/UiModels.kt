@@ -87,6 +87,15 @@ data class AuthorThreadPostUiModel(
 )
 
 @Immutable
+data class VideoSourceUiModel(
+    val url: String,
+    val width: Int? = null,
+    val height: Int? = null,
+    val bitrate: Int? = null,
+    val adaptive: Boolean = false,
+)
+
+@Immutable
 data class ViewerMediaItemUiModel(
     val id: String,
     val image: UiImage,
@@ -94,6 +103,7 @@ data class ViewerMediaItemUiModel(
     val videoUrl: String?,
     val width: Int? = null,
     val height: Int? = null,
+    val videoSources: List<VideoSourceUiModel> = emptyList(),
 )
 
 fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {

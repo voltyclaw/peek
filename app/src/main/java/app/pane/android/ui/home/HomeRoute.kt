@@ -24,6 +24,7 @@ import androidx.core.content.pm.PackageInfoCompat
 import app.pane.android.R
 import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
 import app.pane.android.ui.model.HomeUiState
+import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
 import app.pane.android.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
@@ -37,6 +38,8 @@ fun HomeRoute(
     onThemeMode: (ThemeMode) -> Unit = {},
     backBehavior: BackBehavior = BackBehavior.ClosePeek,
     onBackBehavior: (BackBehavior) -> Unit = {},
+    videoQuality: VideoQuality = VideoQuality.Auto,
+    onVideoQuality: (VideoQuality) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -119,6 +122,8 @@ fun HomeRoute(
             onThemeMode = onThemeMode,
             backBehavior = backBehavior,
             onBackBehavior = onBackBehavior,
+            videoQuality = videoQuality,
+            onVideoQuality = onVideoQuality,
             showFirstLaunchHint = showFirstLaunchHint,
             onDismissFirstLaunchHint = {
                 FirstLaunchPreferences.dismiss(context)

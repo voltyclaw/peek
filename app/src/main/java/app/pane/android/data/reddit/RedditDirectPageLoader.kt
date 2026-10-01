@@ -9,9 +9,23 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+
+/** Fired when a small comments document is ready, before the full comment page finishes. */
+class RedditPreviewElement(val emit: (ParsedRedditPost) -> Unit) :
+    AbstractCoroutineContextElement(RedditPreviewElement) {
+    companion object Key : CoroutineContext.Key<RedditPreviewElement>
+}
 
 /**
  * Loads a public post from Reddit's logged-out comments JSON document.
@@ -95,25 +109,132 @@ class RedditDirectPageLoader(
         }.orEmpty()
     }
 
-    private suspend fun loadPost(pageUrl: String, postId: String): ParsedRedditPost {
-        var blocked: String? = null
-        var last = "Reddit did not return a public post"
-        for (request in RedditFetchPlan.requests(pageUrl, postId)) {
-            try {
-                val body = get(request)
-                parser.parse(body)?.let { return it }
-                RedditShredditPost.parse(body)?.let { return it }
-                last = "Reddit did not return a public post"
-                log("no public post from ${request.url.substringBefore('?')}")
-            } catch (error: IOException) {
-                last = error.message ?: last
-                if (last.contains("blocked", ignoreCase = true) || last.contains("HTTP")) {
-                    blocked = last
+    private suspend fun loadPost(pageUrl: String, postId: String): ParsedRedditPost = coroutineScope {
+        val requests = RedditFetchPlan.requests(pageUrl, postId)
+        val json = requests.filter { it.url.contains(".json?") || it.url.endsWith(".json") }
+        val html = requests.lastOrNull()?.takeIf { !it.url.contains(".json") }
+        val failures = mutableListOf<String>()
+        val started = System.nanoTime()
+        val full = async { firstSuccessful(json, failures) }
+        val previewRequest = json.firstOrNull()?.let(::previewRequest)
+        val preview = previewRequest?.let { request ->
+            async {
+                try {
+                    parseBody(get(request))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    rememberFailure(failures, error.message)
+                    null
                 }
-                log("${request.url.substringBefore('?')} -> $last")
             }
         }
-        throw IOException(blocked ?: last)
+        if (preview != null) {
+            select {
+                preview.onAwait { parsed ->
+                    if (parsed != null && !full.isCompleted) {
+                        coroutineContext[RedditPreviewElement]?.emit(parsed)
+                        logOpen("reddit preview ${elapsed(started)}ms id=$postId")
+                    }
+                }
+                full.onAwait { }
+            }
+        }
+        val fullPost = full.await()
+        if (fullPost != null) {
+            preview?.cancel()
+            logOpen("reddit ready ${elapsed(started)}ms id=$postId comments=${fullPost.comments.size}")
+            return@coroutineScope fullPost
+        }
+        val early = preview?.let { job ->
+            if (job.isCancelled) {
+                null
+            } else {
+                try {
+                    job.await()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+        if (early != null) {
+            logOpen("reddit ready ${elapsed(started)}ms id=$postId preview-only")
+            return@coroutineScope early
+        }
+        if (html != null) {
+            try {
+                parseBody(get(html))?.let { parsed ->
+                    logOpen("reddit ready ${elapsed(started)}ms id=$postId html")
+                    return@coroutineScope parsed
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                rememberFailure(failures, error.message)
+                log("${html.url.substringBefore('?')} -> ${error.message}")
+            }
+        }
+        throw IOException(failureMessage(failures))
+    }
+
+    private suspend fun firstSuccessful(
+        requests: List<RedditFetchPlan.Request>,
+        failures: MutableList<String>,
+    ): ParsedRedditPost? = coroutineScope {
+        if (requests.isEmpty()) return@coroutineScope null
+        val result = CompletableDeferred<ParsedRedditPost?>()
+        val pending = AtomicInteger(requests.size)
+        val jobs = requests.map { request ->
+            async {
+                try {
+                    val parsed = try {
+                        parseBody(get(request))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        rememberFailure(failures, error.message)
+                        log("${request.url.substringBefore('?')} -> ${error.message}")
+                        null
+                    }
+                    if (parsed != null) result.complete(parsed)
+                } finally {
+                    if (pending.decrementAndGet() == 0) result.complete(null)
+                }
+            }
+        }
+        val parsed = result.await()
+        if (parsed != null) jobs.forEach { it.cancel() }
+        parsed
+    }
+
+    private fun previewRequest(request: RedditFetchPlan.Request): RedditFetchPlan.Request? {
+        if (!request.url.contains("limit=")) return null
+        val previewUrl = request.url.replace(Regex("limit=\\d+"), "limit=1")
+        if (previewUrl == request.url) return null
+        return request.copy(url = previewUrl)
+    }
+
+    private fun parseBody(body: String): ParsedRedditPost? =
+        parser.parse(body) ?: RedditShredditPost.parse(body)
+
+    private fun rememberFailure(failures: MutableList<String>, message: String?) {
+        val text = message?.takeIf { it.isNotBlank() } ?: return
+        synchronized(failures) { failures += text }
+    }
+
+    private fun failureMessage(failures: List<String>): String {
+        val snapshot = synchronized(failures) { failures.toList() }
+        return snapshot.lastOrNull { it.contains("blocked", ignoreCase = true) || it.contains("HTTP") }
+            ?: snapshot.lastOrNull()
+            ?: "Reddit did not return a public post"
+    }
+
+    private fun elapsed(started: Long): Long = (System.nanoTime() - started) / 1_000_000L
+
+    private fun logOpen(message: String) {
+        runCatching { Log.i("PaneOpen", message) }
     }
 
     private suspend fun get(request: RedditFetchPlan.Request): String = withContext(Dispatchers.IO) {

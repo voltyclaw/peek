@@ -29,10 +29,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -45,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +78,8 @@ import app.pane.android.R
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
+import app.pane.android.ui.media.VideoPlaybackQuality
+import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.media.VideoSurface
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.displayVideoSize
@@ -91,6 +98,7 @@ fun PlayerView(
     onBack: () -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
+    videoQuality: VideoQuality = VideoQuality.Auto,
     onLoadMoreComments: () -> Unit = {},
     onCopyLink: suspend (String) -> Unit = {},
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit = {},
@@ -133,6 +141,7 @@ fun PlayerView(
             is ViewerUiState.Content -> MediaContent(
                 post = uiState.post,
                 initialMediaIndex = initialMediaIndex,
+                videoQuality = videoQuality,
                 onBack = onBack,
             )
         }
@@ -207,6 +216,7 @@ private fun UnavailableMedia(onBack: () -> Unit, reason: String = "") {
 private fun MediaContent(
     post: ViewerPostUiModel,
     initialMediaIndex: Int,
+    videoQuality: VideoQuality,
     onBack: () -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
@@ -215,23 +225,41 @@ private fun MediaContent(
         initialPage = initialPage,
         pageCount = items::size,
     )
-    val currentVideoUrl = items[pagerState.currentPage].videoUrl
+    val currentItem = items[pagerState.currentPage]
+    var sessionQualityStored by rememberSaveable { mutableStateOf("") }
+    val sessionQuality = sessionQualityStored.takeIf { it.isNotBlank() }?.let(VideoQuality::fromStorage)
+    val effectiveQuality = sessionQuality ?: videoQuality
+    val playbackUrl = VideoPlaybackQuality.urlFor(
+        currentItem.videoSources,
+        effectiveQuality,
+        currentItem.videoUrl,
+    )
+    val qualityOptions = VideoPlaybackQuality.options(currentItem.videoSources)
     val context = LocalContext.current
-    val exoPlayer = remember(currentVideoUrl) {
-        currentVideoUrl?.let { videoUrl ->
-            exoPlayerFor(context, videoUrl).apply {
-                setMediaItem(MediaItem.fromUri(videoUrl))
+    val exoPlayer = remember(currentItem.id, playbackUrl != null) {
+        playbackUrl?.let { url ->
+            exoPlayerFor(context, url).apply {
                 repeatMode = Player.REPEAT_MODE_ONE
                 volume = 1f
                 playWhenReady = true
-                prepare()
             }
         }
+    }
+    LaunchedEffect(exoPlayer, playbackUrl) {
+        val player = exoPlayer ?: return@LaunchedEffect
+        val url = playbackUrl ?: return@LaunchedEffect
+        val current = player.currentMediaItem?.localConfiguration?.uri?.toString()
+        if (current == url) return@LaunchedEffect
+        val position = if (current == null) 0L else player.currentPosition.coerceAtLeast(0L)
+        val resume = player.playWhenReady
+        player.setMediaItem(MediaItem.fromUri(url), position)
+        player.prepare()
+        player.playWhenReady = resume
     }
     val density = LocalDensity.current
     val revealThreshold = with(density) { 56.dp.toPx() }
     var chromeVisible by remember { mutableStateOf(false) }
-    var playbackSize by remember(currentVideoUrl) { mutableStateOf<Pair<Float, Float>?>(null) }
+    var playbackSize by remember(playbackUrl) { mutableStateOf<Pair<Float, Float>?>(null) }
     var playing by remember(exoPlayer) { mutableStateOf(exoPlayer?.playWhenReady == true) }
     var muted by remember(exoPlayer) { mutableStateOf(false) }
     var positionMs by remember(exoPlayer) { mutableLongStateOf(0L) }
@@ -322,7 +350,8 @@ private fun MediaContent(
             val reported = if (page == pagerState.currentPage) playbackSize else null
             val contentW = reported?.first ?: item.width?.toFloat() ?: 0f
             val contentH = reported?.second ?: item.height?.toFloat() ?: 0f
-            val fallback = if (item.videoUrl != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT
+            val pageVideo = VideoPlaybackQuality.urlFor(item.videoSources, effectiveQuality, item.videoUrl)
+            val fallback = if (pageVideo != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT
             val aspect = contentAspectRatio(contentW, contentH, fallback)
             val fitted = fittedContentPx(
                 boxW,
@@ -349,7 +378,7 @@ private fun MediaContent(
                     ),
                     contentScale = ContentScale.Fit,
                 )
-                if (page == pagerState.currentPage && item.videoUrl != null && exoPlayer != null) {
+                if (page == pagerState.currentPage && pageVideo != null && exoPlayer != null) {
                     VideoSurface(
                         exoPlayer = exoPlayer,
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -360,9 +389,12 @@ private fun MediaContent(
         }
         if (chromeVisible) {
             FullscreenChrome(
-                showTransport = currentVideoUrl != null && exoPlayer != null,
+                showTransport = playbackUrl != null && exoPlayer != null,
                 playing = playing,
                 muted = muted,
+                qualityOptions = qualityOptions,
+                selectedUrl = playbackUrl,
+                onQuality = { quality -> sessionQualityStored = quality.storageValue },
                 positionMs = positionMs,
                 durationMs = durationMs,
                 onTogglePlay = {
@@ -400,6 +432,9 @@ private fun FullscreenChrome(
     showTransport: Boolean,
     playing: Boolean,
     muted: Boolean,
+    qualityOptions: List<app.pane.android.ui.media.VideoQualityOption>,
+    selectedUrl: String?,
+    onQuality: (VideoQuality) -> Unit,
     positionMs: Long,
     durationMs: Long,
     onTogglePlay: () -> Unit,
@@ -471,12 +506,67 @@ private fun FullscreenChrome(
                     description = stringResource(if (muted) R.string.unmute else R.string.mute),
                     onClick = onToggleMute,
                 )
+                if (qualityOptions.isNotEmpty()) {
+                    QualityButton(
+                        options = qualityOptions,
+                        selectedUrl = selectedUrl,
+                        onQuality = onQuality,
+                    )
+                }
             }
             ChromeButton(
                 icon = Icons.Rounded.FullscreenExit,
                 description = stringResource(R.string.exit_fullscreen),
                 onClick = onExit,
             )
+        }
+    }
+}
+
+@Composable
+private fun QualityButton(
+    options: List<app.pane.android.ui.media.VideoQualityOption>,
+    selectedUrl: String?,
+    onQuality: (VideoQuality) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        ChromeButton(
+            icon = Icons.Rounded.Settings,
+            description = stringResource(R.string.playback_quality),
+            onClick = { open = true },
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            containerColor = Color(0xFF1C2820),
+        ) {
+            options.forEach { option ->
+                val label = when (option.quality) {
+                    VideoQuality.Auto -> R.string.quality_auto
+                    VideoQuality.High -> R.string.quality_high
+                    VideoQuality.Medium -> R.string.quality_medium
+                    VideoQuality.Low -> R.string.quality_low
+                }
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(label),
+                            color = Color.White,
+                            style = TextStyle(fontSize = 14.sp),
+                        )
+                    },
+                    onClick = {
+                        open = false
+                        onQuality(option.quality)
+                    },
+                    trailingIcon = if (option.url == selectedUrl) {
+                        { Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White) }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
     }
 }

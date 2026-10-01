@@ -28,6 +28,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.pane.android.app.AppContainer
 import app.pane.android.ui.home.HomeRoute
+import app.pane.android.ui.media.VideoQualityPreferences
 import app.pane.android.ui.home.HomeViewModel
 import app.pane.android.ui.player.PlayerRoute
 import app.pane.android.ui.player.PlayerViewModel
@@ -48,6 +49,7 @@ fun PeekNavigation(
     val context = LocalContext.current
     val activity = context as? Activity
     var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
+    var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
@@ -104,6 +106,11 @@ fun PeekNavigation(
                         backBehavior = behavior
                         BackPreferences.write(context, behavior)
                     },
+                    videoQuality = videoQuality,
+                    onVideoQuality = { quality ->
+                        videoQuality = quality
+                        VideoQualityPreferences.write(context, quality)
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
@@ -115,6 +122,7 @@ fun PeekNavigation(
                     viewModel = viewerViewModel,
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
+                    videoQuality = videoQuality,
                     onBack = ::handleBack,
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     modifier = Modifier.safeDrawingPadding(),
@@ -129,6 +137,7 @@ fun PeekNavigation(
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
                     initialMediaIndex = key.mediaIndex,
+                    videoQuality = videoQuality,
                     onBack = ::handleBack,
                 )
             }

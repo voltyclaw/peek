@@ -1,5 +1,6 @@
 package app.pane.android.data.facebook
 
+import android.util.Log
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
 import app.pane.android.domain.model.LoadStage
@@ -9,9 +10,23 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+
+/** Fired with the first usable Facebook document while other hosts are still merging. */
+class FacebookPreviewElement(val emit: (ParsedFacebookPost) -> Unit) :
+    AbstractCoroutineContextElement(FacebookPreviewElement) {
+    companion object Key : CoroutineContext.Key<FacebookPreviewElement>
+}
 
 /**
  * Logged-out fetch of a public Facebook post. The embed plugin is tried for ordinary posts.
@@ -31,30 +46,85 @@ class FacebookDirectPageLoader(
             ?: throw IllegalArgumentException("Unsupported Facebook post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
-        var last = FacebookDocument.UNAVAILABLE
-        var best: ParsedFacebookPost? = null
-        targets(post).forEachIndexed { index, target ->
-            listener.onProgress(LoadProgress(0.2f + index * 0.15f, LoadStage.FetchingPage))
-            val html = runCatching { get(target) }.getOrElse { error ->
-                last = error.message ?: last
-                return@forEachIndexed
-            }
-            val parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
-            if (parsed != null) {
-                val chosen = longerCaption(best, parsed)
-                best = chosen
-                if (!FacebookDocument.isTruncatedPreview(chosen.text) && FacebookDocument.hasDistinctAuthor(chosen)) {
-                    listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-                    return@withContext chosen
+        val started = System.nanoTime()
+        coroutineScope {
+            val pages = targets(post)
+            val pluginUrl = pages.firstOrNull { it.contains("plugins/post.php") }
+            val channel = Channel<FetchedPage>(Channel.UNLIMITED)
+            val pending = AtomicInteger(pages.size)
+            val lastError = AtomicReference(FacebookDocument.UNAVAILABLE)
+            val jobs = pages.map { target ->
+                async {
+                    var parsed: ParsedFacebookPost? = null
+                    try {
+                        val html = try {
+                            get(target)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            lastError.set(error.message ?: lastError.get())
+                            null
+                        }
+                        if (html != null) {
+                            if (html.contains("login_form", ignoreCase = true)) {
+                                lastError.set(FacebookDocument.LOGIN)
+                            }
+                            parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
+                        }
+                        channel.send(FetchedPage(target, parsed))
+                    } finally {
+                        if (pending.decrementAndGet() == 0) channel.close()
+                    }
                 }
             }
-            if (html.contains("login_form", ignoreCase = true)) last = FacebookDocument.LOGIN
+            var best: ParsedFacebookPost? = null
+            var emitted = false
+            var pluginFinished = pluginUrl == null
+            try {
+                for (fetch in channel) {
+                    if (fetch.url == pluginUrl) pluginFinished = true
+                    val parsed = fetch.post ?: continue
+                    val current = longerCaption(best, parsed)
+                    best = current
+                    if (readyToPaint(current, pluginFinished)) {
+                        logOpen(
+                            "facebook ready ${elapsed(started)}ms media=${current.imageUrls.size} " +
+                                "video=${current.videoUrl != null}",
+                        )
+                        listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                        return@coroutineScope current
+                    }
+                    if (!emitted) {
+                        coroutineContext[FacebookPreviewElement]?.emit(current)
+                        emitted = true
+                        logOpen("facebook preview ${elapsed(started)}ms")
+                    }
+                }
+            } finally {
+                jobs.forEach { it.cancel() }
+            }
+            best?.let { chosen ->
+                logOpen("facebook ready ${elapsed(started)}ms merged")
+                listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
+                return@coroutineScope chosen
+            }
+            throw IOException(lastError.get())
         }
-        best?.let {
-            listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
-            return@withContext it
-        }
-        throw IOException(last)
+    }
+
+    private data class FetchedPage(val url: String, val post: ParsedFacebookPost?)
+
+    private fun readyToPaint(post: ParsedFacebookPost, pluginFinished: Boolean): Boolean {
+        if (FacebookDocument.isTruncatedPreview(post.text)) return false
+        if (!FacebookDocument.hasDistinctAuthor(post)) return false
+        val hasMedia = post.imageUrls.isNotEmpty() || !post.videoUrl.isNullOrBlank()
+        return hasMedia || pluginFinished
+    }
+
+    private fun elapsed(started: Long): Long = (System.nanoTime() - started) / 1_000_000L
+
+    private fun logOpen(message: String) {
+        runCatching { Log.i("PaneOpen", message) }
     }
 
     private fun longerCaption(current: ParsedFacebookPost?, next: ParsedFacebookPost): ParsedFacebookPost {

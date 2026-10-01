@@ -19,6 +19,7 @@ import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
 import app.pane.android.ui.model.UiImage
+import app.pane.android.ui.model.VideoSourceUiModel
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import java.time.Instant
@@ -123,6 +124,13 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     videoUrl = bestVideoUrl(item.videoVariants),
                     width = item.width?.takeIf { it > 0 } ?: item.videoVariants.mapNotNull { it.width }.maxOrNull(),
                     height = item.height?.takeIf { it > 0 } ?: item.videoVariants.mapNotNull { it.height }.maxOrNull(),
+                    videoSources = item.videoVariants.map { variant ->
+                        VideoSourceUiModel(
+                            url = variant.url,
+                            width = variant.width,
+                            height = variant.height,
+                        )
+                    },
                 )
             }
         } else if (sourceMetadata is RedditMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
@@ -134,6 +142,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     videoUrl = item.videoUrl,
                     width = item.width?.takeIf { it > 0 },
                     height = item.height?.takeIf { it > 0 },
+                    videoSources = item.videos.map { source ->
+                        VideoSourceUiModel(
+                            url = source.url,
+                            width = source.width,
+                            height = source.height,
+                            bitrate = source.bitrate,
+                            adaptive = source.adaptive,
+                        )
+                    },
                 )
             }
         } else if (sourceMetadata is ExternalPostMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
@@ -143,6 +160,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
                     contentDescription = item.contentDescription,
                     videoUrl = item.videoUrl,
+                    videoSources = item.videos.map { source ->
+                        VideoSourceUiModel(
+                            url = source.url,
+                            width = source.width,
+                            height = source.height,
+                            bitrate = source.bitrate,
+                            adaptive = source.adaptive,
+                        )
+                    },
                 )
             }
         } else {

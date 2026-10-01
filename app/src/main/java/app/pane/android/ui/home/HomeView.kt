@@ -68,6 +68,7 @@ import app.pane.android.ui.theme.PaneMuted
 import app.pane.android.ui.theme.PaneOnFill
 import app.pane.android.ui.theme.PaneSecondary
 import app.pane.android.ui.theme.PaneTile
+import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
 import app.pane.android.ui.theme.ThemeMode
 
@@ -83,6 +84,8 @@ fun HomeView(
     onThemeMode: (ThemeMode) -> Unit = {},
     backBehavior: BackBehavior = BackBehavior.ClosePeek,
     onBackBehavior: (BackBehavior) -> Unit = {},
+    videoQuality: VideoQuality = VideoQuality.Auto,
+    onVideoQuality: (VideoQuality) -> Unit = {},
     showFirstLaunchHint: Boolean = false,
     onDismissFirstLaunchHint: () -> Unit = {},
 ) {
@@ -95,7 +98,15 @@ fun HomeView(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         ) {
-            HomeHeader(onOpenLinkSettings, themeMode, onThemeMode, backBehavior, onBackBehavior)
+            HomeHeader(
+                onOpenLinkSettings,
+                themeMode,
+                onThemeMode,
+                backBehavior,
+                onBackBehavior,
+                videoQuality,
+                onVideoQuality,
+            )
             if (versionLabel.isNotBlank()) {
                 Text(
                     text = versionLabel,
@@ -132,6 +143,8 @@ private fun HomeHeader(
     onThemeMode: (ThemeMode) -> Unit,
     backBehavior: BackBehavior,
     onBackBehavior: (BackBehavior) -> Unit,
+    videoQuality: VideoQuality,
+    onVideoQuality: (VideoQuality) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -169,6 +182,11 @@ private fun HomeHeader(
                     menuOpen = false
                     onBackBehavior(behavior)
                 },
+                videoQuality = videoQuality,
+                onVideoQuality = { quality ->
+                    menuOpen = false
+                    onVideoQuality(quality)
+                },
             )
         }
     }
@@ -183,6 +201,8 @@ private fun OptionsMenu(
     onOpenLinkSettings: () -> Unit,
     onThemeMode: (ThemeMode) -> Unit,
     onBackBehavior: (BackBehavior) -> Unit,
+    videoQuality: VideoQuality,
+    onVideoQuality: (VideoQuality) -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -232,6 +252,49 @@ private fun OptionsMenu(
                 },
                 onClick = { onBackBehavior(behavior) },
                 trailingIcon = if (backBehavior == behavior) {
+                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
+                } else {
+                    null
+                },
+            )
+        }
+        HorizontalDivider(color = PaneBorder)
+        Text(
+            text = stringResource(R.string.video_quality),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
+        )
+        VideoQuality.entries.forEach { quality ->
+            val label = when (quality) {
+                VideoQuality.Auto -> R.string.quality_auto
+                VideoQuality.High -> R.string.quality_high
+                VideoQuality.Medium -> R.string.quality_medium
+                VideoQuality.Low -> R.string.quality_low
+            }
+            val help = when (quality) {
+                VideoQuality.Auto -> R.string.quality_auto_help
+                VideoQuality.High -> R.string.quality_high_help
+                VideoQuality.Medium -> R.string.quality_medium_help
+                VideoQuality.Low -> R.string.quality_low_help
+            }
+            DropdownMenuItem(
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(label),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = stringResource(help),
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                        )
+                    }
+                },
+                onClick = { onVideoQuality(quality) },
+                trailingIcon = if (videoQuality == quality) {
                     { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
                 } else {
                     null
