@@ -125,6 +125,25 @@ class XSyndicationTest {
     }
 
     @Test
+    fun aRichPublicPageKeepsEveryEmbeddedReply() {
+        val html = buildString {
+            append("""entry_id:"tweet-20" full_text:"the post" """)
+            repeat(90) { index ->
+                val id = 1_000 + index
+                append(
+                    """entry_id:"conversationthread-$id-tweet-$id" name:"Ada" full_text:"reply $index" created_at_ms:1710000000000 """,
+                )
+            }
+        }
+
+        val replies = XConversation.parseReplies(html, "20")
+
+        assertEquals(90, replies.size)
+        assertEquals("reply 0", replies.first().text)
+        assertEquals("reply 89", replies.last().text)
+    }
+
+    @Test
     fun loaderTriesTheNextStatusPageWhenTheFirstHasNoReplies() = runTest {
         val loader = XDirectPageLoader { url ->
             val body = when {
@@ -144,6 +163,29 @@ class XSyndicationTest {
 
         assertEquals("from twitter", post.replies.single().text)
         assertEquals("Bea", post.replies.single().author)
+    }
+
+    @Test
+    fun loaderKeepsRepliesFromEveryPublicStatusPage() = runTest {
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"hello","user":{"name":"jack","screen_name":"jack"},"conversation_count":4}
+                """.trimIndent()
+                url.contains("https://x.com/i/status") -> """
+                    entry_id:"conversationthread-8-tweet-8" name:"Ada" full_text:"from x" created_at_ms:1710000000000
+                """.trimIndent()
+                url.contains("https://twitter.com/i/status") -> """
+                    entry_id:"conversationthread-9-tweet-9" name:"Bea" full_text:"from twitter" created_at_ms:1710000000001
+                """.trimIndent()
+                else -> "<html>login wall</html>"
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/jack/status/20")
+
+        assertEquals(listOf("from x", "from twitter"), post.replies.map { it.text })
     }
 
     @Test

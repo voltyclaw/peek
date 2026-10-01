@@ -2,8 +2,11 @@ package app.pane.android
 
 import app.pane.android.ui.player.CommentsRaise
 import app.pane.android.ui.player.commentsRaiseForSwipe
+import app.pane.android.ui.player.formatPlaybackClock
+import app.pane.android.ui.player.playbackFraction
 import app.pane.android.ui.player.playerShowsControlsAfterPageChange
 import app.pane.android.ui.player.playerShowsControlsOnOpen
+import app.pane.android.ui.player.seekPositionMs
 import app.pane.android.ui.player.spareBelowPeekPx
 import app.pane.android.ui.player.swipeRaisesComments
 import org.junit.Assert.assertEquals
@@ -12,6 +15,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlayerChromeTest {
+    @Test
+    fun scrubberDragJumpsToThatPointInTheVideo() {
+        assertEquals(0L, seekPositionMs(durationMs = 0L, fraction = 0.5f))
+        assertEquals(5_000L, seekPositionMs(durationMs = 10_000L, fraction = 0.5f))
+        assertEquals(10_000L, seekPositionMs(durationMs = 10_000L, fraction = 2f))
+        assertEquals(0L, seekPositionMs(durationMs = 10_000L, fraction = -1f))
+        assertEquals(0.25f, playbackFraction(positionMs = 2_500L, durationMs = 10_000L), 0.001f)
+        assertEquals(0f, playbackFraction(positionMs = 2_500L, durationMs = 0L), 0.001f)
+        assertEquals("1:05", formatPlaybackClock(65_000L))
+        assertEquals("1:02:03", formatPlaybackClock(3_723_000L))
+    }
+
     @Test
     fun mediaOpensWithTheCommentsSheetLowered() {
         assertFalse(playerShowsControlsOnOpen())

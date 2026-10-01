@@ -1,8 +1,10 @@
 package app.pane.android.data.x
 
 /**
- * Replies embedded in the logged-out status page. X renders the public conversation
- * into the HTML as a JavaScript object, ahead of any login wall.
+ * Replies embedded in the logged-out status page. X renders a short public conversation
+ * into the HTML, ahead of any login wall. That document’s conversation cursor is null,
+ * and the guest TweetDetail query id in the page does not resolve, so there is no
+ * further logged-out page to request.
  */
 object XConversation {
     fun parseReplies(html: String, focalId: String): List<ParsedXReply> {
@@ -142,5 +144,5 @@ object XConversation {
     private val ENTRY_ID = Regex("""entry_id"?\s*:\s*"([^"]*)"""")
     private val TWEET_ID = Regex("""tweet-(\d+)""")
     private val CREATED = Regex("""created_at_ms"?\s*:\s*"?(\d+)""")
-    private const val MAX_REPLIES = 80
+    private const val MAX_REPLIES = 200
 }

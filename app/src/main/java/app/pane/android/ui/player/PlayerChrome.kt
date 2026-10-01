@@ -34,6 +34,31 @@ internal fun mediaFillsPortrait(
     return fittedHeight.isFinite() && fittedHeight >= viewportHeightPx * PORTRAIT_FILL_FRACTION
 }
 
+/** Where a fullscreen scrubber drag should land, in milliseconds. */
+internal fun seekPositionMs(durationMs: Long, fraction: Float): Long {
+    if (durationMs <= 0L) return 0L
+    return (durationMs * fraction.coerceIn(0f, 1f)).toLong().coerceIn(0L, durationMs)
+}
+
+/** Scrubber position. An unknown duration stays at the start. */
+internal fun playbackFraction(positionMs: Long, durationMs: Long): Float {
+    if (durationMs <= 0L || positionMs <= 0L) return 0f
+    return (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+}
+
+/** Clock label beside the fullscreen scrubber. */
+internal fun formatPlaybackClock(positionMs: Long): String {
+    val totalSeconds = positionMs.coerceAtLeast(0L) / 1_000L
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(java.util.Locale.US, hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(java.util.Locale.US, minutes, seconds)
+    }
+}
+
 /** A vertical swipe leaves immersive media for the framed post. Sideways stays a gallery swipe. */
 internal fun swipeExitsFullscreen(totalDx: Float, totalDy: Float, thresholdPx: Float): Boolean {
     if (thresholdPx <= 0f) return false

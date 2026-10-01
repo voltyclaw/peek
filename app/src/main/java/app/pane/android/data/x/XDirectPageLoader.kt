@@ -69,16 +69,19 @@ class XDirectPageLoader(
             add("https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT)
         }
         var note: String? = null
-        var replies = emptyList<ParsedXReply>()
+        val replies = LinkedHashMap<String, ParsedXReply>()
         for ((url, agent) in attempts) {
             val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: continue
             val foundNote = XConversation.parseNoteText(html)
             if (foundNote != null && foundNote.length > (note?.length ?: 0)) note = foundNote
-            val foundReplies = XConversation.parseReplies(html, statusId)
-            if (foundReplies.size > replies.size) replies = foundReplies
-            if (note != null && replies.isNotEmpty()) break
+            for (reply in XConversation.parseReplies(html, statusId)) {
+                val existing = replies[reply.id]
+                if (existing == null || reply.text.length > existing.text.length) {
+                    replies[reply.id] = reply
+                }
+            }
         }
-        return StatusPage(note, replies)
+        return StatusPage(note, replies.values.toList())
     }
 
     private suspend fun get(url: String, json: Boolean, userAgent: String = USER_AGENT): String = withContext(Dispatchers.IO) {
