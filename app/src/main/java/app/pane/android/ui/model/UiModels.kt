@@ -72,6 +72,18 @@ data class ViewerPostUiModel(
     val authorAvatar: UiImage? = null,
     /** Public page returned some replies, and no further page is available. */
     val commentsTruncated: Boolean = false,
+    /** Author's own chain, root first. Empty unless this status is part of that chain. */
+    val authorThread: List<AuthorThreadPostUiModel> = emptyList(),
+    /** The public page is missing earlier posts by the same account. */
+    val authorThreadPartial: Boolean = false,
+)
+
+@Immutable
+data class AuthorThreadPostUiModel(
+    val id: String,
+    val author: String,
+    val text: String,
+    val opened: Boolean,
 )
 
 @Immutable

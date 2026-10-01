@@ -9,6 +9,7 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -250,6 +251,123 @@ class XSyndicationTest {
         assertEquals(2, post.commentCount)
         assertEquals("a public reply", post.replies.single().text)
         assertEquals("Ada", post.replies.single().author)
+    }
+
+    @Test
+    fun aPublicStatusPageReadsTheAuthorThreadFromTheRoot() {
+        val html = checkNotNull(javaClass.classLoader!!.getResource("x-author-thread.html")).readText()
+        val openedLast = XConversation.parseAuthorThread(html, "2105362146922000492")
+
+        assertEquals(
+            listOf(
+                "2105362093482401889",
+                "2105362113736712273",
+                "2105362129628848525",
+                "2105362146922000492",
+            ),
+            openedLast.posts.map { it.id },
+        )
+        assertEquals("Aexodus", openedLast.posts.first().author)
+        assertEquals("AexodusCapital", openedLast.posts.first().screenName)
+        assertTrue(openedLast.posts.first().text.startsWith("Everyone asks who wins the space race."))
+        assertTrue(openedLast.posts.last().text.startsWith("On the Silk Road"))
+        assertFalse(openedLast.partial)
+
+        val openedMiddle = XConversation.parseAuthorThread(html, "2105362113736712273")
+        assertEquals(openedLast.posts.map { it.id }, openedMiddle.posts.map { it.id })
+        assertFalse(openedMiddle.partial)
+    }
+
+    @Test
+    fun aSingleStatusIsNotAnAuthorThread() {
+        val html = """
+            display_type:"Tweet",tweet_results:{rest_id:"20",core:{name:"jack",screen_name:"jack"},details:{full_text:"just setting up my twttr"}}
+        """.trimIndent()
+
+        val thread = XConversation.parseAuthorThread(html, "20")
+
+        assertTrue(thread.posts.isEmpty())
+        assertFalse(thread.partial)
+    }
+
+    @Test
+    fun authorThreadKeepsOnlyTheSameAccountAndMarksAMissingAncestor() {
+        val html = """
+            display_type:"Tweet",tweet_results:{rest_id:"2",core:{name:"Ada",screen_name:"ada"},details:{full_text:"This continues an earlier post."},reply_to_results:{rest_id:"1"},reply_to_user_results:{screen_name:"ada"}}
+            display_type:"Tweet",tweet_results:{rest_id:"8",core:{name:"Bea",screen_name:"bea"},details:{full_text:"Someone else replied."}}
+            display_type:"SelfThread",tweet_results:{rest_id:"3",core:{name:"Ada",screen_name:"ada"},details:{full_text:"Ada finishes the chain."},reply_to_results:{rest_id:"2"},reply_to_user_results:{screen_name:"ada"}}
+        """.trimIndent()
+
+        val thread = XConversation.parseAuthorThread(html, "3")
+
+        assertEquals(listOf("2", "3"), thread.posts.map { it.id })
+        assertEquals("This continues an earlier post.", thread.posts.first().text)
+        assertTrue(thread.partial)
+    }
+
+    @Test
+    fun aReplyToSomeoneElseIsTheStartOfTheAuthorThread() {
+        val html = """
+            display_type:"Tweet",tweet_results:{rest_id:"2",core:{name:"Ada",screen_name:"ada"},details:{full_text:"Ada answers Bob."},reply_to_results:{rest_id:"9"},reply_to_user_results:{screen_name:"bob"}}
+            display_type:"SelfThread",tweet_results:{rest_id:"3",core:{name:"Ada",screen_name:"ada"},details:{full_text:"Ada continues."},reply_to_results:{rest_id:"2"},reply_to_user_results:{screen_name:"ada"}}
+        """.trimIndent()
+
+        val thread = XConversation.parseAuthorThread(html, "3")
+
+        assertEquals(listOf("2", "3"), thread.posts.map { it.id })
+        assertFalse(thread.partial)
+    }
+
+    @Test
+    fun loaderKeepsTheAuthorThreadAndLeavesOtherPeoplesReplies() = runTest {
+        val html = checkNotNull(javaClass.classLoader!!.getResource("x-author-thread.html")).readText() +
+            """ entry_id:"conversationthread-9-tweet-9" name:"Bea" full_text:"a public reply" created_at_ms:1710000000000 """
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"2105362146922000492","text":"On the Silk Road","user":{"name":"Aexodus","screen_name":"AexodusCapital"},"conversation_count":2}
+                """.trimIndent()
+                url.contains("https://x.com/i/status") -> html
+                else -> "<html>login wall</html>"
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/AexodusCapital/status/2105362146922000492")
+
+        assertEquals(4, post.authorThread.size)
+        assertEquals("2105362093482401889", post.authorThread.first().id)
+        assertEquals("2105362146922000492", post.authorThread.last().id)
+        assertTrue(post.authorThread.last().text.startsWith("On the Silk Road"))
+        assertFalse(post.authorThreadPartial)
+        assertEquals(listOf("a public reply"), post.replies.map { it.text })
+    }
+
+    @Test
+    fun loaderPrefersTheLongerAuthorThreadFromAnotherPublicPage() = runTest {
+        val short = """
+            display_type:"Tweet",tweet_results:{rest_id:"20",core:{name:"Ada",screen_name:"ada"},details:{full_text:"Root of the chain."}}
+            display_type:"SelfThread",tweet_results:{rest_id:"21",core:{name:"Ada",screen_name:"ada"},details:{full_text:"Opened in the middle."},reply_to_results:{rest_id:"20"},reply_to_user_results:{screen_name:"ada"}}
+        """.trimIndent()
+        val longer = short + """
+            display_type:"SelfThread",tweet_results:{rest_id:"22",core:{name:"Ada",screen_name:"ada"},details:{full_text:"A later post."},reply_to_results:{rest_id:"21"},reply_to_user_results:{screen_name:"ada"}}
+        """.trimIndent()
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"21","text":"Opened in the middle.","user":{"name":"Ada","screen_name":"ada"},"conversation_count":0}
+                """.trimIndent()
+                url.contains("https://x.com/i/status") -> short
+                url.contains("https://twitter.com/i/status") -> longer
+                else -> "<html>login wall</html>"
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/ada/status/21")
+
+        assertEquals(listOf("20", "21", "22"), post.authorThread.map { it.id })
+        assertFalse(post.authorThreadPartial)
     }
 
     @Test

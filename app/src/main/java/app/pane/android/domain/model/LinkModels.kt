@@ -93,11 +93,21 @@ data class ExternalMediaItem(
     val videoUrl: String? = null,
 )
 
-/** Public Facebook and X posts. Comments are not loaded for these sources. */
+/** One post in an X author's own chain. Empty for Facebook. */
+@Serializable
+data class ExternalThreadPost(
+    val id: String,
+    val author: String,
+    val text: String,
+)
+
+/** Public Facebook and X posts. An X author thread is separate from other people's replies. */
 @Serializable
 data class ExternalPostMetadata(
     val postId: String,
     val mediaItems: List<ExternalMediaItem> = emptyList(),
+    val authorThread: List<ExternalThreadPost> = emptyList(),
+    val authorThreadPartial: Boolean = false,
 ) : SourceMetadata
 
 @Serializable

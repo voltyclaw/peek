@@ -1,12 +1,53 @@
 package app.pane.android.data.x
 
 /**
- * Replies embedded in the logged-out status page. X renders a short public conversation
- * into the HTML, ahead of any login wall. That document’s conversation cursor is null,
- * and the guest TweetDetail query id in the page does not resolve, so there is no
- * further logged-out page to request.
+ * Public conversation embedded in the logged-out status page.
+ *
+ * Replies from other people are a short list ahead of the login wall. That document’s
+ * conversation cursor is null, and the guest TweetDetail query id in the page does not
+ * resolve, so there is no further logged-out reply page to request.
+ *
+ * An author thread is different: the same page lists the account’s own chain in order.
+ * Posts before the opened status use display type Tweet. The opened status and later
+ * posts use SelfThread. Each block’s first rest id is that post, and reply_to_results
+ * points at its parent when it has one.
  */
 object XConversation {
+    fun parseAuthorThread(html: String, focalId: String): ParsedAuthorThread {
+        val source = normalize(html)
+        val markers = DISPLAY_TYPE.findAll(source).toList()
+        if (markers.isEmpty()) return ParsedAuthorThread()
+        val blocks = markers.mapIndexedNotNull { index, match ->
+            val next = markers.getOrNull(index + 1)?.range?.first ?: source.length
+            val end = minOf(next, match.range.last + 1 + BLOCK_WINDOW)
+            parseThreadBlock(source.substring(match.range.last + 1, end))
+        }
+        val focal = blocks.firstOrNull { it.id == focalId } ?: return ParsedAuthorThread()
+        if (focal.screenName.isBlank()) return ParsedAuthorThread()
+        val posts = blocks
+            .filter { it.screenName.equals(focal.screenName, ignoreCase = true) }
+            .distinctBy { it.id }
+        if (posts.size < 2 || posts.none { it.id == focalId }) return ParsedAuthorThread()
+        val ids = posts.map { it.id }.toSet()
+        val first = posts.first()
+        val parent = first.parentId
+        val parentScreen = first.parentScreenName
+        val parentIsThisAuthor = parentScreen == null ||
+            parentScreen.equals(focal.screenName, ignoreCase = true)
+        val partial = !parent.isNullOrBlank() && parent !in ids && parentIsThisAuthor
+        return ParsedAuthorThread(
+            posts = posts.map { block ->
+                ParsedXThreadPost(
+                    id = block.id,
+                    author = block.author,
+                    screenName = block.screenName,
+                    text = block.text,
+                )
+            },
+            partial = partial,
+        )
+    }
+
     fun parseReplies(html: String, focalId: String): List<ParsedXReply> {
         val source = normalize(html)
         if (!source.contains("full_text")) return emptyList()
@@ -141,8 +182,59 @@ object XConversation {
         return out.toString()
     }
 
+    private fun parseThreadBlock(slice: String): ThreadBlock? {
+        val id = REST_ID.find(slice)?.groupValues?.get(1) ?: return null
+        val screenName = firstJsString(slice, "screen_name")?.trim().orEmpty()
+        if (screenName.isBlank()) return null
+        val preview = firstJsString(slice, "full_text")?.trim().orEmpty()
+        val note = parseNoteText(slice)
+        val text = longerCaption(preview, note).ifBlank { note?.trim().orEmpty() }
+        if (text.isBlank()) return null
+        return ThreadBlock(
+            id = id,
+            author = authorBeside(slice, screenName),
+            screenName = screenName,
+            text = text,
+            parentId = parentRestId(slice),
+            parentScreenName = parentScreenName(slice),
+        )
+    }
+
+    private fun authorBeside(slice: String, screenName: String): String {
+        val at = slice.indexOf("screen_name:\"$screenName\"")
+        if (at < 0) return screenName
+        val before = slice.substring(maxOf(0, at - 160), at)
+        return jsStrings(before, "name").lastOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: screenName
+    }
+
+    private fun parentRestId(slice: String): String? {
+        val at = slice.indexOf("reply_to_results")
+        if (at < 0) return null
+        val window = slice.substring(at, minOf(slice.length, at + 500))
+        return REST_ID.find(window)?.groupValues?.get(1)
+    }
+
+    private fun parentScreenName(slice: String): String? {
+        val at = slice.indexOf("reply_to_user_results")
+        if (at < 0) return null
+        val window = slice.substring(at, minOf(slice.length, at + 500))
+        return firstJsString(window, "screen_name")?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private data class ThreadBlock(
+        val id: String,
+        val author: String,
+        val screenName: String,
+        val text: String,
+        val parentId: String?,
+        val parentScreenName: String?,
+    )
+
     private val ENTRY_ID = Regex("""entry_id"?\s*:\s*"([^"]*)"""")
     private val TWEET_ID = Regex("""tweet-(\d+)""")
     private val CREATED = Regex("""created_at_ms"?\s*:\s*"?(\d+)""")
+    private val DISPLAY_TYPE = Regex("""display_type"?\s*:\s*"(Tweet|SelfThread)"""")
+    private val REST_ID = Regex("""rest_id"?\s*:\s*"(\d+)"""")
     private const val MAX_REPLIES = 200
+    private const val BLOCK_WINDOW = 24_000
 }

@@ -7,6 +7,7 @@ import app.pane.android.domain.model.Author
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.ExternalMediaItem
 import app.pane.android.domain.model.ExternalPostMetadata
+import app.pane.android.domain.model.ExternalThreadPost
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
@@ -137,7 +138,14 @@ class XLinkContentRepository(
             author = Author(name = post.author, metadata = "X"),
             commentCount = post.commentCount,
             comments = post.replies.map(::mapReply),
-            sourceMetadata = ExternalPostMetadata(postId = post.id, mediaItems = items),
+            sourceMetadata = ExternalPostMetadata(
+                postId = post.id,
+                mediaItems = items,
+                authorThread = post.authorThread.map { item ->
+                    ExternalThreadPost(id = item.id, author = item.author, text = item.text)
+                },
+                authorThreadPartial = post.authorThreadPartial,
+            ),
         )
     }
 

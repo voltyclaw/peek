@@ -18,6 +18,24 @@ data class ParsedXReply(
     val createdAtEpochMillis: Long,
 )
 
+/** One post in the author's own chain, in reading order from the root. */
+data class ParsedXThreadPost(
+    val id: String,
+    val author: String,
+    val screenName: String,
+    val text: String,
+)
+
+/**
+ * Author posts embedded around the opened status.
+ * [partial] is true when the first post still replies to an earlier post by the same account
+ * that this page did not include.
+ */
+data class ParsedAuthorThread(
+    val posts: List<ParsedXThreadPost> = emptyList(),
+    val partial: Boolean = false,
+)
+
 data class ParsedXPost(
     val id: String,
     val canonicalUrl: String,
@@ -28,6 +46,8 @@ data class ParsedXPost(
     val commentCount: Int,
     val replies: List<ParsedXReply> = emptyList(),
     val screenName: String? = null,
+    val authorThread: List<ParsedXThreadPost> = emptyList(),
+    val authorThreadPartial: Boolean = false,
 )
 
 /**

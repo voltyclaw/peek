@@ -11,6 +11,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -279,6 +281,93 @@ fun CaptionText(post: ViewerPostUiModel) {
         color = PaneInk,
         style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
     )
+}
+
+/**
+ * The author's own chain, root first. The opened status is highlighted.
+ * Jump to start brings the first post into the framed scroll.
+ */
+@Composable
+fun AuthorThreadSection(post: ViewerPostUiModel) {
+    val posts = post.authorThread
+    if (posts.size < 2) return
+    val openedIndex = posts.indexOfFirst { it.opened }.let { index -> if (index < 0) 0 else index }
+    val labelColor = if (LocalPaneColors.current.night) PaneAccent.copy(alpha = 0.7f) else PaneMuted
+    val start = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.part_of_a_thread),
+                color = labelColor,
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            )
+            Text(
+                text = stringResource(R.string.thread_position, openedIndex + 1, posts.size),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .clickable(role = Role.Button) {
+                    scope.launch { start.bringIntoView() }
+                },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = stringResource(R.string.jump_to_start),
+                modifier = Modifier.padding(horizontal = 4.dp),
+                color = PaneAccent,
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            posts.forEachIndexed { index, item ->
+                val opened = item.opened
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (index == 0) Modifier.bringIntoViewRequester(start) else Modifier)
+                        .clip(RoundedCornerShape(12.dp))
+                        .then(
+                            if (opened) {
+                                Modifier.background(PaneTile).border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = item.author,
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = autolinkedCaption(item.text, PaneAccent),
+                        color = PaneInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 20.sp),
+                    )
+                }
+            }
+        }
+        if (post.authorThreadPartial) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.author_thread_partial),
+                modifier = Modifier.padding(horizontal = 4.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+            )
+        }
+    }
 }
 
 @Composable

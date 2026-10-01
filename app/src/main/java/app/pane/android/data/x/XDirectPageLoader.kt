@@ -36,9 +36,14 @@ class XDirectPageLoader(
             XSyndication.parseJson(syndication, status.id, status.canonicalUrl)?.let { post ->
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
                 val page = loadStatusPage(status.id, post.screenName)
+                val text = XConversation.longerCaption(post.text, page.note)
                 val withPage = post.copy(
-                    text = XConversation.longerCaption(post.text, page.note),
+                    text = text,
                     replies = page.replies,
+                    authorThread = page.authorThread.map { item ->
+                        if (item.id == post.id) item.copy(text = richest(item.text, text)) else item
+                    },
+                    authorThreadPartial = page.authorThreadPartial,
                 )
                 listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
                 return withPage
@@ -58,7 +63,12 @@ class XDirectPageLoader(
         throw IOException(XSyndication.UNAVAILABLE)
     }
 
-    private data class StatusPage(val note: String?, val replies: List<ParsedXReply>)
+    private data class StatusPage(
+        val note: String?,
+        val replies: List<ParsedXReply>,
+        val authorThread: List<ParsedXThreadPost>,
+        val authorThreadPartial: Boolean,
+    )
 
     private suspend fun loadStatusPage(statusId: String, screenName: String?): StatusPage {
         val handle = screenName?.trim()?.takeIf { HANDLE.matches(it) }
@@ -69,11 +79,18 @@ class XDirectPageLoader(
             add("https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT)
         }
         var note: String? = null
+        var thread = emptyList<ParsedXThreadPost>()
+        var threadPartial = false
         val replies = LinkedHashMap<String, ParsedXReply>()
         for ((url, agent) in attempts) {
             val html = runCatching { get(url, json = false, userAgent = agent) }.getOrNull() ?: continue
             val foundNote = XConversation.parseNoteText(html)
             if (foundNote != null && foundNote.length > (note?.length ?: 0)) note = foundNote
+            val foundThread = XConversation.parseAuthorThread(html, statusId)
+            if (prefers(foundThread, thread, threadPartial)) {
+                thread = foundThread.posts
+                threadPartial = foundThread.partial
+            }
             for (reply in XConversation.parseReplies(html, statusId)) {
                 val existing = replies[reply.id]
                 if (existing == null || reply.text.length > existing.text.length) {
@@ -81,7 +98,25 @@ class XDirectPageLoader(
                 }
             }
         }
-        return StatusPage(note, replies.values.toList())
+        val threadIds = thread.map { it.id }.toSet()
+        return StatusPage(
+            note = note,
+            replies = replies.values.filter { it.id !in threadIds },
+            authorThread = thread,
+            authorThreadPartial = threadPartial && thread.size >= 2,
+        )
+    }
+
+    private fun prefers(found: ParsedAuthorThread, current: List<ParsedXThreadPost>, currentPartial: Boolean): Boolean {
+        if (found.posts.size > current.size) return true
+        return found.posts.size == current.size && found.posts.isNotEmpty() && currentPartial && !found.partial
+    }
+
+    /** Keep the longer body when one public copy continues the other. */
+    private fun richest(current: String, candidate: String): String {
+        val forward = XConversation.longerCaption(current, candidate)
+        val backward = XConversation.longerCaption(candidate, current)
+        return if (backward.length > forward.length) backward else forward
     }
 
     private suspend fun get(url: String, json: Boolean, userAgent: String = USER_AGENT): String = withContext(Dispatchers.IO) {

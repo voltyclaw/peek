@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.ui.components.AuthorByline
+import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
 import app.pane.android.ui.components.PeekImage
@@ -188,7 +189,11 @@ private fun ColumnScope.ViewerContent(
             canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
         )
         Column(Modifier.fillMaxWidth()) {
-            CaptionText(post)
+            if (post.authorThread.size >= 2) {
+                AuthorThreadSection(post)
+            } else {
+                CaptionText(post)
+            }
             Spacer(Modifier.height(24.dp))
             CommentsSection(
                 post = post,

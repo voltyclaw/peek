@@ -14,6 +14,7 @@ import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.model.RecentContent
 import app.pane.android.domain.model.RedditMetadata
 import app.pane.android.domain.model.SourceMetadata
+import app.pane.android.ui.model.AuthorThreadPostUiModel
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
@@ -154,6 +155,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                 ),
             )
         }
+        val external = sourceMetadata as? ExternalPostMetadata
         return ViewerPostUiModel(
             title = content.title,
             isVideo = content.kind == LinkKind.Video,
@@ -174,6 +176,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             commentsTruncated = content.source == LinkSource.X &&
                 content.comments.isNotEmpty() &&
                 content.commentCount > content.comments.size,
+            authorThread = external?.authorThread.orEmpty().map { item ->
+                AuthorThreadPostUiModel(
+                    id = item.id,
+                    author = item.author,
+                    text = item.text,
+                    opened = item.id == external?.postId,
+                )
+            },
+            authorThreadPartial = external?.authorThreadPartial == true,
             mediaItems = mediaItems,
             initialMediaIndex = requestedMediaIndex(content.url, mediaItems.size),
             sourceUrl = content.url,
