@@ -2,7 +2,7 @@
   <img src="assets/peek-logo.webp" width="112" alt="Peek app icon" />
 </p>
 
-<h1 align="center">Peek for Android</h1>
+<h1 align="center">Pane for Android</h1>
 
 <p align="center">
   A calm, native space for the links people share.<br />
@@ -26,11 +26,14 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 
 ## Current features
 
-- Paste links from the clipboard or open Instagram and Reddit links directly.
+- Paste links from the clipboard or open Instagram, Reddit, Facebook, and X links directly. Pane does not verify those sites: they publish `/.well-known/assetlinks.json` for their own apps, and this debug package is not in that file. Link filters keep `android:autoVerify="false"`, one host at a time. Open by default switches snap off while the official app still has link handling on. Turn that off in the official app, then turn the addresses on for Pane. Paste works either way.
 - Resolve public Instagram posts, reels, and carousels with photos and videos.
-- Resolve public Reddit posts, including text, images, galleries, and Reddit-hosted video.
+- Resolve public Reddit posts, including text, images, galleries, Reddit-hosted video, and `/r/{sub}/s/{id}` share shortlinks.
+- Resolve public Facebook posts, including `/posts/`, `/share/`, `/reel/`, `/watch/`, photos, and `fb.watch` links. Logged-out HTML is tried first, then a hidden WebView. Private posts and login walls fail as a load error. Replies are not loaded.
+- Resolve public X and Twitter status links (`x.com`, `twitter.com`, and mobile hosts). Syndication JSON is tried first, then oEmbed. Private or removed posts fail as a load error. Replies are usually absent.
 - Read comments, load more replies, refresh content, and revisit recent links.
-- Open media in an edge-to-edge viewer with video playback and carousel navigation.
+- Open media in an edge-to-edge viewer with video playback and carousel navigation. A video, photo, or gallery opens on the media, with the comments sheet lowered the same way a tap on a video lowers it. Swipe sideways moves between gallery images. Swipe up raises the comments sheet. By default, Back from a link opened in another app returns to that app. Back inside a session started from Pane’s home goes from the player to the preview, then home. Home’s options can instead keep Back inside Pane and return to home.
+- Choose Light, Dark, or System from the options menu on Home. The choice is kept on this device. Open link settings is in that same menu.
 - Cache resolved content locally for a quicker return experience.
 
 ## Availability
@@ -40,7 +43,7 @@ Paste a link, then read, watch, and browse the content without the noise of the 
 | Public Instagram posts (`/p/`) | Available | Direct logged-out GraphQL resolver |
 | Public Instagram reels (`/reel/`, `/reels/`) | Available | Direct GraphQL resolver, then hidden WebView fallback |
 | Public Instagram carousels | Available | Instagram resolver chain above |
-| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Logged-out public post JSON |
+| Public Reddit posts (`/r/{sub}/comments/{id}`, `/comments/{id}`, `/gallery/{id}`, `redd.it/{id}`, `/r/{sub}/s/{share}`) on reddit.com, www, old, np, new, and m | Available | Paste uses the in-app classifier. Logged-out JSON is tried first (`old.reddit.com`, then `www`, full permalink first). If Reddit blocks that request, a hidden WebView loads the public page logged-out and reads `shreddit-post`, embedded JSON, `__NEXT_DATA__`, or `window.__r`. Reddit-hosted video uses the page’s packaged MP4 (or DASH/HLS) plus the poster, not the bare `v.redd.it` link. Galleries use `gallery_data` when the JSON is present, and otherwise the pictures inside `gallery-carousel` (not the `/gallery/{id}` page URL, and not images attached to comments). Private and quarantined posts fail closed. A block is a load failure, separate from “link not supported”. Share shortlinks follow redirects, then the same path |
 | Reddit subreddit feeds, profiles, search, and posts Reddit hides when logged out | Unsupported | No resolver currently available |
 | Private posts, login-required content, challenges, consent flows | Unsupported | No resolver currently available |
 
@@ -82,6 +85,8 @@ Requires JDK 17 and Android SDK 36.
 ./gradlew :app:validateDebugScreenshotTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+Sideload debug builds are published as `peek-reddit-debug-<versionName>.apk` (for example `peek-reddit-debug-1.0.4.apk`).
 
 ## Acknowledgements
 

@@ -1,0 +1,65 @@
+package app.pane.android
+
+import app.pane.android.ui.media.VideoPlaybackQuality
+import app.pane.android.ui.media.VideoQuality
+import app.pane.android.ui.model.VideoSourceUiModel
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class VideoPlaybackQualityTest {
+    @Test
+    fun autoUsesAdaptiveAndHighUsesTheProgressiveFile() {
+        val sources = listOf(
+            VideoSourceUiModel(url = "https://v.redd.it/clip/DASHPlaylist.mpd", adaptive = true),
+            VideoSourceUiModel(url = "https://v.redd.it/clip/DASH_720.mp4", width = 1280, height = 720),
+        )
+
+        assertEquals("https://v.redd.it/clip/DASHPlaylist.mpd", VideoPlaybackQuality.pick(sources, VideoQuality.Auto))
+        assertEquals("https://v.redd.it/clip/DASH_720.mp4", VideoPlaybackQuality.pick(sources, VideoQuality.High))
+        assertNull(VideoPlaybackQuality.pick(sources, VideoQuality.Low))
+        assertEquals(
+            listOf(VideoQuality.Auto, VideoQuality.High),
+            VideoPlaybackQuality.options(sources).map { it.quality },
+        )
+    }
+
+    @Test
+    fun progressiveLadderUsesHighMiddleAndLow() {
+        val sources = listOf(
+            VideoSourceUiModel(url = "https://video.example/low.mp4", bitrate = 256_000),
+            VideoSourceUiModel(url = "https://video.example/mid.mp4", bitrate = 832_000),
+            VideoSourceUiModel(url = "https://video.example/high.mp4", bitrate = 2_176_000),
+        )
+
+        assertEquals("https://video.example/mid.mp4", VideoPlaybackQuality.pick(sources, VideoQuality.Auto))
+        assertEquals("https://video.example/high.mp4", VideoPlaybackQuality.pick(sources, VideoQuality.High))
+        assertEquals("https://video.example/mid.mp4", VideoPlaybackQuality.pick(sources, VideoQuality.Medium))
+        assertEquals("https://video.example/low.mp4", VideoPlaybackQuality.pick(sources, VideoQuality.Low))
+        val options = VideoPlaybackQuality.options(sources)
+        assertEquals(listOf(VideoQuality.Auto, VideoQuality.High, VideoQuality.Low), options.map { it.quality })
+        assertTrue(options.none { it.quality == VideoQuality.Medium })
+    }
+
+    @Test
+    fun aSingleUrlHidesTheQualityControl() {
+        val sources = listOf(VideoSourceUiModel(url = "https://video.example/only.mp4", bitrate = 800_000))
+
+        assertTrue(VideoPlaybackQuality.options(sources).isEmpty())
+        assertEquals(
+            "https://video.example/only.mp4",
+            VideoPlaybackQuality.urlFor(sources, VideoQuality.High, "https://video.example/only.mp4"),
+        )
+    }
+
+    @Test
+    fun duplicateUrlsDoNotInventASecondQuality() {
+        val sources = listOf(
+            VideoSourceUiModel(url = "https://video.example/same.mp4", width = 640, height = 360),
+            VideoSourceUiModel(url = "https://video.example/same.mp4", bitrate = 500_000),
+        )
+
+        assertTrue(VideoPlaybackQuality.options(sources).isEmpty())
+    }
+}

@@ -6,14 +6,16 @@ plugins {
 }
 
 android {
-    namespace = "com.mustafashakir.peek"
+    namespace = "app.pane.android"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.mustafashakir.peek"
+        // applicationId, app name, icons, and the Material palette can change
+        // without reworking resolvers. Keep source routing independent of this id.
+        applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.1"
+        versionCode = 25
+        versionName = "1.0.25"
     }
 
     buildTypes {
@@ -70,6 +72,8 @@ dependencies {
   implementation(libs.coil.network.okhttp)
   implementation(libs.okhttp)
   implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.exoplayer.hls)
+  implementation(libs.androidx.media3.exoplayer.dash)
   implementation(libs.androidx.media3.ui)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
