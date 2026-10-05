@@ -31,7 +31,7 @@ internal object InstalledBrowsers {
             }
         }
         val browsers = best.map { (packageName, info) ->
-            val label = info.loadLabel(manager)?.toString()?.takeIf { it.isNotBlank() } ?: packageName
+            val label = info.loadLabel(manager).toString().takeIf { it.isNotBlank() } ?: packageName
             Browser(
                 packageName = packageName,
                 activityName = info.activityInfo.name,
