@@ -98,6 +98,85 @@ class BrowserTrampolineTest {
     }
 
     @Test
+    fun savedBrowserWinsOverChromeWhenThatPackageIsInstalled() {
+        val chrome = BrowserTrampoline.Candidate("com.android.chrome", "com.google.android.apps.chrome.Main")
+        val firefox = BrowserTrampoline.Candidate("org.mozilla.firefox", "org.mozilla.firefox.App")
+        val brave = BrowserTrampoline.Candidate("com.brave.browser", "com.brave.browser.BrowserActivity")
+        assertEquals(
+            firefox,
+            BrowserTrampoline.pickHandoff(
+                listOf(chrome, brave, firefox),
+                OWN,
+                preferredPackage = "org.mozilla.firefox",
+            ),
+        )
+        assertEquals(
+            brave,
+            BrowserTrampoline.pickHandoff(
+                listOf(firefox, brave),
+                OWN,
+                preferredPackage = "com.brave.browser",
+                systemPackage = "org.mozilla.firefox",
+            ),
+        )
+    }
+
+    @Test
+    fun missingSavedBrowserFallsBackToChromeThenTheSystemBrowser() {
+        val pane = BrowserTrampoline.Candidate(OWN, "app.pane.android.BrowserTrampolineActivity")
+        val chrome = BrowserTrampoline.Candidate("com.android.chrome", "com.google.android.apps.chrome.Main")
+        val firefox = BrowserTrampoline.Candidate("org.mozilla.firefox", "org.mozilla.firefox.App")
+        val samsung = BrowserTrampoline.Candidate("com.sec.android.app.sbrowser", "com.sec.android.app.sbrowser.SBrowserMainActivity")
+        val other = BrowserTrampoline.Candidate("com.example.browser", "com.example.browser.MainActivity")
+        val resolver = BrowserTrampoline.Candidate("com.android.intentresolver", "com.android.intentresolver.Chooser")
+        assertEquals(
+            chrome,
+            BrowserTrampoline.pickHandoff(listOf(firefox, chrome), OWN, preferredPackage = "com.opera.browser"),
+        )
+        assertEquals(
+            chrome,
+            BrowserTrampoline.pickHandoff(listOf(pane, firefox, chrome), OWN, systemPackage = "org.mozilla.firefox"),
+        )
+        assertEquals(
+            chrome,
+            BrowserTrampoline.pickHandoff(listOf(pane, chrome), OWN, preferredPackage = OWN),
+        )
+        assertEquals(
+            other,
+            BrowserTrampoline.pickHandoff(listOf(samsung, other), OWN, systemPackage = "com.example.browser"),
+        )
+        assertEquals(
+            samsung,
+            BrowserTrampoline.pickHandoff(listOf(other, samsung), OWN, systemPackage = "com.missing.browser"),
+        )
+        assertNull(
+            BrowserTrampoline.pickHandoff(
+                listOf(pane, resolver, BrowserTrampoline.Candidate("android", "android.app.Resolver")),
+                OWN,
+                preferredPackage = "com.android.chrome",
+            ),
+        )
+    }
+
+    @Test
+    fun browserListKeepsInstalledPackagesAndSortsKnownOnesFirst() {
+        val ordered = BrowserTrampoline.orderBrowsers(
+            browsers = listOf(
+                "com.example.zebra" to "Zebra",
+                "org.mozilla.firefox" to "Firefox",
+                "com.android.chrome" to "Chrome",
+                "com.example.alpha" to "Alpha",
+            ),
+            packageName = { it.first },
+            label = { it.second },
+        )
+        assertEquals(
+            listOf("com.android.chrome", "org.mozilla.firefox", "com.example.alpha", "com.example.zebra"),
+            ordered.map { it.first },
+        )
+    }
+
+    @Test
     fun handoffFallsBackToSamsungThenAnyOtherBrowser() {
         val pane = BrowserTrampoline.Candidate("app.pane.android", "app.pane.android.MainActivity")
         val samsung = BrowserTrampoline.Candidate("com.sec.android.app.sbrowser", "com.sec.android.app.sbrowser.SBrowserMainActivity")

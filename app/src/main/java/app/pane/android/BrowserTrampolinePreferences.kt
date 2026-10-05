@@ -11,6 +11,7 @@ import android.provider.Settings
 internal object BrowserTrampolinePreferences {
     private const val FILE_NAME = "pane_options"
     private const val KEY_BROWSER_TRAMPOLINE = "browser_trampoline"
+    private const val KEY_HANDOFF_BROWSER = "handoff_browser"
 
     fun read(context: Context): Boolean =
         context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
@@ -26,6 +27,18 @@ internal object BrowserTrampolinePreferences {
 
     fun applyStored(context: Context) {
         apply(context, read(context))
+    }
+
+    fun readHandoff(context: Context): String? =
+        context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_HANDOFF_BROWSER, null)
+            ?.takeIf { it.isNotBlank() }
+
+    fun writeHandoff(context: Context, packageName: String) {
+        context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_HANDOFF_BROWSER, packageName)
+            .apply()
     }
 
     /**

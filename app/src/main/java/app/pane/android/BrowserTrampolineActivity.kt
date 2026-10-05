@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -51,6 +52,7 @@ class BrowserTrampolineActivity : Activity() {
             addCategory(Intent.CATEGORY_BROWSABLE)
         }
         val resolved = packageManager.queryIntentActivities(probe, PackageManager.MATCH_ALL)
+            .sortedWith(compareByDescending<ResolveInfo> { it.priority }.thenByDescending { it.preferredOrder })
         val pick = BrowserTrampoline.pickHandoff(
             candidates = resolved.map { info ->
                 BrowserTrampoline.Candidate(
@@ -59,6 +61,8 @@ class BrowserTrampolineActivity : Activity() {
                 )
             },
             ownPackage = packageName,
+            preferredPackage = BrowserTrampolinePreferences.readHandoff(this),
+            systemPackage = InstalledBrowsers.systemPackage(this),
         ) ?: return false
         val explicit = Intent(Intent.ACTION_VIEW, parsed).apply {
             component = ComponentName(pick.packageName, pick.activityName)

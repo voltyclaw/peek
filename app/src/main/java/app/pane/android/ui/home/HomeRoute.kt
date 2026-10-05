@@ -42,6 +42,9 @@ fun HomeRoute(
     onVideoQuality: (VideoQuality) -> Unit = {},
     browserTrampoline: Boolean = false,
     onBrowserTrampoline: (Boolean) -> Unit = {},
+    handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
+    handoffPackage: String = "",
+    onHandoffBrowser: (String) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -128,6 +131,9 @@ fun HomeRoute(
             onVideoQuality = onVideoQuality,
             browserTrampoline = browserTrampoline,
             onBrowserTrampoline = onBrowserTrampoline,
+            handoffBrowsers = handoffBrowsers,
+            handoffPackage = handoffPackage,
+            onHandoffBrowser = onHandoffBrowser,
             showFirstLaunchHint = showFirstLaunchHint,
             onDismissFirstLaunchHint = {
                 FirstLaunchPreferences.dismiss(context)

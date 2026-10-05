@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -19,6 +20,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -26,8 +30,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.pane.android.BrowserTrampoline
 import app.pane.android.BrowserTrampolinePreferences
+import app.pane.android.InstalledBrowsers
 import app.pane.android.app.AppContainer
+import app.pane.android.ui.home.HandoffBrowserOption
 import app.pane.android.ui.home.HomeRoute
 import app.pane.android.ui.media.VideoQualityPreferences
 import app.pane.android.ui.home.HomeViewModel
@@ -52,6 +59,28 @@ fun PeekNavigation(
     var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
+    var storedHandoff by remember { mutableStateOf(BrowserTrampolinePreferences.readHandoff(context).orEmpty()) }
+    var installedBrowsers by remember { mutableStateOf(InstalledBrowsers.list(context)) }
+    var systemBrowser by remember { mutableStateOf(InstalledBrowsers.systemPackage(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                installedBrowsers = InstalledBrowsers.list(context)
+                systemBrowser = InstalledBrowsers.systemPackage(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val handoffPackage = BrowserTrampoline.pickHandoff(
+        candidates = installedBrowsers.map { browser ->
+            BrowserTrampoline.Candidate(browser.packageName, browser.activityName)
+        },
+        ownPackage = context.packageName,
+        preferredPackage = storedHandoff,
+        systemPackage = systemBrowser,
+    )?.packageName.orEmpty()
     val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
@@ -118,6 +147,14 @@ fun PeekNavigation(
                         browserTrampoline = enabled
                         BrowserTrampolinePreferences.write(context, enabled)
                         if (enabled) BrowserTrampolinePreferences.requestDefaultBrowser(context)
+                    },
+                    handoffBrowsers = installedBrowsers.map { browser ->
+                        HandoffBrowserOption(browser.packageName, browser.label)
+                    },
+                    handoffPackage = handoffPackage,
+                    onHandoffBrowser = { packageName ->
+                        storedHandoff = packageName
+                        BrowserTrampolinePreferences.writeHandoff(context, packageName)
                     },
                     modifier = Modifier.safeDrawingPadding(),
                 )

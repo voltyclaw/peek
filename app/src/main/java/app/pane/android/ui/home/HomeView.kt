@@ -88,6 +88,9 @@ fun HomeView(
     onVideoQuality: (VideoQuality) -> Unit = {},
     browserTrampoline: Boolean = false,
     onBrowserTrampoline: (Boolean) -> Unit = {},
+    handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
+    handoffPackage: String = "",
+    onHandoffBrowser: (String) -> Unit = {},
     showFirstLaunchHint: Boolean = false,
     onDismissFirstLaunchHint: () -> Unit = {},
 ) {
@@ -110,6 +113,9 @@ fun HomeView(
                 onVideoQuality,
                 browserTrampoline,
                 onBrowserTrampoline,
+                handoffBrowsers,
+                handoffPackage,
+                onHandoffBrowser,
             )
             if (versionLabel.isNotBlank()) {
                 Text(
@@ -151,6 +157,9 @@ private fun HomeHeader(
     onVideoQuality: (VideoQuality) -> Unit,
     browserTrampoline: Boolean,
     onBrowserTrampoline: (Boolean) -> Unit,
+    handoffBrowsers: List<HandoffBrowserOption>,
+    handoffPackage: String,
+    onHandoffBrowser: (String) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -198,6 +207,12 @@ private fun HomeHeader(
                     menuOpen = false
                     onBrowserTrampoline(enabled)
                 },
+                handoffBrowsers = handoffBrowsers,
+                handoffPackage = handoffPackage,
+                onHandoffBrowser = { packageName ->
+                    menuOpen = false
+                    onHandoffBrowser(packageName)
+                },
             )
         }
     }
@@ -216,6 +231,9 @@ private fun OptionsMenu(
     onVideoQuality: (VideoQuality) -> Unit,
     browserTrampoline: Boolean,
     onBrowserTrampoline: (Boolean) -> Unit,
+    handoffBrowsers: List<HandoffBrowserOption>,
+    handoffPackage: String,
+    onHandoffBrowser: (String) -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -256,6 +274,38 @@ private fun OptionsMenu(
                 null
             },
         )
+        Text(
+            text = stringResource(R.string.handoff_browser),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
+        )
+        if (handoffBrowsers.isEmpty()) {
+            Text(
+                text = stringResource(R.string.handoff_browser_none),
+                modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp).widthIn(max = 240.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 16.sp),
+            )
+        } else {
+            handoffBrowsers.forEach { browser ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = browser.label,
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                        )
+                    },
+                    onClick = { onHandoffBrowser(browser.packageName) },
+                    trailingIcon = if (browser.packageName == handoffPackage) {
+                        { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
         HorizontalDivider(color = PaneBorder)
         Text(
             text = stringResource(R.string.back_behavior),
