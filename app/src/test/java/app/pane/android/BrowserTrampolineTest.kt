@@ -97,6 +97,34 @@ class BrowserTrampolineTest {
     }
 
     @Test
+    fun browserDefaultsPromptDependsOnTheRoleApi() {
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.DefaultApps,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 26, roleAvailable = false, roleHeld = false),
+        )
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.DefaultApps,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 28, roleAvailable = true, roleHeld = false),
+        )
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.RoleRequest,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 29, roleAvailable = true, roleHeld = false),
+        )
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.RoleRequest,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 36, roleAvailable = true, roleHeld = false),
+        )
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.DefaultApps,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 36, roleAvailable = true, roleHeld = true),
+        )
+        assertEquals(
+            BrowserTrampoline.BrowserDefaultsTarget.DefaultApps,
+            BrowserTrampoline.browserDefaultsTarget(sdkInt = 36, roleAvailable = false, roleHeld = false),
+        )
+    }
+
+    @Test
     fun handoffPrefersChromeAndNeverReturnsPane() {
         val pane = BrowserTrampoline.Candidate("app.pane.android", "app.pane.android.BrowserTrampolineActivity")
         val chrome = BrowserTrampoline.Candidate("com.android.chrome", "com.google.android.apps.chrome.Main")

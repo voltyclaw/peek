@@ -282,24 +282,29 @@ private fun OptionsMenu(
                 null
             },
         )
-        DropdownMenuItem(
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stringResource(R.string.set_default_browser),
-                        color = PaneInk,
-                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                    )
-                    Text(
-                        text = stringResource(R.string.set_default_browser_help),
-                        modifier = Modifier.widthIn(max = 240.dp),
-                        color = PaneMuted,
-                        style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
-                    )
-                }
-            },
-            onClick = onSetDefaultBrowser,
-        )
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .widthIn(min = 220.dp, max = 260.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(PaneFill)
+                .clickable(role = Role.Button, onClick = onSetDefaultBrowser)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(R.string.set_default_browser),
+                    color = PaneOnFill,
+                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Text(
+                    text = stringResource(R.string.set_default_browser_help),
+                    color = PaneOnFill.copy(alpha = 0.82f),
+                    style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                )
+            }
+        }
         Text(
             text = stringResource(R.string.handoff_browser),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),

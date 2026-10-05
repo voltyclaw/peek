@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.RequiresApi
 
 internal object BrowserTrampolinePreferences {
     private const val FILE_NAME = "pane_options"
@@ -47,17 +48,24 @@ internal object BrowserTrampolinePreferences {
      * so the choice can be confirmed again.
      */
     fun requestDefaultBrowser(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roles = context.getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER) && !roles.isRoleHeld(RoleManager.ROLE_BROWSER)) {
-                val request = roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (runCatching { context.startActivity(request) }.isSuccess) return
-            }
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && openRoleRequest(context)) return
         val settings = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(settings) }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun openRoleRequest(context: Context): Boolean {
+        val roles = context.getSystemService(RoleManager::class.java) ?: return false
+        val target = BrowserTrampoline.browserDefaultsTarget(
+            sdkInt = Build.VERSION.SDK_INT,
+            roleAvailable = roles.isRoleAvailable(RoleManager.ROLE_BROWSER),
+            roleHeld = roles.isRoleHeld(RoleManager.ROLE_BROWSER),
+        )
+        if (target != BrowserTrampoline.BrowserDefaultsTarget.RoleRequest) return false
+        val request = roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { context.startActivity(request) }.isSuccess
     }
 
     private fun apply(context: Context, enabled: Boolean) {

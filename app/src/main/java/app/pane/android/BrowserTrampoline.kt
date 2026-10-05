@@ -26,6 +26,20 @@ internal object BrowserTrampoline {
         val activityName: String,
     )
 
+    enum class BrowserDefaultsTarget {
+        RoleRequest,
+        DefaultApps,
+    }
+
+    /**
+     * API 29 and later can show the browser-role prompt when Pane does not hold it.
+     * Otherwise open the system Default apps screen, which includes Browser app.
+     */
+    fun browserDefaultsTarget(sdkInt: Int, roleAvailable: Boolean, roleHeld: Boolean): BrowserDefaultsTarget {
+        if (sdkInt >= 29 && roleAvailable && !roleHeld) return BrowserDefaultsTarget.RoleRequest
+        return BrowserDefaultsTarget.DefaultApps
+    }
+
     fun decide(rawUrl: String?, enabled: Boolean): Decision {
         val raw = rawUrl?.trim().orEmpty()
         if (!raw.startsWith("http://") && !raw.startsWith("https://")) return Decision.Ignore
