@@ -32,6 +32,8 @@ fun ViewerRoute(
     onOpenMedia: (Int) -> Unit,
     modifier: Modifier = Modifier,
     videoQuality: VideoQuality = VideoQuality.Auto,
+    startMuted: () -> Boolean = { true },
+    onMutedChange: (Boolean) -> Unit = {},
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
@@ -80,6 +82,8 @@ fun ViewerRoute(
         onSharePost = callbacks.onSharePost,
         onOpenInApp = callbacks.onOpenInApp,
         videoQuality = videoQuality,
+        startMuted = startMuted,
+        onMutedChange = onMutedChange,
         onMediaMeasured = { width, height ->
             if (width > 1f && height > 1f) {
                 measuredWidth = width

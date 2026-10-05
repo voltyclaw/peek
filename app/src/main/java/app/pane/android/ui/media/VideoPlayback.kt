@@ -3,6 +3,7 @@ package app.pane.android.ui.media
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -42,12 +43,13 @@ private fun isRedditMediaUrl(url: String): Boolean {
     return host == "v.redd.it" || host.endsWith(".redd.it") || host.endsWith(".redditmedia.com")
 }
 
-/** Framed posts play in place, with no sound, until a tap opens fullscreen. */
+/** Framed posts play in place. Sound follows the saved mute mode until a tap opens fullscreen. */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 internal fun MutedInlineVideo(
     videoUrl: String,
     modifier: Modifier = Modifier,
+    muted: Boolean = true,
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -55,10 +57,13 @@ internal fun MutedInlineVideo(
         exoPlayerFor(context, videoUrl).apply {
             setMediaItem(MediaItem.fromUri(videoUrl))
             repeatMode = Player.REPEAT_MODE_ONE
-            volume = 0f
+            volume = if (muted) 0f else 1f
             playWhenReady = true
             prepare()
         }
+    }
+    LaunchedEffect(exoPlayer, muted) {
+        exoPlayer.volume = if (muted) 0f else 1f
     }
     val sizeCallback = rememberUpdatedState(onVideoSize)
     DisposableEffect(exoPlayer) {

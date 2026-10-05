@@ -80,13 +80,18 @@ class FacebookDirectPageLoader(
             var best: ParsedFacebookPost? = null
             var emitted = false
             var pluginFinished = pluginUrl == null
+            var received = 0
+            val expectVideo = post.kind == FacebookUrls.Kind.Reel ||
+                post.kind == FacebookUrls.Kind.Watch ||
+                post.kind == FacebookUrls.Kind.Short
             try {
                 for (fetch in channel) {
+                    received += 1
                     if (fetch.url == pluginUrl) pluginFinished = true
                     val parsed = fetch.post ?: continue
                     val current = longerCaption(best, parsed)
                     best = current
-                    if (readyToPaint(current, pluginFinished)) {
+                    if (readyToPaint(current, pluginFinished, expectVideo, received == pages.size)) {
                         logOpen(
                             "facebook ready ${elapsed(started)}ms media=${current.imageUrls.size} " +
                                 "video=${current.videoUrl != null}",
@@ -114,11 +119,18 @@ class FacebookDirectPageLoader(
 
     private data class FetchedPage(val url: String, val post: ParsedFacebookPost?)
 
-    private fun readyToPaint(post: ParsedFacebookPost, pluginFinished: Boolean): Boolean {
+    private fun readyToPaint(
+        post: ParsedFacebookPost,
+        pluginFinished: Boolean,
+        expectVideo: Boolean,
+        hostsFinished: Boolean,
+    ): Boolean {
+        if (hostsFinished) return true
         if (FacebookDocument.isTruncatedPreview(post.text)) return false
         if (!FacebookDocument.hasDistinctAuthor(post)) return false
-        val hasMedia = post.imageUrls.isNotEmpty() || !post.videoUrl.isNullOrBlank()
-        return hasMedia || pluginFinished
+        if (!post.videoUrl.isNullOrBlank()) return true
+        if (expectVideo || post.videoHint) return false
+        return post.imageUrls.isNotEmpty() || pluginFinished
     }
 
     private fun elapsed(started: Long): Long = (System.nanoTime() - started) / 1_000_000L
@@ -131,9 +143,15 @@ class FacebookDirectPageLoader(
         if (current == null) return next
         val longer = if (next.text.length > current.text.length) next else current
         val other = if (longer === next) current else next
+        val videos = (longer.videos + other.videos).distinctBy { it.url }
+        val video = videos.maxWithOrNull(
+            compareBy<FacebookPlayable> { it.height ?: 0 }.thenBy { it.bitrate ?: 0 },
+        )?.url ?: longer.videoUrl ?: other.videoUrl
         return longer.copy(
             imageUrls = longer.imageUrls.ifEmpty { other.imageUrls },
-            videoUrl = longer.videoUrl ?: other.videoUrl,
+            videoUrl = video,
+            videos = videos,
+            videoHint = longer.videoHint || other.videoHint,
             author = preferredAuthor(longer, other),
             authorAvatarUrl = longer.authorAvatarUrl ?: other.authorAvatarUrl,
         )
@@ -176,7 +194,10 @@ class FacebookDirectPageLoader(
             connection.readTimeout = 12_000
             connection.setRequestProperty("Accept", "text/html,application/xhtml+xml")
             connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-            connection.setRequestProperty("User-Agent", USER_AGENT)
+            connection.setRequestProperty(
+                "User-Agent",
+                if (url.contains("mbasic.facebook.com")) MOBILE_USER_AGENT else USER_AGENT,
+            )
             val status = connection.responseCode
             val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(StandardCharsets.UTF_8)
@@ -206,5 +227,8 @@ class FacebookDirectPageLoader(
         const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        const val MOBILE_USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
     }
 }

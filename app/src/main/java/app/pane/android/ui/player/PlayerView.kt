@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -99,6 +100,8 @@ fun PlayerView(
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
     videoQuality: VideoQuality = VideoQuality.Auto,
+    startMuted: () -> Boolean = { true },
+    onMutedChange: (Boolean) -> Unit = {},
     onLoadMoreComments: () -> Unit = {},
     onCopyLink: suspend (String) -> Unit = {},
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit = {},
@@ -142,6 +145,8 @@ fun PlayerView(
                 post = uiState.post,
                 initialMediaIndex = initialMediaIndex,
                 videoQuality = videoQuality,
+                startMuted = startMuted,
+                onMutedChange = onMutedChange,
                 onBack = onBack,
             )
         }
@@ -217,6 +222,8 @@ private fun MediaContent(
     post: ViewerPostUiModel,
     initialMediaIndex: Int,
     videoQuality: VideoQuality,
+    startMuted: () -> Boolean,
+    onMutedChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
@@ -226,21 +233,29 @@ private fun MediaContent(
         pageCount = items::size,
     )
     val currentItem = items[pagerState.currentPage]
-    var sessionQualityStored by rememberSaveable { mutableStateOf("") }
-    val sessionQuality = sessionQualityStored.takeIf { it.isNotBlank() }?.let(VideoQuality::fromStorage)
-    val effectiveQuality = sessionQuality ?: videoQuality
-    val playbackUrl = VideoPlaybackQuality.urlFor(
-        currentItem.videoSources,
-        effectiveQuality,
-        currentItem.videoUrl,
-    )
-    val qualityOptions = VideoPlaybackQuality.options(currentItem.videoSources)
+    var sessionChoice by rememberSaveable { mutableStateOf("") }
+    val playbackUrl = when {
+        sessionChoice == "auto" -> VideoPlaybackQuality.urlFor(
+            currentItem.videoSources,
+            VideoQuality.Auto,
+            currentItem.videoUrl,
+        )
+        sessionChoice.isNotBlank() -> sessionChoice
+        else -> VideoPlaybackQuality.urlFor(
+            currentItem.videoSources,
+            videoQuality,
+            currentItem.videoUrl,
+        )
+    }
+    val qualityOptions = VideoPlaybackQuality.renditions(currentItem.videoSources)
+    val autoSelected = sessionChoice == "auto" || (sessionChoice.isEmpty() && videoQuality == VideoQuality.Auto)
     val context = LocalContext.current
+    val initialMuted = remember(currentItem.id) { startMuted() }
     val exoPlayer = remember(currentItem.id, playbackUrl != null) {
         playbackUrl?.let { url ->
             exoPlayerFor(context, url).apply {
                 repeatMode = Player.REPEAT_MODE_ONE
-                volume = 1f
+                volume = if (initialMuted) 0f else 1f
                 playWhenReady = true
             }
         }
@@ -258,13 +273,32 @@ private fun MediaContent(
     }
     val density = LocalDensity.current
     val revealThreshold = with(density) { 56.dp.toPx() }
-    var chromeVisible by remember { mutableStateOf(false) }
+    var chromeVisible by remember(currentItem.id) { mutableStateOf(playbackUrl != null) }
     var playbackSize by remember(playbackUrl) { mutableStateOf<Pair<Float, Float>?>(null) }
     var playing by remember(exoPlayer) { mutableStateOf(exoPlayer?.playWhenReady == true) }
-    var muted by remember(exoPlayer) { mutableStateOf(false) }
+    var muted by remember(exoPlayer) { mutableStateOf(initialMuted) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val mutedLabel = stringResource(R.string.playback_muted)
+    val unmutedLabel = stringResource(R.string.playback_unmuted)
+    val qualityNotice = stringResource(R.string.playback_quality_toast)
     var positionMs by remember(exoPlayer) { mutableLongStateOf(0L) }
     var durationMs by remember(exoPlayer) { mutableLongStateOf(0L) }
     var scrubbing by remember(exoPlayer) { mutableStateOf(false) }
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            delay(1_200)
+            notice = null
+        }
+    }
+    LaunchedEffect(chromeVisible, playing, scrubbing, playbackUrl) {
+        if (chromeVisible && playing && !scrubbing && playbackUrl != null) {
+            delay(2_500)
+            chromeVisible = false
+        }
+    }
+    LaunchedEffect(exoPlayer, muted) {
+        exoPlayer?.volume = if (muted) 0f else 1f
+    }
     LaunchedEffect(exoPlayer, scrubbing) {
         val player = exoPlayer ?: return@LaunchedEffect
         while (true) {
@@ -350,7 +384,11 @@ private fun MediaContent(
             val reported = if (page == pagerState.currentPage) playbackSize else null
             val contentW = reported?.first ?: item.width?.toFloat() ?: 0f
             val contentH = reported?.second ?: item.height?.toFloat() ?: 0f
-            val pageVideo = VideoPlaybackQuality.urlFor(item.videoSources, effectiveQuality, item.videoUrl)
+            val pageVideo = if (page == pagerState.currentPage) {
+                playbackUrl
+            } else {
+                VideoPlaybackQuality.urlFor(item.videoSources, videoQuality, item.videoUrl)
+            }
             val fallback = if (pageVideo != null) VIDEO_FALLBACK_ASPECT else PHOTO_FALLBACK_ASPECT
             val aspect = contentAspectRatio(contentW, contentH, fallback)
             val fitted = fittedContentPx(
@@ -387,6 +425,34 @@ private fun MediaContent(
                 }
             }
         }
+        if (chromeVisible && playbackUrl != null) {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))),
+            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)))),
+            )
+        }
+        notice?.let { message ->
+            Text(
+                text = message,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                color = Color.White,
+                style = TextStyle(fontSize = 13.sp),
+            )
+        }
         if (chromeVisible) {
             FullscreenChrome(
                 showTransport = playbackUrl != null && exoPlayer != null,
@@ -394,7 +460,11 @@ private fun MediaContent(
                 muted = muted,
                 qualityOptions = qualityOptions,
                 selectedUrl = playbackUrl,
-                onQuality = { quality -> sessionQualityStored = quality.storageValue },
+                autoSelected = autoSelected,
+                onQuality = { option ->
+                    sessionChoice = if (option.auto) "auto" else option.url
+                    notice = qualityNotice.format(option.label.ifBlank { option.quality.name })
+                },
                 positionMs = positionMs,
                 durationMs = durationMs,
                 onTogglePlay = {
@@ -404,10 +474,10 @@ private fun MediaContent(
                     playing = next
                 },
                 onToggleMute = {
-                    val player = exoPlayer ?: return@FullscreenChrome
-                    val nextMuted = player.volume > 0f
-                    player.volume = if (nextMuted) 0f else 1f
+                    val nextMuted = !muted
                     muted = nextMuted
+                    onMutedChange(nextMuted)
+                    notice = if (nextMuted) mutedLabel else unmutedLabel
                 },
                 onSeek = { fraction ->
                     val player = exoPlayer ?: return@FullscreenChrome
@@ -421,7 +491,7 @@ private fun MediaContent(
                 },
                 onSeekFinished = { scrubbing = false },
                 onExit = onBack,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
             )
         }
     }
@@ -434,7 +504,8 @@ private fun FullscreenChrome(
     muted: Boolean,
     qualityOptions: List<app.pane.android.ui.media.VideoQualityOption>,
     selectedUrl: String?,
-    onQuality: (VideoQuality) -> Unit,
+    autoSelected: Boolean,
+    onQuality: (app.pane.android.ui.media.VideoQualityOption) -> Unit,
     positionMs: Long,
     durationMs: Long,
     onTogglePlay: () -> Unit,
@@ -510,6 +581,7 @@ private fun FullscreenChrome(
                     QualityButton(
                         options = qualityOptions,
                         selectedUrl = selectedUrl,
+                        autoSelected = autoSelected,
                         onQuality = onQuality,
                     )
                 }
@@ -527,7 +599,8 @@ private fun FullscreenChrome(
 private fun QualityButton(
     options: List<app.pane.android.ui.media.VideoQualityOption>,
     selectedUrl: String?,
-    onQuality: (VideoQuality) -> Unit,
+    autoSelected: Boolean,
+    onQuality: (app.pane.android.ui.media.VideoQualityOption) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -542,25 +615,24 @@ private fun QualityButton(
             containerColor = Color(0xFF1C2820),
         ) {
             options.forEach { option ->
-                val label = when (option.quality) {
-                    VideoQuality.Auto -> R.string.quality_auto
-                    VideoQuality.High -> R.string.quality_high
-                    VideoQuality.Medium -> R.string.quality_medium
-                    VideoQuality.Low -> R.string.quality_low
+                val checked = if (option.auto) {
+                    autoSelected
+                } else {
+                    !autoSelected && option.url == selectedUrl
                 }
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = stringResource(label),
+                            text = option.label.ifBlank { option.quality.name },
                             color = Color.White,
                             style = TextStyle(fontSize = 14.sp),
                         )
                     },
                     onClick = {
                         open = false
-                        onQuality(option.quality)
+                        onQuality(option)
                     },
-                    trailingIcon = if (option.url == selectedUrl) {
+                    trailingIcon = if (checked) {
                         { Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White) }
                     } else {
                         null

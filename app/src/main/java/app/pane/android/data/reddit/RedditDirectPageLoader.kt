@@ -113,10 +113,15 @@ class RedditDirectPageLoader(
         val requests = RedditFetchPlan.requests(pageUrl, postId)
         val json = requests.filter { it.url.contains(".json?") || it.url.endsWith(".json") }
         val html = requests.lastOrNull()?.takeIf { !it.url.contains(".json") }
+        val old = json.filter { it.url.contains("://old.reddit.com/") }
+        val primary = if (old.isNotEmpty()) old else json.take(2)
+        val backup = json.filter { it !in primary }
         val failures = mutableListOf<String>()
         val started = System.nanoTime()
-        val full = async { firstSuccessful(json, failures) }
-        val previewRequest = json.firstOrNull()?.let(::previewRequest)
+        val full = async {
+            firstSuccessful(primary, failures) ?: firstSuccessful(backup, failures)
+        }
+        val previewRequest = primary.firstOrNull()?.let(::previewRequest)
         val preview = previewRequest?.let { request ->
             async {
                 try {
@@ -316,8 +321,8 @@ class RedditDirectPageLoader(
 
     private companion object {
         const val LOG_TAG = "PeekReddit"
-        const val CONNECT_TIMEOUT_MILLIS = 8_000
-        const val READ_TIMEOUT_MILLIS = 12_000
+        const val CONNECT_TIMEOUT_MILLIS = 6_000
+        const val READ_TIMEOUT_MILLIS = 8_000
         const val MAX_SHARE_REDIRECTS = 5
         const val MAX_SHARE_HTML_CHARS = 512_000
         const val MAX_ERROR_CHARS = 16_384

@@ -8,8 +8,8 @@ import org.junit.Test
 class PeekBackTest {
     @Test
     fun immersiveBackReturnsToTheFramedPost() {
-        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 3))
-        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 4))
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 3, topIsPlayer = true))
+        assertEquals(PeekBackAction.Pop, peekBackAction(launchedFromViewLink = true, stackSize = 4, topIsPlayer = true))
     }
 
     @Test
@@ -21,10 +21,14 @@ class PeekBackTest {
     fun backGoesHomeStaysInPeekEvenWhenALinkOpenedTheApp() {
         assertEquals(
             PeekBackAction.Pop,
+            peekBackAction(launchedFromViewLink = true, stackSize = 3, backClosesPeek = false, topIsPlayer = true),
+        )
+        assertEquals(
+            PeekBackAction.ClearToHome,
             peekBackAction(launchedFromViewLink = true, stackSize = 3, backClosesPeek = false),
         )
         assertEquals(
-            PeekBackAction.Pop,
+            PeekBackAction.ClearToHome,
             peekBackAction(launchedFromViewLink = true, stackSize = 2, backClosesPeek = false),
         )
         assertEquals(

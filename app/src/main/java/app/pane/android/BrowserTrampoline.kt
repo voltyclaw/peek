@@ -46,6 +46,7 @@ internal object BrowserTrampoline {
         if (!enabled) return Decision.HandOff(raw)
         val unwrapped = LinkShims.unwrap(raw)
         openablePost(unwrapped)?.let { return Decision.OpenInPane(it) }
+        if (FacebookUrls.isMarketplace(unwrapped)) return Decision.HandOff(raw)
         val host = hostOf(unwrapped) ?: return Decision.HandOff(raw)
         return if (isMetaHost(host)) Decision.OpenInPane(unwrapped) else Decision.HandOff(raw)
     }

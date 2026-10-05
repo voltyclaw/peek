@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,6 +118,8 @@ fun ViewerView(
     onOpenInApp: suspend (String) -> Unit = {},
     onMediaMeasured: (Float, Float) -> Unit = { _, _ -> },
     videoQuality: VideoQuality = VideoQuality.Auto,
+    startMuted: () -> Boolean = { true },
+    onMutedChange: (Boolean) -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -141,6 +144,8 @@ fun ViewerView(
                     onOpenInApp = onOpenInApp,
                     onMediaMeasured = onMediaMeasured,
                     videoQuality = videoQuality,
+                    startMuted = startMuted,
+                    onMutedChange = onMutedChange,
                 )
             }
         }
@@ -163,6 +168,8 @@ private fun ColumnScope.ViewerContent(
     onOpenInApp: suspend (String) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
     videoQuality: VideoQuality,
+    startMuted: () -> Boolean,
+    onMutedChange: (Boolean) -> Unit,
 ) {
     ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
@@ -178,7 +185,16 @@ private fun ColumnScope.ViewerContent(
     ) {
         if (items.any(::hasVisualMedia)) {
             Column(Modifier.padding(bottom = 18.dp)) {
-                MediaCanvas(post, items, pagerState, onOpenMedia, onMediaMeasured, videoQuality)
+                MediaCanvas(
+                    post,
+                    items,
+                    pagerState,
+                    onOpenMedia,
+                    onMediaMeasured,
+                    videoQuality,
+                    startMuted,
+                    onMutedChange,
+                )
             }
         }
         AuthorByline(
@@ -262,6 +278,8 @@ private fun MediaCanvas(
     onOpenMedia: (Int) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
     videoQuality: VideoQuality,
+    startMuted: () -> Boolean,
+    onMutedChange: (Boolean) -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val current = items[pagerState.currentPage]
@@ -291,6 +309,7 @@ private fun MediaCanvas(
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = items[page]
             val videoUrl = VideoPlaybackQuality.urlFor(item.videoSources, videoQuality, item.videoUrl)
+            var inlineMuted by remember(videoUrl) { mutableStateOf(startMuted()) }
             val size = measured[item.id]
             val pageW = size?.first ?: item.width?.toFloat() ?: 0f
             val pageH = size?.second ?: item.height?.toFloat() ?: 0f
@@ -344,6 +363,7 @@ private fun MediaCanvas(
                         MutedInlineVideo(
                             videoUrl = videoUrl,
                             modifier = mediaModifier,
+                            muted = inlineMuted,
                             onVideoSize = reportSize,
                         )
                     }
@@ -357,13 +377,17 @@ private fun MediaCanvas(
                                 .height(28.dp)
                                 .clip(CircleShape)
                                 .background(PaneFill.copy(alpha = 0.85f))
+                                .clickable(role = Role.Button) {
+                                    inlineMuted = !inlineMuted
+                                    onMutedChange(inlineMuted)
+                                }
                                 .padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Rounded.VolumeOff,
-                                contentDescription = stringResource(R.string.play_video),
+                                if (inlineMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                                contentDescription = stringResource(if (inlineMuted) R.string.unmute else R.string.mute),
                                 tint = PaneOnFill,
                                 modifier = Modifier.size(14.dp),
                             )
@@ -603,14 +627,20 @@ private fun LoadFailedViewer(url: String, reason: String, onBack: () -> Unit) {
     )
 }
 
+private fun isFacebookMarketplace(url: String): Boolean {
+    val lower = url.lowercase()
+    return "facebook.com/marketplace" in lower || "fb.com/marketplace" in lower
+}
+
 @Composable
 private fun UnavailableViewer(url: String, onBack: () -> Unit) {
+    val marketplace = isFacebookMarketplace(url)
     FailureViewer(
         url = url,
         onBack = onBack,
         label = stringResource(R.string.unsupported_link_label),
-        title = stringResource(R.string.unsupported_link_title),
-        description = stringResource(R.string.unsupported_link_description),
+        title = stringResource(if (marketplace) R.string.marketplace_title else R.string.unsupported_link_title),
+        description = stringResource(if (marketplace) R.string.marketplace_description else R.string.unsupported_link_description),
         detail = null,
     )
 }

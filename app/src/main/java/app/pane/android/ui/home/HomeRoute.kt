@@ -26,6 +26,7 @@ import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
+import app.pane.android.ui.navigation.SoundMode
 import app.pane.android.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
 
@@ -40,6 +41,8 @@ fun HomeRoute(
     onBackBehavior: (BackBehavior) -> Unit = {},
     videoQuality: VideoQuality = VideoQuality.Auto,
     onVideoQuality: (VideoQuality) -> Unit = {},
+    soundMode: SoundMode = SoundMode.Muted,
+    onSoundMode: (SoundMode) -> Unit = {},
     browserTrampoline: Boolean = false,
     onBrowserTrampoline: (Boolean) -> Unit = {},
     handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
@@ -130,6 +133,8 @@ fun HomeRoute(
             onBackBehavior = onBackBehavior,
             videoQuality = videoQuality,
             onVideoQuality = onVideoQuality,
+            soundMode = soundMode,
+            onSoundMode = onSoundMode,
             browserTrampoline = browserTrampoline,
             onBrowserTrampoline = onBrowserTrampoline,
             handoffBrowsers = handoffBrowsers,

@@ -58,6 +58,7 @@ fun PeekNavigation(
     val activity = context as? Activity
     var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
+    var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
     var storedHandoff by remember { mutableStateOf(BrowserTrampolinePreferences.readHandoff(context).orEmpty()) }
     var installedBrowsers by remember { mutableStateOf(InstalledBrowsers.list(context)) }
@@ -93,9 +94,11 @@ fun PeekNavigation(
                 launchedFromViewLink = launchedFromViewLink,
                 stackSize = backStack.size,
                 backClosesPeek = backBehaviorState.value == BackBehavior.ClosePeek,
+                topIsPlayer = backStack.lastOrNull() is PlayerKey,
             )
         ) {
             PeekBackAction.Pop -> if (backStack.size > 1) backStack.removeLastOrNull()
+            PeekBackAction.ClearToHome -> while (backStack.size > 1) backStack.removeLastOrNull()
             PeekBackAction.Finish -> activity?.finish()
             PeekBackAction.DeferToSystem -> Unit
         }
@@ -142,6 +145,11 @@ fun PeekNavigation(
                         videoQuality = quality
                         VideoQualityPreferences.write(context, quality)
                     },
+                    soundMode = soundMode,
+                    onSoundMode = { mode ->
+                        soundMode = mode
+                        SoundPreferences.write(context, mode)
+                    },
                     browserTrampoline = browserTrampoline,
                     onBrowserTrampoline = { enabled ->
                         browserTrampoline = enabled
@@ -175,6 +183,8 @@ fun PeekNavigation(
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
                     videoQuality = videoQuality,
+                    startMuted = { SoundPreferences.startMuted(context) },
+                    onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     modifier = Modifier.safeDrawingPadding(),
@@ -190,6 +200,8 @@ fun PeekNavigation(
                     downloadMedia = container.downloadMedia,
                     initialMediaIndex = key.mediaIndex,
                     videoQuality = videoQuality,
+                    startMuted = { SoundPreferences.startMuted(context) },
+                    onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
                 )
             }

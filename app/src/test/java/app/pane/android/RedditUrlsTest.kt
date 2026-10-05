@@ -29,7 +29,7 @@ class RedditUrlsTest {
             assertEquals(url, expected, direct?.canonicalUrl)
         }
         assertEquals(
-            "https://old.reddit.com/comments/abc123.json?raw_json=1&limit=100",
+            "https://old.reddit.com/comments/abc123.json?raw_json=1&limit=20&depth=1",
             RedditUrls.jsonUrl("ABC123"),
         )
     }
@@ -62,10 +62,10 @@ class RedditUrlsTest {
         assertEquals(path, RedditUrls.commentsPath(pasted))
         assertEquals(
             listOf(
-                "https://old.reddit.com$path.json?raw_json=1&limit=100",
-                "https://www.reddit.com$path.json?raw_json=1&limit=100",
-                "https://old.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=100",
-                "https://www.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=100",
+                "https://old.reddit.com$path.json?raw_json=1&limit=20&depth=1",
+                "https://www.reddit.com$path.json?raw_json=1&limit=20&depth=1",
+                "https://old.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=20&depth=1",
+                "https://www.reddit.com/comments/1w3fcl7.json?raw_json=1&limit=20&depth=1",
             ),
             RedditUrls.jsonCandidates("1w3fcl7", path),
         )

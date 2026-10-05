@@ -11,6 +11,7 @@ import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.Media
 import app.pane.android.domain.model.MediaLocation
+import app.pane.android.domain.model.PlayableVideo
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
 import java.util.concurrent.ConcurrentHashMap
@@ -113,7 +114,19 @@ class FacebookLinkContentRepository(
 
     private fun map(requestedUrl: String, post: ParsedFacebookPost): LinkContent {
         val images = post.imageUrls
-        val video = post.videoUrl
+        val videos = post.videos
+            .map { source ->
+                PlayableVideo(
+                    url = source.url,
+                    width = source.width,
+                    height = source.height,
+                    bitrate = source.bitrate,
+                )
+            }
+            .ifEmpty { listOfNotNull(post.videoUrl?.let { PlayableVideo(it) }) }
+        val video = videos.maxWithOrNull(
+            compareBy<PlayableVideo> { it.height ?: 0 }.thenBy { it.bitrate ?: 0 },
+        )?.url ?: post.videoUrl
         val primaryImage = images.firstOrNull().orEmpty()
         return LinkContent(
             url = requestedUrl,
@@ -141,6 +154,7 @@ class FacebookLinkContentRepository(
                         imageUrl = primaryImage,
                         contentDescription = post.text.take(200),
                         videoUrl = video,
+                        videos = videos,
                     ),
                 ).filter { it.imageUrl.isNotBlank() || !it.videoUrl.isNullOrBlank() },
             ),

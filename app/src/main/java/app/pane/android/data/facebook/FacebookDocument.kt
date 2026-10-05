@@ -4,6 +4,13 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
+data class FacebookPlayable(
+    val url: String,
+    val width: Int? = null,
+    val height: Int? = null,
+    val bitrate: Int? = null,
+)
+
 data class ParsedFacebookPost(
     val id: String,
     val canonicalUrl: String,
@@ -12,6 +19,9 @@ data class ParsedFacebookPost(
     val imageUrls: List<String>,
     val videoUrl: String?,
     val authorAvatarUrl: String? = null,
+    val videos: List<FacebookPlayable> = emptyList(),
+    /** Open Graph says this is a video, even when the playable file arrives on another host. */
+    val videoHint: Boolean = false,
 )
 
 /**
@@ -33,15 +43,20 @@ object FacebookDocument {
             .map(::cleanUrl)
             .filter(::isRemote)
             .distinct()
-        val video = listOf("og:video:secure_url", "og:video:url", "og:video")
+        val ogVideo = listOf("og:video:secure_url", "og:video:url", "og:video")
             .firstNotNullOfOrNull { metas[it] }
             ?.let(::cleanUrl)
-            ?.takeIf { isRemote(it) && !isFacebookPage(it) }
+            ?.takeIf(::isPlayableMedia)
+        val embedded = playableVideos(html)
+        val videos = (listOfNotNull(ogVideo?.let { FacebookPlayable(it) }) + embedded)
+            .distinctBy { it.url }
+        val video = bestPlayable(videos)?.url ?: ogVideo
         val text = chooseCaption(description, title, html)
         if (text == null && images.isEmpty() && video == null) return null
         if (isLoginWall(html) && text == null) return null
         val caption = text ?: title?.takeIf { !isGeneric(it) } ?: "Facebook post"
         val actor = findActor(html, caption, images)
+        val type = metas["og:type"].orEmpty()
         return ParsedFacebookPost(
             id = id,
             canonicalUrl = canonicalUrl,
@@ -50,6 +65,8 @@ object FacebookDocument {
             imageUrls = images,
             videoUrl = video,
             authorAvatarUrl = actor?.avatarUrl,
+            videos = videos,
+            videoHint = video != null || type.contains("video", ignoreCase = true),
         )
     }
 
@@ -355,12 +372,102 @@ object FacebookDocument {
         return "login_form" in text || "id=\"loginform\"" in text || "/login.php" in text && "password" in text
     }
 
-    private fun isRemote(url: String): Boolean = url.startsWith("https://") || url.startsWith("http://")
-
-    private fun isFacebookPage(url: String): Boolean {
-        val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase().orEmpty()
-        return host == "facebook.com" || host.endsWith(".facebook.com") || host == "fb.watch" || host == "fb.com"
+    private fun playableVideos(html: String): List<FacebookPlayable> {
+        val found = LinkedHashMap<String, FacebookPlayable>()
+        for (key in VIDEO_KEYS) {
+            val marker = "\"$key\""
+            var from = 0
+            while (from < html.length) {
+                val at = html.indexOf(marker, from)
+                if (at < 0) break
+                val raw = stringAfterKey(html, at + marker.length)
+                if (raw != null) {
+                    val clean = cleanUrl(raw)
+                    if (isPlayableMedia(clean)) {
+                        val next = FacebookPlayable(
+                            url = clean,
+                            width = closestNumber(html, at, key, "original_width") ?: closestNumber(html, at, key, "width"),
+                            height = closestNumber(html, at, key, "original_height") ?: closestNumber(html, at, key, "height"),
+                            bitrate = closestNumber(html, at, key, "bitrate"),
+                        )
+                        val previous = found[clean]
+                        if (previous == null || (previous.height == null && next.height != null)) {
+                            found[clean] = next
+                        }
+                    }
+                }
+                from = at + marker.length
+            }
+        }
+        return found.values.toList()
     }
+
+    private fun bestPlayable(videos: List<FacebookPlayable>): FacebookPlayable? =
+        videos.maxWithOrNull(
+            compareBy<FacebookPlayable> { it.height ?: 0 }
+                .thenBy { it.bitrate ?: 0 },
+        )
+
+    private fun stringAfterKey(html: String, afterKey: Int): String? {
+        var cursor = afterKey
+        val limit = minOf(html.length, afterKey + 32)
+        while (cursor < limit && html[cursor].isWhitespace()) cursor += 1
+        if (cursor < html.length && html[cursor] == '\\') cursor += 1
+        if (cursor >= html.length || html[cursor] != ':') return null
+        cursor += 1
+        while (cursor < html.length && (html[cursor].isWhitespace() || html[cursor] == '\\')) cursor += 1
+        if (cursor >= html.length || html[cursor] != '"') return null
+        val raw = readRawJsonString(html, cursor + 1)
+        return unescapeJson(raw).replace("\\/", "/")
+    }
+
+    private fun readRawJsonString(source: String, start: Int): String {
+        val out = StringBuilder()
+        var index = start
+        while (index < source.length) {
+            val char = source[index]
+            if (char == '\\' && index + 1 < source.length) {
+                out.append(char).append(source[index + 1])
+                index += 2
+                continue
+            }
+            if (char == '"') break
+            out.append(char)
+            index += 1
+        }
+        return out.toString()
+    }
+
+    private fun closestNumber(html: String, keyAt: Int, videoKey: String, name: String): Int? {
+        val pattern = Regex(""""$name"\s*:\s*(\d{2,8})""")
+        val after = html.substring(keyAt, minOf(html.length, keyAt + 900))
+        pattern.find(after)?.let { match ->
+            val between = after.substring(0, match.range.first)
+            val otherVideo = VIDEO_KEYS.any { other -> other != videoKey && "\"$other\"" in between }
+            if (!otherVideo) {
+                return match.groupValues[1].toIntOrNull()?.takeIf { it in 1..50_000_000 }
+            }
+        }
+        val before = html.substring(maxOf(0, keyAt - 350), keyAt)
+        val earlier = pattern.findAll(before).lastOrNull() ?: return null
+        val tail = before.substring(earlier.range.first)
+        if (VIDEO_KEYS.any { "\"$it\"" in tail }) return null
+        return earlier.groupValues[1].toIntOrNull()?.takeIf { it in 1..50_000_000 }
+    }
+
+    private fun isPlayableMedia(url: String): Boolean {
+        if (!isRemote(url)) return false
+        val lower = url.lowercase()
+        if (IMAGE_EXT.any { ext -> ext in lower }) return false
+        return ".mp4" in lower ||
+            ".m3u8" in lower ||
+            "fbcdn.net" in lower ||
+            "fbcdn.com" in lower ||
+            "video_redirect" in lower ||
+            "/video/playback" in lower
+    }
+
+    private fun isRemote(url: String): Boolean = url.startsWith("https://") || url.startsWith("http://")
 
     private fun cleanUrl(url: String): String = unescape(url).replace("&amp;", "&").trim()
 
@@ -390,6 +497,17 @@ object FacebookDocument {
         "_5pbx",
     )
     private const val MESSAGE_KEY = "\"message\":"
+    private val VIDEO_KEYS = listOf(
+        "browser_native_hd_url",
+        "playable_url_quality_hd",
+        "hd_src_no_ratelimit",
+        "hd_src",
+        "browser_native_sd_url",
+        "playable_url",
+        "sd_src_no_ratelimit",
+        "sd_src",
+    )
+    private val IMAGE_EXT = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif")
     private val GENERIC = listOf(
         "log into facebook",
         "log in to facebook",

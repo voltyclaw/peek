@@ -41,7 +41,7 @@ object RedditUrls {
      */
     fun jsonCandidates(id: String, commentsPath: String? = null): List<String> {
         val canonicalId = id.lowercase(Locale.US)
-        val query = "raw_json=1&limit=$COMMENT_LIMIT"
+        val query = "raw_json=1&limit=$COMMENT_LIMIT&depth=1"
         val urls = LinkedHashSet<String>()
         val path = commentsPath?.substringBefore('?')?.trimEnd('/')
             ?.takeIf { it.contains("/comments/") }
@@ -90,7 +90,7 @@ object RedditUrls {
     private fun shortId(path: String): String? =
         SHORT_PATH.matchEntire(path)?.groupValues?.get(1)
 
-    private const val COMMENT_LIMIT = 100
+    private const val COMMENT_LIMIT = 20
 
     private val POST_HOSTS = setOf(
         "reddit.com",

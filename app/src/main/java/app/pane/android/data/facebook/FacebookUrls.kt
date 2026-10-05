@@ -18,6 +18,15 @@ object FacebookUrls {
 
     fun supports(url: String): Boolean = parse(url) != null
 
+    /** Marketplace has no public post document Pane can read. */
+    fun isMarketplace(url: String): Boolean {
+        val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
+        val host = uri.host?.lowercase(Locale.US)?.removePrefix("www.") ?: return false
+        if (host !in HOSTS || host == "fb.watch") return false
+        val head = uri.path.orEmpty().removePrefix("/").substringBefore('/')
+        return head == "marketplace"
+    }
+
     fun parse(url: String): Post? {
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return null
         val scheme = uri.scheme?.lowercase(Locale.US) ?: return null

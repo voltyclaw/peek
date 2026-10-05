@@ -154,6 +154,57 @@ class FacebookDocumentTest {
     }
 
     @Test
+    fun readsPlayableVideoFilesFromAReelDocument() {
+        val html = """
+            <html>
+              <meta property="og:title" content="NASA - Facebook">
+              <meta property="og:description" content="A public reel.">
+              <meta property="og:image" content="https://scontent.example/reel.jpg">
+              <meta property="og:type" content="video.other">
+              "browser_native_hd_url":"https:\/\/video.xx.fbcdn.net\/v\/hd.mp4?x=1","height":1920,"width":1080
+              "browser_native_sd_url":"https:\/\/video.xx.fbcdn.net\/v\/sd.mp4","height":960
+            </html>
+        """.trimIndent()
+
+        val post = FacebookDocument.parse(html, "1234567890", "https://www.facebook.com/reel/1234567890")
+
+        assertEquals("https://video.xx.fbcdn.net/v/hd.mp4?x=1", post?.videoUrl)
+        assertEquals(listOf(1920, 960), post?.videos?.map { it.height })
+        assertTrue(post?.videoHint == true)
+    }
+
+    @Test
+    fun reelLoaderWaitsForThePlayableFile() = runTest {
+        val loader = FacebookDirectPageLoader { url ->
+            val html = if (url.contains("mbasic.facebook.com")) {
+                """
+                    <html>
+                      <meta property="og:title" content="NASA - Facebook">
+                      <meta property="og:description" content="A public reel.">
+                      <meta property="og:image" content="https://scontent.example/reel.jpg">
+                      "browser_native_sd_url":"https:\/\/video.xx.fbcdn.net\/v\/reel.mp4"
+                    </html>
+                """.trimIndent()
+            } else {
+                """
+                    <html>
+                      <meta property="og:title" content="NASA - Facebook">
+                      <meta property="og:description" content="A public reel.">
+                      <meta property="og:image" content="https://scontent.example/reel.jpg">
+                      <meta property="og:type" content="video.other">
+                    </html>
+                """.trimIndent()
+            }
+            htmlConnection(html)
+        }
+
+        val post = loader.resolve("https://www.facebook.com/reel/1234567890")
+
+        assertEquals("https://video.xx.fbcdn.net/v/reel.mp4", post.videoUrl)
+        assertEquals("https://scontent.example/reel.jpg", post.imageUrls.first())
+    }
+
+    @Test
     fun aLoginWallWithoutAPostIsNotContent() {
         val html = """
             <html><meta property="og:title" content="Facebook">

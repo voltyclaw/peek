@@ -18,6 +18,8 @@ fun PlayerRoute(
     initialMediaIndex: Int,
     onBack: () -> Unit,
     videoQuality: VideoQuality = VideoQuality.Auto,
+    startMuted: () -> Boolean = { true },
+    onMutedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -27,6 +29,8 @@ fun PlayerRoute(
         uiState = uiState,
         initialMediaIndex = initialMediaIndex,
         videoQuality = videoQuality,
+        startMuted = startMuted,
+        onMutedChange = onMutedChange,
         onBack = onBack,
         onMore = {},
         onLoadMoreComments = viewModel::onLoadMoreComments,

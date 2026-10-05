@@ -19,6 +19,8 @@ enum class VideoQuality(val storageValue: String) {
 data class VideoQualityOption(
     val quality: VideoQuality,
     val url: String,
+    val label: String = "",
+    val auto: Boolean = false,
 )
 
 /**
@@ -32,6 +34,59 @@ object VideoPlaybackQuality {
         }
         if (resolved.map { it.url }.distinct().size < 2) return emptyList()
         return resolved.distinctBy { it.url }
+    }
+
+    /**
+     * Player menu. Real heights become labels such as 1080p. Files with no dimensions
+     * stay High, Medium, and Low. A single URL hides the control.
+     */
+    fun renditions(sources: List<VideoSourceUiModel>): List<VideoQualityOption> {
+        val distinct = sources.filter { it.url.isNotBlank() }.distinctBy { it.url }
+        if (distinct.map { it.url }.distinct().size < 2) return emptyList()
+        val progressive = distinct.filter { !it.adaptive }.sortedByDescending { rank(it) }
+        val autoUrl = pick(sources, VideoQuality.Auto) ?: distinct.first().url
+        val rows = mutableListOf(VideoQualityOption(VideoQuality.Auto, autoUrl, "Auto", auto = true))
+        val labeled = progressive.mapNotNull { source ->
+            resolutionLabel(source.height)?.let { label -> source to label }
+        }
+        val adaptive = distinct.any { it.adaptive }
+        when {
+            labeled.isNotEmpty() -> {
+                val seen = mutableSetOf<String>()
+                labeled.sortedByDescending { it.first.height ?: 0 }.forEach { (source, label) ->
+                    if (seen.add(label)) {
+                        rows += VideoQualityOption(VideoQuality.High, source.url, label)
+                    }
+                }
+                progressive.filter { resolutionLabel(it.height) == null }.forEach { source ->
+                    if (rows.none { it.url == source.url }) {
+                        rows += VideoQualityOption(VideoQuality.Low, source.url, "Low")
+                    }
+                }
+            }
+            progressive.size >= 2 -> {
+                progressive.forEachIndexed { index, source ->
+                    val (quality, label) = when (index) {
+                        0 -> VideoQuality.High to "High"
+                        progressive.lastIndex -> VideoQuality.Low to "Low"
+                        else -> VideoQuality.Medium to "Medium"
+                    }
+                    rows += VideoQualityOption(quality, source.url, label)
+                }
+            }
+            progressive.size == 1 && adaptive -> {
+                val source = progressive.first()
+                val label = resolutionLabel(source.height) ?: "High"
+                rows += VideoQualityOption(VideoQuality.High, source.url, label)
+            }
+        }
+        return rows
+    }
+
+    /** Exact height from the source. Never rounded up to a taller label. */
+    fun resolutionLabel(height: Int?): String? {
+        val px = height?.takeIf { it > 0 } ?: return null
+        return "${px}p"
     }
 
     fun urlFor(

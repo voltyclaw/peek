@@ -54,6 +54,34 @@ class VideoPlaybackQualityTest {
     }
 
     @Test
+    fun knownHeightsUseTheirOwnLabels() {
+        val sources = listOf(
+            VideoSourceUiModel(url = "https://video.example/hd.mp4", width = 1920, height = 1080),
+            VideoSourceUiModel(url = "https://video.example/sd.mp4", width = 854, height = 480),
+        )
+
+        assertEquals(
+            listOf("Auto", "1080p", "480p"),
+            VideoPlaybackQuality.renditions(sources).map { it.label },
+        )
+        assertNull(VideoPlaybackQuality.resolutionLabel(null))
+        assertEquals("720p", VideoPlaybackQuality.resolutionLabel(720))
+    }
+
+    @Test
+    fun missingHeightsStayHighAndLow() {
+        val sources = listOf(
+            VideoSourceUiModel(url = "https://video.example/high.mp4", bitrate = 2_000_000),
+            VideoSourceUiModel(url = "https://video.example/low.mp4", bitrate = 400_000),
+        )
+
+        assertEquals(
+            listOf("Auto", "High", "Low"),
+            VideoPlaybackQuality.renditions(sources).map { it.label },
+        )
+    }
+
+    @Test
     fun duplicateUrlsDoNotInventASecondQuality() {
         val sources = listOf(
             VideoSourceUiModel(url = "https://video.example/same.mp4", width = 640, height = 360),

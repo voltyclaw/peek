@@ -75,6 +75,7 @@ class BrowserTrampolineTest {
             assertEquals(url, BrowserTrampoline.Decision.OpenInPane(url), BrowserTrampoline.decide(url, enabled = true))
         }
         listOf(
+            "https://www.facebook.com/marketplace/item/1234567890",
             "https://www.google.com/",
             "https://benamiartgallery.com/",
             "https://notfacebook.com/post",

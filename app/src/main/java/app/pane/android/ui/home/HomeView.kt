@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -27,10 +28,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -49,6 +50,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import app.pane.android.R
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.components.PaneLockup
@@ -70,6 +73,7 @@ import app.pane.android.ui.theme.PaneSecondary
 import app.pane.android.ui.theme.PaneTile
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
+import app.pane.android.ui.navigation.SoundMode
 import app.pane.android.ui.theme.ThemeMode
 
 @Composable
@@ -86,6 +90,8 @@ fun HomeView(
     onBackBehavior: (BackBehavior) -> Unit = {},
     videoQuality: VideoQuality = VideoQuality.Auto,
     onVideoQuality: (VideoQuality) -> Unit = {},
+    soundMode: SoundMode = SoundMode.Muted,
+    onSoundMode: (SoundMode) -> Unit = {},
     browserTrampoline: Boolean = false,
     onBrowserTrampoline: (Boolean) -> Unit = {},
     handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
@@ -112,6 +118,8 @@ fun HomeView(
                 onBackBehavior,
                 videoQuality,
                 onVideoQuality,
+                soundMode,
+                onSoundMode,
                 browserTrampoline,
                 onBrowserTrampoline,
                 handoffBrowsers,
@@ -157,6 +165,8 @@ private fun HomeHeader(
     onBackBehavior: (BackBehavior) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
+    soundMode: SoundMode,
+    onSoundMode: (SoundMode) -> Unit,
     browserTrampoline: Boolean,
     onBrowserTrampoline: (Boolean) -> Unit,
     handoffBrowsers: List<HandoffBrowserOption>,
@@ -192,34 +202,18 @@ private fun HomeHeader(
                     menuOpen = false
                     onOpenLinkSettings()
                 },
-                onThemeMode = { mode ->
-                    menuOpen = false
-                    onThemeMode(mode)
-                },
-                onBackBehavior = { behavior ->
-                    menuOpen = false
-                    onBackBehavior(behavior)
-                },
+                onThemeMode = onThemeMode,
+                onBackBehavior = onBackBehavior,
                 videoQuality = videoQuality,
-                onVideoQuality = { quality ->
-                    menuOpen = false
-                    onVideoQuality(quality)
-                },
+                onVideoQuality = onVideoQuality,
+                soundMode = soundMode,
+                onSoundMode = onSoundMode,
                 browserTrampoline = browserTrampoline,
-                onBrowserTrampoline = { enabled ->
-                    menuOpen = false
-                    onBrowserTrampoline(enabled)
-                },
+                onBrowserTrampoline = onBrowserTrampoline,
                 handoffBrowsers = handoffBrowsers,
                 handoffPackage = handoffPackage,
-                onHandoffBrowser = { packageName ->
-                    menuOpen = false
-                    onHandoffBrowser(packageName)
-                },
-                onSetDefaultBrowser = {
-                    menuOpen = false
-                    onSetDefaultBrowser()
-                },
+                onHandoffBrowser = onHandoffBrowser,
+                onSetDefaultBrowser = onSetDefaultBrowser,
             )
         }
     }
@@ -236,6 +230,8 @@ private fun OptionsMenu(
     onBackBehavior: (BackBehavior) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
+    soundMode: SoundMode,
+    onSoundMode: (SoundMode) -> Unit,
     browserTrampoline: Boolean,
     onBrowserTrampoline: (Boolean) -> Unit,
     handoffBrowsers: List<HandoffBrowserOption>,
@@ -243,224 +239,292 @@ private fun OptionsMenu(
     onHandoffBrowser: (String) -> Unit,
     onSetDefaultBrowser: () -> Unit,
 ) {
-    DropdownMenu(
-        expanded = expanded,
+    if (!expanded) return
+    val night = app.pane.android.ui.theme.LocalPaneColors.current.night
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = PaneChip,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        DropdownMenuItem(
-            text = {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(PaneGround),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 4.dp, top = 8.dp)
+                    .heightIn(min = 56.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = stringResource(R.string.open_link_settings),
+                    text = stringResource(R.string.settings),
+                    modifier = Modifier.weight(1f),
                     color = PaneInk,
-                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
                 )
-            },
-            onClick = onOpenLinkSettings,
-        )
-        HorizontalDivider(color = PaneBorder)
-        DropdownMenuItem(
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stringResource(R.string.browser_trampoline),
-                        color = PaneInk,
-                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                    )
-                    Text(
-                        text = stringResource(R.string.browser_trampoline_help),
-                        modifier = Modifier.widthIn(max = 240.dp),
-                        color = PaneMuted,
-                        style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable(role = Role.Button, onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel), tint = PaneMuted)
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                SettingsSection(stringResource(R.string.section_playback), first = true)
+                Text(
+                    text = stringResource(R.string.mute_videos),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+                Text(
+                    text = stringResource(R.string.mute_videos_help),
+                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+                SoundMode.entries.forEach { mode ->
+                    val label = when (mode) {
+                        SoundMode.Muted -> R.string.sound_muted
+                        SoundMode.On -> R.string.sound_on
+                        SoundMode.RememberLast -> R.string.sound_remember
+                    }
+                    SettingsChoice(
+                        title = stringResource(label),
+                        selected = soundMode == mode,
+                        onClick = { onSoundMode(mode) },
                     )
                 }
-            },
-            onClick = { onBrowserTrampoline(!browserTrampoline) },
-            trailingIcon = if (browserTrampoline) {
-                { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
-            } else {
-                null
-            },
-        )
-        Box(
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .widthIn(min = 220.dp, max = 260.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(PaneFill)
-                .clickable(role = Role.Button, onClick = onSetDefaultBrowser)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsHairline()
                 Text(
-                    text = stringResource(R.string.set_default_browser),
-                    color = PaneOnFill,
-                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                    text = stringResource(R.string.video_quality),
+                    modifier = Modifier.padding(top = 12.dp),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                 )
                 Text(
-                    text = stringResource(R.string.set_default_browser_help),
-                    color = PaneOnFill.copy(alpha = 0.82f),
-                    style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                    text = stringResource(R.string.video_quality_help),
+                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
                 )
-            }
-        }
-        Text(
-            text = stringResource(R.string.handoff_browser),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-        )
-        if (handoffBrowsers.isEmpty()) {
-            Text(
-                text = stringResource(R.string.handoff_browser_none),
-                modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp).widthIn(max = 240.dp),
-                color = PaneMuted,
-                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 16.sp),
-            )
-        } else {
-            handoffBrowsers.forEach { browser ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = browser.label,
-                            color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                        )
-                    },
-                    onClick = { onHandoffBrowser(browser.packageName) },
-                    trailingIcon = if (browser.packageName == handoffPackage) {
-                        { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-        HorizontalDivider(color = PaneBorder)
-        Text(
-            text = stringResource(R.string.back_behavior),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-        )
-        BackBehavior.entries.forEach { behavior ->
-            val label = when (behavior) {
-                BackBehavior.ClosePeek -> R.string.back_closes_pane
-                BackBehavior.GoHome -> R.string.back_goes_home
-            }
-            val help = when (behavior) {
-                BackBehavior.ClosePeek -> R.string.back_closes_pane_help
-                BackBehavior.GoHome -> R.string.back_goes_home_help
-            }
-            DropdownMenuItem(
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = stringResource(label),
-                            color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                        )
-                        Text(
-                            text = stringResource(help),
-                            color = PaneMuted,
-                            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
-                        )
+                listOf(VideoQuality.Auto, VideoQuality.High, VideoQuality.Medium, VideoQuality.Low).forEach { quality ->
+                    val label = when (quality) {
+                        VideoQuality.Auto -> R.string.quality_auto
+                        VideoQuality.High -> R.string.quality_high
+                        VideoQuality.Medium -> R.string.quality_medium
+                        VideoQuality.Low -> R.string.quality_data_saver
                     }
-                },
-                onClick = { onBackBehavior(behavior) },
-                trailingIcon = if (backBehavior == behavior) {
-                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
-                } else {
-                    null
-                },
-            )
-        }
-        HorizontalDivider(color = PaneBorder)
-        Text(
-            text = stringResource(R.string.video_quality),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-        )
-        VideoQuality.entries.forEach { quality ->
-            val label = when (quality) {
-                VideoQuality.Auto -> R.string.quality_auto
-                VideoQuality.High -> R.string.quality_high
-                VideoQuality.Medium -> R.string.quality_medium
-                VideoQuality.Low -> R.string.quality_low
-            }
-            val help = when (quality) {
-                VideoQuality.Auto -> R.string.quality_auto_help
-                VideoQuality.High -> R.string.quality_high_help
-                VideoQuality.Medium -> R.string.quality_medium_help
-                VideoQuality.Low -> R.string.quality_low_help
-            }
-            DropdownMenuItem(
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = stringResource(label),
-                            color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                        )
-                        Text(
-                            text = stringResource(help),
-                            color = PaneMuted,
-                            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
-                        )
-                    }
-                },
-                onClick = { onVideoQuality(quality) },
-                trailingIcon = if (videoQuality == quality) {
-                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
-                } else {
-                    null
-                },
-            )
-        }
-        HorizontalDivider(color = PaneBorder)
-        Text(
-            text = stringResource(R.string.appearance),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
-        )
-        ThemeMode.entries.forEach { mode ->
-            val label = when (mode) {
-                ThemeMode.Light -> R.string.theme_light
-                ThemeMode.Dark -> R.string.theme_dark
-                ThemeMode.System -> R.string.theme_system
-            }
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = stringResource(label),
-                        color = PaneInk,
-                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    SettingsChoice(
+                        title = stringResource(label),
+                        selected = videoQuality == quality,
+                        onClick = { onVideoQuality(quality) },
                     )
-                },
-                onClick = { onThemeMode(mode) },
-                trailingIcon = if (themeMode == mode) {
-                    { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
+                }
+                SettingsSection(stringResource(R.string.section_opening_links))
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.browser_trampoline),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = stringResource(R.string.browser_trampoline_help),
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                        )
+                    }
+                    Switch(
+                        checked = browserTrampoline,
+                        onCheckedChange = onBrowserTrampoline,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = Color(0xFF3A8F6A),
+                            uncheckedTrackColor = if (night) Color(0xFF2A3530) else Color(0xFFC9D5CC),
+                            checkedThumbColor = Color.White,
+                            uncheckedThumbColor = Color.White,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedBorderColor = Color.Transparent,
+                        ),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.opening_links_helper),
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(PaneFill)
+                        .clickable(role = Role.Button, onClick = onSetDefaultBrowser)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.set_default_browser),
+                            color = PaneOnFill,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+                        )
+                        Text(
+                            text = stringResource(R.string.set_default_browser_help),
+                            color = PaneOnFill.copy(alpha = 0.82f),
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.handoff_browser),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+                if (handoffBrowsers.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.handoff_browser_none),
+                        modifier = Modifier.padding(bottom = 8.dp),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                    )
                 } else {
-                    null
-                },
-            )
+                    handoffBrowsers.forEach { browser ->
+                        SettingsChoice(
+                            title = browser.label,
+                            selected = browser.packageName == handoffPackage,
+                            onClick = { onHandoffBrowser(browser.packageName) },
+                        )
+                    }
+                }
+                SettingsHairline()
+                Text(
+                    text = stringResource(R.string.back_behavior),
+                    modifier = Modifier.padding(top = 12.dp),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+                BackBehavior.entries.forEach { behavior ->
+                    val label = when (behavior) {
+                        BackBehavior.ClosePeek -> R.string.back_closes_pane
+                        BackBehavior.GoHome -> R.string.back_goes_home
+                    }
+                    val help = when (behavior) {
+                        BackBehavior.ClosePeek -> R.string.back_closes_pane_help
+                        BackBehavior.GoHome -> R.string.back_goes_home_help
+                    }
+                    SettingsChoice(
+                        title = stringResource(label),
+                        subtitle = stringResource(help),
+                        selected = backBehavior == behavior,
+                        onClick = { onBackBehavior(behavior) },
+                    )
+                }
+                SettingsSection(stringResource(R.string.appearance))
+                ThemeMode.entries.forEach { mode ->
+                    val label = when (mode) {
+                        ThemeMode.Light -> R.string.theme_light
+                        ThemeMode.Dark -> R.string.theme_dark
+                        ThemeMode.System -> R.string.theme_system
+                    }
+                    SettingsChoice(
+                        title = stringResource(label),
+                        selected = themeMode == mode,
+                        onClick = { onThemeMode(mode) },
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.settings_tagline),
+                    modifier = Modifier.padding(top = 20.dp),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                )
+                Text(
+                    text = stringResource(R.string.settings_supported_sources),
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+                Text(
+                    text = stringResource(R.string.open_link_settings),
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .heightIn(min = 56.dp)
+                        .clickable(role = Role.Button, onClick = onOpenLinkSettings)
+                        .padding(vertical = 16.dp),
+                    color = PaneAccent,
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+            }
         }
-        HorizontalDivider(color = PaneBorder)
-        Text(
-            text = stringResource(R.string.settings_tagline),
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp),
-            color = PaneInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        )
-        Text(
-            text = stringResource(R.string.settings_supported_sources),
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 8.dp).widthIn(max = 240.dp),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
-        )
+    }
+}
+
+@Composable
+private fun SettingsSection(title: String, first: Boolean = false) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(top = if (first) 0.dp else 28.dp, bottom = 8.dp),
+        color = PaneMuted,
+        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+    )
+}
+
+@Composable
+private fun SettingsHairline() {
+    Box(
+        Modifier
+            .padding(vertical = 8.dp)
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(PaneBorder),
+    )
+}
+
+@Composable
+private fun SettingsChoice(
+    title: String,
+    subtitle: String? = null,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(role = Role.Button, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                color = PaneInk,
+                style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+            }
+        }
+        if (selected) {
+            Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent, modifier = Modifier.size(18.dp))
+        }
     }
 }
 

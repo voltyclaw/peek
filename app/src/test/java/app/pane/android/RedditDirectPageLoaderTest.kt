@@ -140,7 +140,7 @@ class RedditDirectPageLoaderTest {
         val loader = RedditDirectPageLoader(connectionFactory = { url ->
             opened += url
             holdUntilJsonStarts(url, opened, planned)
-            if (url == planned.first().url) {
+            if (url.contains("://old.reddit.com/") && url.contains(".json")) {
                 FakeHttpConnection(url, "<html><p>whoa there, pardner</p></html>", status = 403)
             } else {
                 FakeHttpConnection(url, LATIMER_JSON)
@@ -151,8 +151,8 @@ class RedditDirectPageLoaderTest {
 
         assertEquals("1w3fcl7", post.id)
         assertEquals("In 1960, David Latimer planted a garden", post.title)
-        assertTrue(opened.contains(planned[0].url))
-        assertTrue(opened.contains(planned[1].url))
+        assertTrue(opened.any { it.contains("://old.reddit.com/") && it.contains(".json") })
+        assertTrue(opened.any { it.contains("://www.reddit.com/") && it.contains(".json") })
         assertTrue(planned[0].url.startsWith("https://old.reddit.com/r/interestingasfuck/comments/1w3fcl7/"))
         assertFalse(planned[0].userAgent.contains("Android"))
     }
