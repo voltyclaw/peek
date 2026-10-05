@@ -45,6 +45,9 @@
     <string name="load_failed_description">Pane recognizes this link, but the source didn&#8217;t return the post.</string>
     <string name="app_version">%1$s (%2$s)</string>
     <string name="open_link_settings">Open link settings</string>
+    <string name="browser_trampoline">Open Meta links as browser</string>
+    <string name="browser_trampoline_help">Turn this on, then set Pane as the default browser. Facebook and Instagram links open here. Every other link goes to Chrome. The switch alone does not change the default browser.</string>
+    <string name="browser_trampoline_no_browser">Pane could not find another browser for this link.</string>
     <string name="appearance">Appearance</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

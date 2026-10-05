@@ -1,0 +1,113 @@
+package app.pane.android
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class BrowserTrampolineTest {
+    @Test
+    fun offHandsEveryWebLinkOff() {
+        val facebook = "https://www.facebook.com/share/p/AbCdEf/"
+        val google = "https://www.google.com/search?q=pane"
+        assertEquals(BrowserTrampoline.Decision.HandOff(facebook), BrowserTrampoline.decide(facebook, enabled = false))
+        assertEquals(BrowserTrampoline.Decision.HandOff(google), BrowserTrampoline.decide(google, enabled = false))
+    }
+
+    @Test
+    fun onOpensFacebookAndInstagramHostsInPane() {
+        val post = "https://www.facebook.com/share/p/AbCdEf/"
+        assertEquals(BrowserTrampoline.Decision.OpenInPane(post), BrowserTrampoline.decide(post, enabled = true))
+        val mobile = "https://m.facebook.com/story.php?story_fbid=1&id=2"
+        assertEquals(BrowserTrampoline.Decision.OpenInPane(mobile), BrowserTrampoline.decide(mobile, enabled = true))
+        listOf(
+            "facebook.com",
+            "www.facebook.com",
+            "m.facebook.com",
+            "mbasic.facebook.com",
+            "lm.facebook.com",
+            "l.facebook.com",
+            "web.facebook.com",
+            "touch.facebook.com",
+            "fb.com",
+            "www.fb.com",
+            "fb.watch",
+            "fb.me",
+            "www.fb.me",
+            "instagram.com",
+            "www.instagram.com",
+            "m.instagram.com",
+            "l.instagram.com",
+        ).forEach { host ->
+            assertTrue(host, BrowserTrampoline.isMetaHost(host))
+        }
+    }
+
+    @Test
+    fun onUnwrapsAMetaShimIntoThePost() {
+        val wrapped =
+            "https://lm.facebook.com/l.php?u=https%3A%2F%2Fl.instagram.com%2F%3Fu%3Dhttps%253A%252F%252Fwww.instagram.com%252Freel%252FDapVyootsZw%252F"
+        assertEquals(
+            BrowserTrampoline.Decision.OpenInPane("https://www.instagram.com/reel/DapVyootsZw/"),
+            BrowserTrampoline.decide(wrapped, enabled = true),
+        )
+    }
+
+    @Test
+    fun onHandsAShimToAForeignSiteBackAsTheOriginalUrl() {
+        val original = "https://l.facebook.com/l.php?u=https%3A%2F%2Fexample.com%2Farticle&h=AT0"
+        assertEquals(
+            BrowserTrampoline.Decision.HandOff(original),
+            BrowserTrampoline.decide(original, enabled = true),
+        )
+    }
+
+    @Test
+    fun onHandsRedditXAndTheOpenWebOff() {
+        listOf(
+            "https://www.google.com/",
+            "https://www.reddit.com/r/android/comments/abc123/title/",
+            "https://x.com/AexodusCapital/status/2105362146922000492",
+            "https://twitter.com/pane/status/1",
+            "https://notfacebook.com/post",
+        ).forEach { url ->
+            assertEquals(url, BrowserTrampoline.Decision.HandOff(url), BrowserTrampoline.decide(url, enabled = true))
+        }
+        listOf("reddit.com", "www.reddit.com", "x.com", "twitter.com", "notfacebook.com", "facebook.com.evil.test", "").forEach { host ->
+            assertFalse(host, BrowserTrampoline.isMetaHost(host))
+        }
+    }
+
+    @Test
+    fun blankAndNonWebUrlsAreIgnored() {
+        assertEquals(BrowserTrampoline.Decision.Ignore, BrowserTrampoline.decide(null, enabled = true))
+        assertEquals(BrowserTrampoline.Decision.Ignore, BrowserTrampoline.decide("   ", enabled = false))
+        assertEquals(BrowserTrampoline.Decision.Ignore, BrowserTrampoline.decide("pane://post", enabled = true))
+        assertEquals(BrowserTrampoline.Decision.Ignore, BrowserTrampoline.decide("ftp://facebook.com/a", enabled = true))
+    }
+
+    @Test
+    fun handoffPrefersChromeAndNeverReturnsPane() {
+        val pane = BrowserTrampoline.Candidate("app.pane.android", "app.pane.android.BrowserTrampolineActivity")
+        val chrome = BrowserTrampoline.Candidate("com.android.chrome", "com.google.android.apps.chrome.Main")
+        val firefox = BrowserTrampoline.Candidate("org.mozilla.firefox", "org.mozilla.firefox.App")
+        assertEquals(chrome, BrowserTrampoline.pickHandoff(listOf(pane, firefox, chrome), OWN))
+        assertNull(BrowserTrampoline.pickHandoff(listOf(pane), OWN))
+        assertEquals(firefox, BrowserTrampoline.pickHandoff(listOf(pane, firefox), OWN))
+    }
+
+    @Test
+    fun handoffFallsBackToSamsungThenAnyOtherBrowser() {
+        val pane = BrowserTrampoline.Candidate("app.pane.android", "app.pane.android.MainActivity")
+        val samsung = BrowserTrampoline.Candidate("com.sec.android.app.sbrowser", "com.sec.android.app.sbrowser.SBrowserMainActivity")
+        val other = BrowserTrampoline.Candidate("com.example.browser", "com.example.browser.MainActivity")
+        assertEquals(samsung, BrowserTrampoline.pickHandoff(listOf(pane, other, samsung), OWN))
+        assertEquals(other, BrowserTrampoline.pickHandoff(listOf(pane, other), OWN))
+        assertEquals(other, BrowserTrampoline.pickHandoff(listOf(other, pane), OWN))
+    }
+
+    private companion object {
+        const val OWN = "app.pane.android"
+    }
+}

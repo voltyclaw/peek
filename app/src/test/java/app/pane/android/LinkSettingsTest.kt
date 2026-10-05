@@ -55,8 +55,10 @@ class LinkSettingsTest {
         assertFalse(manifest.contains("autoVerify=\"true\""))
 
         val filters = Regex("<intent-filter[\\s\\S]*?</intent-filter>").findAll(manifest).map { it.value }.toList()
-        val webFilters = filters.filter { it.contains("android.intent.action.VIEW") }
+        val viewFilters = filters.filter { it.contains("android.intent.action.VIEW") }
+        val webFilters = viewFilters.filter { it.contains("android:host=") }
         assertEquals(LinkSettings.webHosts.size, webFilters.size)
+        assertEquals(1, viewFilters.count { !it.contains("android:host=") })
         webFilters.forEach { filter ->
             assertTrue(filter.contains("autoVerify=\"false\""))
             assertTrue(filter.contains("android.intent.category.BROWSABLE"))
@@ -96,5 +98,22 @@ class LinkSettingsTest {
         listOf("l.facebook.com", "lm.facebook.com", "l.instagram.com", "m.instagram.com").forEach { host ->
             assertTrue(manifest.contains("android:host=\"$host\""))
         }
+    }
+
+    @Test
+    fun browserTrampolineStartsDisabledAndHasNoHost() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        val activity = Regex("""<activity\b[^>]*android:name="\.BrowserTrampolineActivity"[\s\S]*?</activity>""")
+            .find(manifest)
+            ?.value
+        assertTrue(activity != null)
+        val trampoline = activity!!
+        assertTrue(trampoline.contains("android:enabled=\"false\""))
+        assertTrue(trampoline.contains("android:exported=\"true\""))
+        assertFalse(trampoline.contains("android:host="))
+        assertFalse(trampoline.contains("autoVerify"))
+        assertTrue(trampoline.contains("android:priority=\"-1\""))
+        assertTrue(trampoline.contains("android:scheme=\"http\""))
+        assertTrue(trampoline.contains("android:scheme=\"https\""))
     }
 }

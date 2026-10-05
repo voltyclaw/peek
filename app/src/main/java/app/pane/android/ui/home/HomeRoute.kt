@@ -40,6 +40,8 @@ fun HomeRoute(
     onBackBehavior: (BackBehavior) -> Unit = {},
     videoQuality: VideoQuality = VideoQuality.Auto,
     onVideoQuality: (VideoQuality) -> Unit = {},
+    browserTrampoline: Boolean = false,
+    onBrowserTrampoline: (Boolean) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -124,6 +126,8 @@ fun HomeRoute(
             onBackBehavior = onBackBehavior,
             videoQuality = videoQuality,
             onVideoQuality = onVideoQuality,
+            browserTrampoline = browserTrampoline,
+            onBrowserTrampoline = onBrowserTrampoline,
             showFirstLaunchHint = showFirstLaunchHint,
             onDismissFirstLaunchHint = {
                 FirstLaunchPreferences.dismiss(context)

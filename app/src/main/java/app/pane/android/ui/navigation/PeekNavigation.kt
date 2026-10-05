@@ -26,6 +26,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.pane.android.BrowserTrampolinePreferences
 import app.pane.android.app.AppContainer
 import app.pane.android.ui.home.HomeRoute
 import app.pane.android.ui.media.VideoQualityPreferences
@@ -50,6 +51,7 @@ fun PeekNavigation(
     val activity = context as? Activity
     var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
+    var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
     val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
@@ -110,6 +112,12 @@ fun PeekNavigation(
                     onVideoQuality = { quality ->
                         videoQuality = quality
                         VideoQualityPreferences.write(context, quality)
+                    },
+                    browserTrampoline = browserTrampoline,
+                    onBrowserTrampoline = { enabled ->
+                        browserTrampoline = enabled
+                        BrowserTrampolinePreferences.write(context, enabled)
+                        if (enabled) BrowserTrampolinePreferences.requestDefaultBrowser(context)
                     },
                     modifier = Modifier.safeDrawingPadding(),
                 )

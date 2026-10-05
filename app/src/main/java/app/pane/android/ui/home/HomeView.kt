@@ -86,6 +86,8 @@ fun HomeView(
     onBackBehavior: (BackBehavior) -> Unit = {},
     videoQuality: VideoQuality = VideoQuality.Auto,
     onVideoQuality: (VideoQuality) -> Unit = {},
+    browserTrampoline: Boolean = false,
+    onBrowserTrampoline: (Boolean) -> Unit = {},
     showFirstLaunchHint: Boolean = false,
     onDismissFirstLaunchHint: () -> Unit = {},
 ) {
@@ -106,6 +108,8 @@ fun HomeView(
                 onBackBehavior,
                 videoQuality,
                 onVideoQuality,
+                browserTrampoline,
+                onBrowserTrampoline,
             )
             if (versionLabel.isNotBlank()) {
                 Text(
@@ -145,6 +149,8 @@ private fun HomeHeader(
     onBackBehavior: (BackBehavior) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
+    browserTrampoline: Boolean,
+    onBrowserTrampoline: (Boolean) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -187,6 +193,11 @@ private fun HomeHeader(
                     menuOpen = false
                     onVideoQuality(quality)
                 },
+                browserTrampoline = browserTrampoline,
+                onBrowserTrampoline = { enabled ->
+                    menuOpen = false
+                    onBrowserTrampoline(enabled)
+                },
             )
         }
     }
@@ -203,6 +214,8 @@ private fun OptionsMenu(
     onBackBehavior: (BackBehavior) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
+    browserTrampoline: Boolean,
+    onBrowserTrampoline: (Boolean) -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -218,6 +231,30 @@ private fun OptionsMenu(
                 )
             },
             onClick = onOpenLinkSettings,
+        )
+        HorizontalDivider(color = PaneBorder)
+        DropdownMenuItem(
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.browser_trampoline),
+                        color = PaneInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    )
+                    Text(
+                        text = stringResource(R.string.browser_trampoline_help),
+                        modifier = Modifier.widthIn(max = 240.dp),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                    )
+                }
+            },
+            onClick = { onBrowserTrampoline(!browserTrampoline) },
+            trailingIcon = if (browserTrampoline) {
+                { Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneAccent) }
+            } else {
+                null
+            },
         )
         HorizontalDivider(color = PaneBorder)
         Text(

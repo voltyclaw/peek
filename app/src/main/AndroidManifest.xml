@@ -23,6 +23,10 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
             <data android:scheme="reddit" />
         </intent>
         <intent>
@@ -333,6 +337,29 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="mobile.twitter.com" android:pathPattern="/.*/status/.*" />
+            </intent-filter>
+        </activity>
+        <!--
+            Browser trampoline. Disabled until Settings turns it on, so Pane is not a
+            browser and does not receive general http(s) while the switch is off.
+            Priority stays below MainActivity's host filters. Those still win a post
+            URL. This activity only sees what those filters do not claim.
+        -->
+        <activity
+            android:name=".BrowserTrampolineActivity"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="standard"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter android:priority="-1">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
             </intent-filter>
         </activity>
     </application>

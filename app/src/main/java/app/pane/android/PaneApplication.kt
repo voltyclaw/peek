@@ -6,4 +6,9 @@ import app.pane.android.app.DefaultAppContainer
 
 class PaneApplication : Application() {
     val container: AppContainer by lazy { DefaultAppContainer(applicationContext) }
+
+    override fun onCreate() {
+        super.onCreate()
+        BrowserTrampolinePreferences.applyStored(this)
+    }
 }
