@@ -43,13 +43,13 @@ internal object BrowserTrampolinePreferences {
 
     /**
      * Asks Android to offer Pane as the default browser. The switch alone does not.
-     * If Pane already holds the browser role, this does nothing.
+     * If Pane already holds the browser role, opens the system default-apps screen
+     * so the choice can be confirmed again.
      */
     fun requestDefaultBrowser(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roles = context.getSystemService(RoleManager::class.java)
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)) {
-                if (roles.isRoleHeld(RoleManager.ROLE_BROWSER)) return
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER) && !roles.isRoleHeld(RoleManager.ROLE_BROWSER)) {
                 val request = roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (runCatching { context.startActivity(request) }.isSuccess) return

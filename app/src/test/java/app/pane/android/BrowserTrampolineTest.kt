@@ -64,13 +64,22 @@ class BrowserTrampolineTest {
     }
 
     @Test
-    fun onHandsRedditXAndTheOpenWebOff() {
+    fun onKeepsSupportedPostsInPaneAndHandsOtherSitesOff() {
         listOf(
-            "https://www.google.com/",
             "https://www.reddit.com/r/android/comments/abc123/title/",
             "https://x.com/AexodusCapital/status/2105362146922000492",
             "https://twitter.com/pane/status/1",
+            "https://www.instagram.com/reel/DapVyootsZw/",
+            "https://www.instagram.com/p/abc123/",
+        ).forEach { url ->
+            assertEquals(url, BrowserTrampoline.Decision.OpenInPane(url), BrowserTrampoline.decide(url, enabled = true))
+        }
+        listOf(
+            "https://www.google.com/",
+            "https://benamiartgallery.com/",
             "https://notfacebook.com/post",
+            "https://www.reddit.com/",
+            "https://x.com/AexodusCapital",
         ).forEach { url ->
             assertEquals(url, BrowserTrampoline.Decision.HandOff(url), BrowserTrampoline.decide(url, enabled = true))
         }

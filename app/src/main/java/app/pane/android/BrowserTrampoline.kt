@@ -1,12 +1,16 @@
 package app.pane.android
 
+import app.pane.android.data.facebook.FacebookUrls
+import app.pane.android.data.reddit.RedditUrls
+import app.pane.android.data.x.XUrls
 import app.pane.android.domain.model.LinkShims
 import java.net.URI
 import java.util.Locale
 
 /**
  * Decides what a catch-all browser VIEW should do.
- * Meta hosts open in Pane. Everything else is handed to another browser.
+ * Posts Pane already opens (X, Reddit, Instagram, Facebook) stay in Pane, and so do
+ * other Meta hosts. Everything else is handed to another browser.
  * The original URL is what the other browser receives, so a redirect shim
  * still follows the tap the person made.
  */
@@ -27,8 +31,20 @@ internal object BrowserTrampoline {
         if (!raw.startsWith("http://") && !raw.startsWith("https://")) return Decision.Ignore
         if (!enabled) return Decision.HandOff(raw)
         val unwrapped = LinkShims.unwrap(raw)
+        openablePost(unwrapped)?.let { return Decision.OpenInPane(it) }
         val host = hostOf(unwrapped) ?: return Decision.HandOff(raw)
         return if (isMetaHost(host)) Decision.OpenInPane(unwrapped) else Decision.HandOff(raw)
+    }
+
+    /**
+     * A post the existing viewers already accept. Http is promoted to https when that
+     * is the form Reddit or Instagram recognize. Profiles and home pages are not posts.
+     */
+    fun openablePost(url: String): String? {
+        if (XUrls.supports(url) || FacebookUrls.supports(url)) return url
+        val https = toHttps(url)
+        if (RedditUrls.supports(https) || isInstagramPost(https)) return https
+        return null
     }
 
     fun isMetaHost(host: String): Boolean {
@@ -81,6 +97,26 @@ internal object BrowserTrampoline {
 
     private fun hostOf(url: String): String? =
         runCatching { URI(url).host }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    private fun toHttps(url: String): String =
+        if (url.startsWith("http://")) "https://" + url.substring("http://".length) else url
+
+    private fun isInstagramPost(url: String): Boolean {
+        val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", ignoreCase = true)) return false
+        val host = uri.host?.lowercase(Locale.US) ?: return false
+        if (host !in INSTAGRAM_HOSTS) return false
+        return INSTAGRAM_POST.matches(uri.path.orEmpty().trimEnd('/'))
+    }
+
+    private val INSTAGRAM_HOSTS = setOf(
+        "instagram.com",
+        "www.instagram.com",
+        "m.instagram.com",
+        "l.instagram.com",
+    )
+
+    private val INSTAGRAM_POST = Regex("/(p|reel|reels)/([A-Za-z0-9_-]+)")
 
     private val EXACT_HOSTS = setOf(
         "facebook.com",

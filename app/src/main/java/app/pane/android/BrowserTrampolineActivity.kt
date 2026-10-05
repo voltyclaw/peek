@@ -11,8 +11,9 @@ import android.widget.Toast
 
 /**
  * Catch-all http(s) entry. Disabled until Settings turns the browser trampoline on.
- * Meta links open in [MainActivity]. Every other link is started on a specific
- * other browser component so the VIEW cannot come back into Pane.
+ * Posts Pane already opens, and other Meta links, go to [MainActivity].
+ * Every other link is started on a specific other browser component so the VIEW
+ * cannot come back into Pane.
  */
 class BrowserTrampolineActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {

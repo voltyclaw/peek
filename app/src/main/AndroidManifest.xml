@@ -342,8 +342,11 @@
         <!--
             Browser trampoline. Disabled until Settings turns it on, so Pane is not a
             browser and does not receive general http(s) while the switch is off.
-            Priority stays below MainActivity's host filters. Those still win a post
-            URL. This activity only sees what those filters do not claim.
+            No priority attribute: a negative priority drops Pane out of the system
+            chooser. MainActivity's host and path filters are a more specific match,
+            so a post URL still prefers that activity when both match.
+            The second filter is required because an intent that carries a MIME type
+            (Facebook link previews send text/html) does not match a scheme-only filter.
         -->
         <activity
             android:name=".BrowserTrampolineActivity"
@@ -354,12 +357,29 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter android:priority="-1">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="http" />
                 <data android:scheme="https" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/xhtml+xml" />
+                <data android:mimeType="application/vnd.wap.xhtml+xml" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
     </application>

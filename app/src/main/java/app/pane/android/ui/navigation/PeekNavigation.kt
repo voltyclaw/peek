@@ -156,6 +156,13 @@ fun PeekNavigation(
                         storedHandoff = packageName
                         BrowserTrampolinePreferences.writeHandoff(context, packageName)
                     },
+                    onSetDefaultBrowser = {
+                        if (!browserTrampoline) {
+                            browserTrampoline = true
+                            BrowserTrampolinePreferences.write(context, true)
+                        }
+                        BrowserTrampolinePreferences.requestDefaultBrowser(context)
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

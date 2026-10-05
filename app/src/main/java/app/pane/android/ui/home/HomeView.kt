@@ -91,6 +91,7 @@ fun HomeView(
     handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
     handoffPackage: String = "",
     onHandoffBrowser: (String) -> Unit = {},
+    onSetDefaultBrowser: () -> Unit = {},
     showFirstLaunchHint: Boolean = false,
     onDismissFirstLaunchHint: () -> Unit = {},
 ) {
@@ -116,6 +117,7 @@ fun HomeView(
                 handoffBrowsers,
                 handoffPackage,
                 onHandoffBrowser,
+                onSetDefaultBrowser,
             )
             if (versionLabel.isNotBlank()) {
                 Text(
@@ -160,6 +162,7 @@ private fun HomeHeader(
     handoffBrowsers: List<HandoffBrowserOption>,
     handoffPackage: String,
     onHandoffBrowser: (String) -> Unit,
+    onSetDefaultBrowser: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -213,6 +216,10 @@ private fun HomeHeader(
                     menuOpen = false
                     onHandoffBrowser(packageName)
                 },
+                onSetDefaultBrowser = {
+                    menuOpen = false
+                    onSetDefaultBrowser()
+                },
             )
         }
     }
@@ -234,6 +241,7 @@ private fun OptionsMenu(
     handoffBrowsers: List<HandoffBrowserOption>,
     handoffPackage: String,
     onHandoffBrowser: (String) -> Unit,
+    onSetDefaultBrowser: () -> Unit,
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -273,6 +281,24 @@ private fun OptionsMenu(
             } else {
                 null
             },
+        )
+        DropdownMenuItem(
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.set_default_browser),
+                        color = PaneInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    )
+                    Text(
+                        text = stringResource(R.string.set_default_browser_help),
+                        modifier = Modifier.widthIn(max = 240.dp),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp),
+                    )
+                }
+            },
+            onClick = onSetDefaultBrowser,
         )
         Text(
             text = stringResource(R.string.handoff_browser),

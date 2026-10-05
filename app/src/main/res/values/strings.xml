@@ -46,7 +46,9 @@
     <string name="app_version">%1$s (%2$s)</string>
     <string name="open_link_settings">Open link settings</string>
     <string name="browser_trampoline">Open Meta links as browser</string>
-    <string name="browser_trampoline_help">Turn this on, then set Pane as the default browser. Facebook and Instagram links open here. Every other link goes to the browser you choose below. The switch alone does not change the default browser.</string>
+    <string name="browser_trampoline_help">Turn this on, then set Pane as the default browser. Posts from X, Reddit, Instagram, and Facebook still open here. Other websites go to the browser you choose below. The switch alone does not change the default browser.</string>
+    <string name="set_default_browser">Set as default browser</string>
+    <string name="set_default_browser_help">Opens Android’s browser choice. General links reach Pane only after it is the browser app.</string>
     <string name="browser_trampoline_no_browser">Pane could not find another browser for this link.</string>
     <string name="handoff_browser">Other links open in</string>
     <string name="handoff_browser_none">No other browser is installed.</string>

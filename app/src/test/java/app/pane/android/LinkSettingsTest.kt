@@ -58,7 +58,7 @@ class LinkSettingsTest {
         val viewFilters = filters.filter { it.contains("android.intent.action.VIEW") }
         val webFilters = viewFilters.filter { it.contains("android:host=") }
         assertEquals(LinkSettings.webHosts.size, webFilters.size)
-        assertEquals(1, viewFilters.count { !it.contains("android:host=") })
+        assertEquals(2, viewFilters.count { !it.contains("android:host=") })
         webFilters.forEach { filter ->
             assertTrue(filter.contains("autoVerify=\"false\""))
             assertTrue(filter.contains("android.intent.category.BROWSABLE"))
@@ -112,8 +112,18 @@ class LinkSettingsTest {
         assertTrue(trampoline.contains("android:exported=\"true\""))
         assertFalse(trampoline.contains("android:host="))
         assertFalse(trampoline.contains("autoVerify"))
-        assertTrue(trampoline.contains("android:priority=\"-1\""))
+        assertFalse(trampoline.contains("android:priority"))
+        assertTrue(trampoline.contains("android.intent.category.APP_BROWSER"))
         assertTrue(trampoline.contains("android:scheme=\"http\""))
         assertTrue(trampoline.contains("android:scheme=\"https\""))
+        assertTrue(trampoline.contains("android:mimeType=\"text/html\""))
+        assertTrue(trampoline.contains("android:mimeType=\"text/plain\""))
+        assertTrue(trampoline.contains("android:mimeType=\"application/xhtml+xml\""))
+        assertTrue(trampoline.contains("android:mimeType=\"*/*\""))
+        val filters = Regex("<intent-filter[\\s\\S]*?</intent-filter>").findAll(trampoline).map { it.value }.toList()
+        val viewFilters = filters.filter { it.contains("android.intent.action.VIEW") }
+        assertEquals(2, viewFilters.size)
+        assertTrue(viewFilters.any { it.contains("android:mimeType=\"text/html\"") })
+        assertTrue(viewFilters.any { !it.contains("android:mimeType=") })
     }
 }

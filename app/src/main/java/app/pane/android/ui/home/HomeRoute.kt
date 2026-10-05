@@ -45,6 +45,7 @@ fun HomeRoute(
     handoffBrowsers: List<HandoffBrowserOption> = emptyList(),
     handoffPackage: String = "",
     onHandoffBrowser: (String) -> Unit = {},
+    onSetDefaultBrowser: () -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
 ) {
     val clipboard = LocalClipboard.current
@@ -134,6 +135,7 @@ fun HomeRoute(
             handoffBrowsers = handoffBrowsers,
             handoffPackage = handoffPackage,
             onHandoffBrowser = onHandoffBrowser,
+            onSetDefaultBrowser = onSetDefaultBrowser,
             showFirstLaunchHint = showFirstLaunchHint,
             onDismissFirstLaunchHint = {
                 FirstLaunchPreferences.dismiss(context)
