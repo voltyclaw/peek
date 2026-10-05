@@ -68,7 +68,7 @@ class BrowserTrampolineTest {
         listOf(
             "https://www.reddit.com/r/android/comments/abc123/title/",
             "https://x.com/AexodusCapital/status/2105362146922000492",
-            "https://twitter.com/pane/status/1",
+            "https://twitter.com/pane/status/2105362146922000492",
             "https://www.instagram.com/reel/DapVyootsZw/",
             "https://www.instagram.com/p/abc123/",
         ).forEach { url ->
