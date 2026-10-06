@@ -210,6 +210,13 @@ fun PeekNavigation(
                     startMuted = { SoundPreferences.startMuted(context) },
                     onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
+                    onLeave = {
+                        if (peekLeaveVideoAction(launchedFromViewLink) == PeekBackAction.Finish) {
+                            activity?.finish()
+                        } else {
+                            while (backStack.size > 1) backStack.removeLastOrNull()
+                        }
+                    },
                 )
             }
         },

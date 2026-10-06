@@ -110,6 +110,7 @@ fun PlayerView(
     onShare: suspend (List<ViewerMediaItemUiModel>) -> Unit = {},
     onSharePost: suspend (String, String?) -> Unit = { _, _ -> },
     onOpenInApp: suspend (String) -> Unit = {},
+    onLeave: () -> Unit = onBack,
 ) {
     val view = LocalView.current
     DisposableEffect(view) {
@@ -149,6 +150,7 @@ fun PlayerView(
                 startMuted = startMuted,
                 onMutedChange = onMutedChange,
                 onBack = onBack,
+                onLeave = onLeave,
             )
         }
     }
@@ -227,6 +229,7 @@ private fun MediaContent(
     startMuted: () -> Boolean,
     onMutedChange: (Boolean) -> Unit,
     onBack: () -> Unit,
+    onLeave: () -> Unit,
 ) {
     val items = post.mediaItemsOrPrimary()
     val initialPage = initialMediaIndex.coerceIn(0, items.lastIndex)
@@ -507,7 +510,7 @@ private fun MediaContent(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.72f))
+                    .background(Color.Black.copy(alpha = 0.93f))
                     .padding(horizontal = 18.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -522,7 +525,7 @@ private fun MediaContent(
                     Text(
                         text = stringResource(R.string.leave),
                         modifier = Modifier
-                            .clickable(role = Role.Button, onClick = onBack)
+                            .clickable(role = Role.Button, onClick = onLeave)
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                         color = Color.White,
                         style = TextStyle(fontSize = 14.sp),

@@ -27,3 +27,11 @@ internal fun peekBackAction(
     stackSize > 1 -> PeekBackAction.Pop
     else -> PeekBackAction.DeferToSystem
 }
+
+/**
+ * End-of-video Leave returns to the app that opened Pane.
+ * A session started from the launcher or Home closes the post and lands on Home.
+ * The overflow Leave control is separate and always clears to Home.
+ */
+internal fun peekLeaveVideoAction(launchedFromViewLink: Boolean): PeekBackAction =
+    if (launchedFromViewLink) PeekBackAction.Finish else PeekBackAction.ClearToHome

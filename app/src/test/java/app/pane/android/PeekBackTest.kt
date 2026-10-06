@@ -2,6 +2,7 @@ package app.pane.android
 
 import app.pane.android.ui.navigation.PeekBackAction
 import app.pane.android.ui.navigation.peekBackAction
+import app.pane.android.ui.navigation.peekLeaveVideoAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -35,6 +36,12 @@ class PeekBackTest {
             PeekBackAction.DeferToSystem,
             peekBackAction(launchedFromViewLink = true, stackSize = 1, backClosesPeek = false),
         )
+    }
+
+    @Test
+    fun endOfVideoLeaveReturnsToTheOpenerOrHome() {
+        assertEquals(PeekBackAction.Finish, peekLeaveVideoAction(launchedFromViewLink = true))
+        assertEquals(PeekBackAction.ClearToHome, peekLeaveVideoAction(launchedFromViewLink = false))
     }
 
     @Test
