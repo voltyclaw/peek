@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +58,7 @@ fun HomeRoute(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val invalidClipboardMessage = stringResource(R.string.clipboard_url_unavailable)
+    val invalidClipboardMessage = stringResource(R.string.link_invalid)
     val linkReadyMessage = stringResource(R.string.link_ready)
     val openAction = stringResource(R.string.open_action)
     val usingFirstLink = stringResource(R.string.using_first_link)
@@ -71,8 +70,6 @@ fun HomeRoute(
     var openedLinkSettings by remember { mutableStateOf(false) }
     var showFirstLaunchHint by remember { mutableStateOf(!FirstLaunchPreferences.isDismissed(context)) }
     var leftLinkSettings by remember { mutableStateOf(false) }
-    var linkDraft by rememberSaveable { mutableStateOf("") }
-    var showLinkField by rememberSaveable { mutableStateOf(false) }
     var openingLink by remember { mutableStateOf(false) }
     var offeredClipboardUrl by remember { mutableStateOf<String?>(null) }
     val versionLabel = remember(context) {
@@ -80,9 +77,6 @@ fun HomeRoute(
         val code = PackageInfoCompat.getLongVersionCode(info).toString()
         context.getString(R.string.app_version, info.versionName.orEmpty(), code)
     }
-    val linkIsValid = extractUrlFromText(linkDraft) != null
-    val showLinkError = showLinkField && linkDraft.isNotBlank() && !linkIsValid
-
     fun openUrl(url: String) {
         if (openingLink) return
         openingLink = true
@@ -195,20 +189,6 @@ fun HomeRoute(
             onDismissFirstLaunchHint = {
                 FirstLaunchPreferences.dismiss(context)
                 showFirstLaunchHint = false
-            },
-            linkDraft = linkDraft,
-            onLinkDraft = { linkDraft = it },
-            showLinkField = showLinkField,
-            onTypeLink = { showLinkField = true },
-            linkIsValid = linkIsValid,
-            showLinkError = showLinkError,
-            openingLink = openingLink,
-            onSubmitLink = {
-                val url = extractUrlFromText(linkDraft) ?: return@HomeView
-                if (extractUrlFromText.count(linkDraft) > 1) {
-                    scope.launch { snackbarHostState.showSnackbar(usingFirstLink, duration = SnackbarDuration.Short) }
-                }
-                openUrl(url)
             },
         )
         SnackbarHost(

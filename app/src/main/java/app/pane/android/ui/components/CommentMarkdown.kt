@@ -24,7 +24,7 @@ internal fun autolinkedCaption(source: String, linkColor: Color): AnnotatedStrin
     buildAnnotatedString { appendWithAutolinks(source, linkColor) }
 
 internal fun commentNestingStepDp(depth: Int): Int =
-    if (depth in 1..MAX_COMMENT_DEPTH) 32 else 0
+    if (depth in 1..MAX_COMMENT_DEPTH) 12 else 0
 
 /**
  * Reddit comment bodies are markdown. This covers the marks that show up in public threads:

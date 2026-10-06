@@ -4,7 +4,7 @@
     <string name="pane_wordmark">Pane</string>
     <string name="home_statement">Paste.\nRead.</string>
     <string name="empty_home_hint">Paste a public post link.</string>
-    <string name="first_launch_hint">Paste a public post link. No feed.</string>
+    <string name="first_launch_hint">Paste a public link to open one post here—no feed.</string>
     <string name="paste_a_link">Paste a link</string>
     <string name="home_empty_line">One post. No feed. Then leave.</string>
     <string name="or_type_a_link">Or type a link</string>

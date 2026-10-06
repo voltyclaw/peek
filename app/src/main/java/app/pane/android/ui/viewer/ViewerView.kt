@@ -1,9 +1,6 @@
 package app.pane.android.ui.viewer
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,7 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -32,15 +29,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,11 +55,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -73,9 +71,8 @@ import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
-import app.pane.android.ui.components.PostActionsRow
 import app.pane.android.ui.components.PeekImage
-import app.pane.android.ui.media.framedMediaMaxHeightDp
+import app.pane.android.ui.media.MAX_FRAMED_MEDIA_HEIGHT
 import app.pane.android.ui.media.MutedInlineVideo
 import app.pane.android.ui.media.VideoPlaybackQuality
 import app.pane.android.ui.media.VideoQuality
@@ -83,23 +80,27 @@ import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.fittedContentPx
+import app.pane.android.ui.components.PaneLockup
 import app.pane.android.ui.model.UiImage
-import app.pane.android.ui.model.sourceFace
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.hasDownloadableMedia
 import app.pane.android.ui.model.mediaItemsOrPrimary
+import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
+import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
 import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneMuted
+import app.pane.android.ui.theme.PaneSecondary
 import app.pane.android.ui.theme.PaneTile
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 @Composable
@@ -120,17 +121,16 @@ fun ViewerView(
     videoQuality: VideoQuality = VideoQuality.Auto,
     startMuted: () -> Boolean = { true },
     onMutedChange: (Boolean) -> Unit = {},
-    onLeave: () -> Unit = onBack,
-    onOpenInBrowser: (String) -> Unit = {},
+    onLeave: () -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier.widthIn(max = 390.dp).fillMaxWidth().fillMaxHeight(),
         ) {
             when (uiState) {
-                is ViewerUiState.Loading -> LoadingViewer(onBack)
-                is ViewerUiState.Unavailable -> UnavailableViewer(uiState.url, onBack, onOpenInBrowser)
-                is ViewerUiState.LoadFailed -> LoadFailedViewer(uiState.reason, onBack, onRefresh)
+                is ViewerUiState.Loading -> LoadingViewer(uiState.progress, uiState.message, onBack, onRefresh)
+                is ViewerUiState.Unavailable -> UnavailableViewer(uiState.url, onBack)
+                is ViewerUiState.LoadFailed -> LoadFailedViewer(uiState.url, uiState.reason, onBack, onRefresh)
                 is ViewerUiState.Content -> ViewerContent(
                     post = uiState.post,
                     isLoadingMoreComments = uiState.isLoadingMoreComments,
@@ -175,61 +175,53 @@ private fun ColumnScope.ViewerContent(
     onMutedChange: (Boolean) -> Unit,
     onLeave: () -> Unit,
 ) {
-    var buffering by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
-        ViewerHeader(
-            sourceUrl = post.sourceUrl,
-            onBack = onBack,
-            onRefresh = onRefresh,
-            onLeave = onLeave,
-            onShareMedia = {
-                onShare(post.mediaItemsOrPrimary().filter(ViewerMediaItemUiModel::hasDownloadableMedia))
-            },
-            canShareMedia = post.mediaItemsOrPrimary().any(ViewerMediaItemUiModel::hasDownloadableMedia),
-        )
-        if (buffering) {
-            Box(Modifier.fillMaxWidth().height(2.dp).background(PaneAccent))
-        }
-    }
+    ViewerHeader(post.isVideo, onBack, onRefresh)
     val scrollState = rememberScrollState()
     val items = post.mediaItemsOrPrimary()
     val pagerState = rememberPagerState(
         initialPage = post.initialMediaIndex.coerceIn(0, items.lastIndex),
         pageCount = items::size,
     )
+    val currentItem = items[pagerState.currentPage]
     Column(
-        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scrollState).padding(horizontal = 14.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (items.any(::hasVisualMedia)) {
-            MediaCanvas(
-                post,
-                items,
-                pagerState,
-                onOpenMedia,
-                onMediaMeasured,
-                videoQuality,
-                startMuted,
-                onMutedChange,
-                onBuffering = { buffering = it },
-            )
+            Column(Modifier.padding(bottom = 18.dp)) {
+                MediaCanvas(
+                    post,
+                    items,
+                    pagerState,
+                    onOpenMedia,
+                    onMediaMeasured,
+                    videoQuality,
+                    startMuted,
+                    onMutedChange,
+                )
+            }
         }
-        AuthorByline(post = post)
+        AuthorByline(
+            post = post,
+            onCopyLink = { onCopyLink(post.sourceUrl) },
+            onCopyMedia = { onCopyMedia(currentItem) },
+            onDownload = { onDownload(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
+            onShare = { onShare(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
+            onSharePost = { onSharePost(post.sourceUrl, post.title) },
+            onOpenInApp = { onOpenInApp(post.sourceUrl) },
+            canCopyMedia = currentItem.videoUrl == null && currentItem.image.let { image ->
+                image !is UiImage.Url || image.value.isNotBlank()
+            },
+            canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
+            onLeave = onLeave,
+        )
         Column(Modifier.fillMaxWidth()) {
             if (post.authorThread.size >= 2) {
                 AuthorThreadSection(post)
-            } else if (post.title.isNotBlank()) {
+            } else {
                 CaptionText(post)
             }
-            Spacer(Modifier.height(8.dp))
-            PostActionsRow(
-                onCopyLink = { onCopyLink(post.sourceUrl) },
-                onSharePost = { onSharePost(post.sourceUrl, post.title) },
-                onOpenInApp = { onOpenInApp(post.sourceUrl) },
-                onDownload = { onDownload(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
-                canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
-            )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
             CommentsSection(
                 post = post,
                 isLoadingMore = isLoadingMoreComments,
@@ -242,88 +234,35 @@ private fun ColumnScope.ViewerContent(
 }
 
 @Composable
-private fun ViewerHeader(
-    sourceUrl: String,
-    onBack: () -> Unit,
-    onRefresh: () -> Unit,
-    onLeave: () -> Unit,
-    onShareMedia: suspend () -> Unit,
-    canShareMedia: Boolean,
-) {
-    var menuOpen by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val face = sourceFace(sourceUrl)
+private fun ViewerHeader(isVideo: Boolean, onBack: () -> Unit, onRefresh: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
+        modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onBack),
-            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(48.dp).offset(x = (-8).dp).clip(CircleShape).clickable(role = Role.Button, onClick = onBack),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Icon(
-                Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.back),
-                tint = PaneInk,
-                modifier = Modifier.size(22.dp),
-            )
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back), tint = PaneInk, modifier = Modifier.size(22.dp))
         }
-        if (face.chip.isNotBlank()) {
-            Box(
-                modifier = Modifier.size(20.dp).clip(CircleShape).background(PaneTile),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = face.chip.take(1),
-                    color = PaneInk,
-                    style = TextStyle(fontFamily = Inter, fontSize = 9.sp, fontWeight = FontWeight.Medium),
-                )
-            }
-            Spacer(Modifier.size(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
-                text = face.label,
+                text = if (isVideo) "▶" else "+",
+                color = PaneAccent,
+                style = TextStyle(fontFamily = GeistMono, fontSize = if (isVideo) 10.sp else 15.sp, fontWeight = FontWeight.Bold),
+            )
+            Text(
+                text = stringResource(if (isVideo) R.string.video_preview else R.string.viewing_post),
                 color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                style = TextStyle(fontFamily = GeistMono, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp),
             )
         }
-        Spacer(Modifier.weight(1f))
-        Box {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button) { menuOpen = true },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.MoreVert,
-                    contentDescription = stringResource(R.string.more_options),
-                    tint = PaneInk,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.refresh)) },
-                    onClick = {
-                        menuOpen = false
-                        onRefresh()
-                    },
-                )
-                if (canShareMedia) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.share_media)) },
-                        onClick = {
-                            menuOpen = false
-                            scope.launch { onShareMedia() }
-                        },
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.leave)) },
-                    onClick = {
-                        menuOpen = false
-                        onLeave()
-                    },
-                )
-            }
+        Box(
+            modifier = Modifier.size(48.dp).offset(x = 8.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onRefresh),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.refresh), tint = PaneInk, modifier = Modifier.size(21.dp))
         }
     }
 }
@@ -346,10 +285,8 @@ private fun MediaCanvas(
     videoQuality: VideoQuality,
     startMuted: () -> Boolean,
     onMutedChange: (Boolean) -> Unit,
-    onBuffering: (Boolean) -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
     val current = items[pagerState.currentPage]
     var measured by remember { mutableStateOf<Map<String, Pair<Float, Float>>>(emptyMap()) }
     val known = measured[current.id]
@@ -363,9 +300,8 @@ private fun MediaCanvas(
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val density = LocalDensity.current
         val boxW = constraints.maxWidth.toFloat().coerceAtLeast(1f)
-        val windowCap = with(density) { framedMediaMaxHeightDp(LocalConfiguration.current.screenHeightDp.toFloat()).dp.toPx() }
         val boxH = (boxW / frameAspect)
-            .coerceAtMost(windowCap)
+            .coerceAtMost(with(density) { MAX_FRAMED_MEDIA_HEIGHT.toPx() })
             .coerceAtLeast(1f)
         Box(
             modifier = Modifier
@@ -434,7 +370,6 @@ private fun MediaCanvas(
                             modifier = mediaModifier,
                             muted = inlineMuted,
                             onVideoSize = reportSize,
-                            onBuffering = onBuffering,
                         )
                     }
                 }
@@ -450,9 +385,6 @@ private fun MediaCanvas(
                                 .clickable(role = Role.Button) {
                                     inlineMuted = !inlineMuted
                                     onMutedChange(inlineMuted)
-                                    haptic.performHapticFeedback(
-                                        if (inlineMuted) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn,
-                                    )
                                 }
                                 .padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -506,20 +438,14 @@ private fun MediaCanvas(
                 },
                 modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp),
             )
-            Row(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).clip(CircleShape).background(PaneFill.copy(alpha = 0.78f)).padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
-                items.indices.forEach { index ->
-                    val active = index == pagerState.currentPage
-                    Box(
-                        modifier = Modifier
-                            .size(if (active) 7.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(if (active) PaneAccent else PaneMuted),
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.carousel_position, pagerState.currentPage + 1, items.size),
+                    color = PaneOnFill,
+                    style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                )
             }
         } else {
             post.duration?.let { duration ->
@@ -562,168 +488,299 @@ private fun CarouselButton(
 }
 
 @Composable
-private fun LoadingViewer(onBack: () -> Unit) {
-    val shimmer = rememberInfiniteTransition(label = "openShimmer")
-    val alpha by shimmer.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
-        label = "openShimmerAlpha",
-    )
+private fun LoadingViewer(progress: Float, message: String, onBack: () -> Unit, onRefresh: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    tint = PaneInk,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
+        LoadingHeader(onBack, onRefresh)
         Column(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
+                progress = { progress.coerceIn(0f, 1f) },
+                modifier = Modifier.size(36.dp),
                 color = PaneAccent,
-                strokeWidth = 3.dp,
+                trackColor = PaneBorder,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(18.dp))
             Text(
-                text = stringResource(R.string.opening_post),
+                text = stringResource(R.string.resolving_title),
                 color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                style = TextStyle(fontFamily = Geist, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.1).sp),
             )
-            Spacer(Modifier.height(28.dp))
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(PaneTile.copy(alpha = alpha)))
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(Modifier.size(width = 120.dp, height = 12.dp).clip(RoundedCornerShape(6.dp)).background(PaneTile.copy(alpha = alpha)))
-                        Box(Modifier.size(width = 72.dp, height = 10.dp).clip(RoundedCornerShape(5.dp)).background(PaneTile.copy(alpha = alpha)))
-                    }
-                }
-                Box(Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)).background(PaneTile.copy(alpha = alpha)))
-                Box(Modifier.fillMaxWidth(0.85f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(PaneTile.copy(alpha = alpha)))
-                Box(Modifier.fillMaxWidth(0.55f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(PaneTile.copy(alpha = alpha)))
-            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.resolving_subtitle),
+                color = PaneSecondary,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp),
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            Spacer(Modifier.height(24.dp))
+            LoadingProgressCard(progress, message)
+        }
+        LoadingFooter(onBack)
+    }
+}
+
+@Composable
+private fun LoadingHeader(onBack: () -> Unit, onRefresh: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        LoadingHeaderPill(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back), tint = PaneInk, modifier = Modifier.size(18.dp))
+        }
+        PaneLockup()
+        LoadingHeaderPill(onClick = onRefresh) {
+            Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.refresh), tint = PaneInk, modifier = Modifier.size(18.dp))
         }
     }
 }
 
-
 @Composable
-private fun LoadFailedViewer(reason: String, onBack: () -> Unit, onRetry: () -> Unit) {
-    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrDefault(OpenFailureKind.Network)
-    val detail = when (kind) {
-        OpenFailureKind.Private -> R.string.reason_private
-        OpenFailureKind.Expired -> R.string.reason_expired
-        OpenFailureKind.Network -> R.string.reason_network
+private fun LoadingHeaderPill(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(PaneChip)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
     }
-    StatusPage(
+}
+
+@Composable
+private fun LoadingProgressCard(progress: Float, message: String) {
+    val animatedProgress by animateFloatAsState(targetValue = progress.coerceIn(0f, 1f), animationSpec = tween(300), label = "loadingProgress")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PaneChip)
+            .padding(start = 16.dp, top = 16.dp, end = 14.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                text = stringResource(R.string.fetching_post_label),
+                color = PaneSecondary,
+                style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp),
+            )
+            Text(
+                text = "${(animatedProgress * 100).roundToInt()}%",
+                color = PaneAccent,
+                style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+            )
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(PaneBorder)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedProgress)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(PaneAccent),
+            )
+        }
+        Text(text = friendlyLoadingCopy(message), color = PaneSecondary, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
+    }
+}
+
+@Composable
+private fun LoadingFooter(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.loading_hint),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .border(1.dp, PaneBorder, RoundedCornerShape(50))
+                .clickable(role = Role.Button, onClick = onBack)
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Icons.Rounded.Close, contentDescription = null, tint = PaneInk, modifier = Modifier.size(14.dp))
+            Text(
+                text = stringResource(R.string.cancel),
+                color = PaneInk,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+            )
+        }
+    }
+}
+
+@Composable
+private fun friendlyLoadingCopy(message: String): String {
+    val raw = message.contains('<') || message.contains("Exception", ignoreCase = true)
+    return if (message.isBlank() || raw) stringResource(R.string.opening_post) else message
+}
+
+@Composable
+private fun LoadFailedViewer(url: String, reason: String, onBack: () -> Unit, onRetry: () -> Unit) {
+    FailureViewer(
+        url = url,
+        onBack = onBack,
+        label = stringResource(R.string.load_failed_label),
         title = stringResource(R.string.couldnt_open),
-        body = stringResource(detail),
-        primary = stringResource(R.string.try_again),
-        onPrimary = onRetry,
-        onBack = onBack,
+        description = stringResource(failureCopyRes(reason)),
+        detail = null,
+        actionLabel = stringResource(R.string.try_again),
+        onAction = onRetry,
+        actionIcon = Icons.Rounded.Refresh,
     )
 }
 
-private fun isFacebookMarketplace(url: String): Boolean {
-    val lower = url.lowercase()
-    return "facebook.com/marketplace" in lower || "fb.com/marketplace" in lower
-}
-
 @Composable
-private fun UnavailableViewer(url: String, onBack: () -> Unit, onOpenInBrowser: (String) -> Unit) {
-    StatusPage(
+private fun UnavailableViewer(url: String, onBack: () -> Unit) {
+    FailureViewer(
+        url = url,
+        onBack = onBack,
+        label = stringResource(R.string.unsupported_link_label),
         title = stringResource(R.string.pane_cant_show),
-        body = stringResource(R.string.not_a_single_post),
-        primary = stringResource(R.string.open_in_browser),
-        onPrimary = { onOpenInBrowser(url) },
-        onBack = onBack,
+        description = stringResource(R.string.not_a_single_post),
+        detail = null,
     )
 }
 
 @Composable
-private fun StatusPage(
-    title: String,
-    body: String,
-    primary: String,
-    onPrimary: () -> Unit,
+private fun FailureViewer(
+    url: String,
     onBack: () -> Unit,
+    label: String,
+    title: String,
+    description: String,
+    detail: String?,
+    actionLabel: String = stringResource(R.string.home),
+    onAction: () -> Unit = onBack,
+    actionIcon: ImageVector = Icons.Rounded.Home,
 ) {
     Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    tint = PaneInk,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
+        UnsupportedHeader(onBack)
         Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = title,
-                color = PaneInk,
-                textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = body,
-                modifier = Modifier.widthIn(max = 280.dp),
-                color = PaneMuted,
-                textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
-            )
-            Spacer(Modifier.height(24.dp))
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(PaneFill)
-                    .clickable(role = Role.Button, onClick = onPrimary),
+                modifier = Modifier.size(76.dp).clip(CircleShape).background(PaneTile),
                 contentAlignment = Alignment.Center,
             ) {
+                Icon(Icons.Rounded.LinkOff, contentDescription = null, tint = PaneAccent, modifier = Modifier.size(34.dp))
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.height(27.dp).clip(CircleShape).background(PaneChip).padding(horizontal = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(Icons.Rounded.LinkOff, contentDescription = null, tint = PaneSecondary, modifier = Modifier.size(13.dp))
                 Text(
-                    text = primary,
-                    color = PaneOnFill,
-                    style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                    text = label,
+                    color = PaneSecondary,
+                    style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp),
                 )
             }
+            Spacer(Modifier.height(10.dp))
             Text(
-                text = stringResource(R.string.back),
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .clickable(role = Role.Button, onClick = onBack)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                color = PaneAccent,
-                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                text = title,
+                modifier = Modifier.fillMaxWidth(),
+                color = PaneInk,
+                textAlign = TextAlign.Center,
+                style = TextStyle(fontFamily = Geist, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.1).sp),
             )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = description,
+                modifier = Modifier.fillMaxWidth(),
+                color = PaneSecondary,
+                textAlign = TextAlign.Center,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+            )
+            if (!detail.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = detail,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PaneSecondary,
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(PaneChip).padding(horizontal = 15.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier.size(34.dp).clip(CircleShape).background(PaneGround),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Link, contentDescription = null, tint = PaneAccent, modifier = Modifier.size(16.dp))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = stringResource(R.string.link_source),
+                        color = PaneSecondary,
+                        style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp),
+                    )
+                    Text(
+                        text = url,
+                        color = PaneInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 15.sp),
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Row(
+                modifier = Modifier.clip(CircleShape).border(1.dp, PaneBorder, CircleShape).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(actionIcon, contentDescription = null, tint = PaneInk, modifier = Modifier.size(14.dp))
+                Text(
+                    text = actionLabel,
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                )
+            }
         }
     }
 }
 
+@Composable
+private fun UnsupportedHeader(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        LoadingHeaderPill(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back), tint = PaneInk, modifier = Modifier.size(18.dp))
+        }
+        PaneLockup()
+        Box(
+            modifier = Modifier.size(38.dp).clip(CircleShape).background(PaneChip),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = PaneSecondary, modifier = Modifier.size(20.dp))
+        }
+    }
+}

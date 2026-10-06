@@ -193,7 +193,6 @@ fun PeekNavigation(
                     onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
                     onLeave = { while (backStack.size > 1) backStack.removeLastOrNull() },
-                    onOpenInBrowser = { url -> InstalledBrowsers.open(context, url) },
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     modifier = Modifier.safeDrawingPadding(),
                 )

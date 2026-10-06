@@ -1,6 +1,5 @@
 package app.pane.android
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -40,23 +39,6 @@ internal object InstalledBrowsers {
             )
         }
         return BrowserTrampoline.orderBrowsers(browsers, { it.packageName }, { it.label })
-    }
-
-    /** Opens [url] in the handoff browser. Never uses a generic VIEW, so Pane does not catch it again. */
-    fun open(context: Context, url: String): Boolean {
-        val pick = BrowserTrampoline.pickHandoff(
-            candidates = list(context).map { browser ->
-                BrowserTrampoline.Candidate(browser.packageName, browser.activityName)
-            },
-            ownPackage = context.packageName,
-            preferredPackage = BrowserTrampolinePreferences.readHandoff(context),
-            systemPackage = systemPackage(context),
-        ) ?: return false
-        val explicit = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            component = ComponentName(pick.packageName, pick.activityName)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        return runCatching { context.startActivity(explicit) }.isSuccess
     }
 
     fun systemPackage(context: Context): String? {

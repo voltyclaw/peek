@@ -1,5 +1,6 @@
 package app.pane.android.ui.viewer
 
+import app.pane.android.R
 import app.pane.android.ui.model.ViewerUiState
 
 /** Reasons the error page is allowed to say. Raw messages, HTML, and status codes stay off screen. */
@@ -20,6 +21,16 @@ fun openFailureKind(message: String?): OpenFailureKind {
     if (containsStatus(lower, "401", "403")) return OpenFailureKind.Private
     if (containsStatus(lower, "404", "410")) return OpenFailureKind.Expired
     return OpenFailureKind.Network
+}
+
+/** String resource for a failure the screen is allowed to show. Never the raw message. */
+fun failureCopyRes(reason: String): Int {
+    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrElse { openFailureKind(reason) }
+    return when (kind) {
+        OpenFailureKind.Private -> R.string.reason_private
+        OpenFailureKind.Expired -> R.string.reason_expired
+        OpenFailureKind.Network -> R.string.reason_network
+    }
 }
 
 /** Unsupported URLs keep the existing screen. Fetch and parse failures stay separate. */

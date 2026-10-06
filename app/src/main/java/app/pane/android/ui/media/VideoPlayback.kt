@@ -51,7 +51,6 @@ internal fun MutedInlineVideo(
     modifier: Modifier = Modifier,
     muted: Boolean = true,
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
-    onBuffering: ((Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val exoPlayer = remember(videoUrl) {
@@ -67,7 +66,6 @@ internal fun MutedInlineVideo(
         exoPlayer.volume = if (muted) 0f else 1f
     }
     val sizeCallback = rememberUpdatedState(onVideoSize)
-    val bufferingCallback = rememberUpdatedState(onBuffering)
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -78,14 +76,9 @@ internal fun MutedInlineVideo(
                 ) ?: return
                 sizeCallback.value?.invoke(display.first, display.second)
             }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                bufferingCallback.value?.invoke(playbackState == Player.STATE_BUFFERING)
-            }
         }
         exoPlayer.addListener(listener)
         onDispose {
-            bufferingCallback.value?.invoke(false)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }

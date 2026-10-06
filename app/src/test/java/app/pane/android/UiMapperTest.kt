@@ -37,8 +37,7 @@ class UiMapperTest {
         result as HomeUiState.Content
         assertEquals("A quiet morning in Kyoto", result.recentLinks.single().title)
         assertEquals("2m", result.recentLinks.single().ageLabel)
-        assertEquals("Instagram", result.recentLinks.single().sourceLabel)
-        assertEquals("IG", result.recentLinks.single().sourceChip)
+        assertEquals("INSTAGRAM · POST", result.recentLinks.single().sourceLabel)
     }
 
     @Test
@@ -106,8 +105,7 @@ class UiMapperTest {
         ) as HomeUiState.Content
         val viewed = ViewerUiMapper(UiImageMapper()).map(video)
 
-        assertEquals("Reddit", home.recentLinks.single().sourceLabel)
-        assertEquals("Reddit", home.recentLinks.single().sourceChip)
+        assertEquals("REDDIT · POST", home.recentLinks.single().sourceLabel)
         assertEquals(null, home.recentLinks.single().thumbnail)
         assertTrue(viewed.isVideo)
         assertEquals("https://v.redd.it/clip/DASH_720.mp4", viewed.videoUrl)

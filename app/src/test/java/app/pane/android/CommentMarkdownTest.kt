@@ -84,8 +84,8 @@ class CommentMarkdownTest {
     @Test
     fun nestingIndentsOneStepPerLevelAndThenStops() {
         assertEquals(0, commentNestingStepDp(0))
-        assertEquals(32, commentNestingStepDp(1))
-        assertEquals(32, commentNestingStepDp(MAX_COMMENT_DEPTH))
+        assertEquals(12, commentNestingStepDp(1))
+        assertEquals(12, commentNestingStepDp(MAX_COMMENT_DEPTH))
         assertEquals(0, commentNestingStepDp(MAX_COMMENT_DEPTH + 1))
     }
 }

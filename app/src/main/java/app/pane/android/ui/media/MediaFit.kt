@@ -1,13 +1,15 @@
 package app.pane.android.ui.media
 
+import androidx.compose.ui.unit.dp
+
 /** Landscape video until the player reports a real size. */
 internal const val VIDEO_FALLBACK_ASPECT = 16f / 9f
 
 /** Square until a photo reports its intrinsic size. */
 internal const val PHOTO_FALLBACK_ASPECT = 1f
 
-/** Framed media stops around 72% of the window, then letterboxes. */
-internal fun framedMediaMaxHeightDp(windowHeightDp: Float): Float = windowHeightDp * 0.72f
+/** Portrait media stays letterboxed instead of consuming the whole framed post. */
+internal val MAX_FRAMED_MEDIA_HEIGHT = 560.dp
 
 internal data class FittedSize(val widthPx: Float, val heightPx: Float)
 

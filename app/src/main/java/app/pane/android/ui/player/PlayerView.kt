@@ -85,6 +85,7 @@ import app.pane.android.ui.media.VideoSurface
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.displayVideoSize
 import app.pane.android.ui.media.exoPlayerFor
+import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.media.fittedContentPx
 import kotlinx.coroutines.delay
 import app.pane.android.ui.model.ViewerMediaItemUiModel
@@ -140,7 +141,7 @@ fun PlayerView(
         when (uiState) {
             is ViewerUiState.Loading -> LoadingMedia(uiState, onBack)
             is ViewerUiState.Unavailable -> UnavailableMedia(onBack)
-            is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, uiState.reason)
+            is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, uiState.reason, failed = true)
             is ViewerUiState.Content -> MediaContent(
                 post = uiState.post,
                 initialMediaIndex = initialMediaIndex,
@@ -193,31 +194,25 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnavailableMedia(onBack: () -> Unit, reason: String = "") {
+private fun UnavailableMedia(onBack: () -> Unit, reason: String = "", failed: Boolean = false) {
+    val title = stringResource(if (failed) R.string.couldnt_open else R.string.pane_cant_show)
+    val body = if (failed) stringResource(failureCopyRes(reason)) else stringResource(R.string.not_a_single_post)
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = stringResource(R.string.content_unavailable),
+                text = title,
                 color = Color.White,
+                textAlign = TextAlign.Center,
             )
-            if (reason.isNotBlank()) {
-                val kind = runCatching { app.pane.android.ui.viewer.OpenFailureKind.valueOf(reason) }
-                    .getOrDefault(app.pane.android.ui.viewer.OpenFailureKind.Network)
-                val detail = when (kind) {
-                    app.pane.android.ui.viewer.OpenFailureKind.Private -> R.string.reason_private
-                    app.pane.android.ui.viewer.OpenFailureKind.Expired -> R.string.reason_expired
-                    app.pane.android.ui.viewer.OpenFailureKind.Network -> R.string.reason_network
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(detail),
-                    color = Color.White.copy(alpha = 0.72f),
-                    textAlign = TextAlign.Center,
-                )
-            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = body,
+                color = Color.White.copy(alpha = 0.72f),
+                textAlign = TextAlign.Center,
+            )
         }
         LoadingBackButton(onBack)
     }
@@ -292,16 +287,14 @@ private fun MediaContent(
     var durationMs by remember(exoPlayer) { mutableLongStateOf(0L) }
     var scrubbing by remember(exoPlayer) { mutableStateOf(false) }
     var ended by remember(exoPlayer) { mutableStateOf(false) }
-    var captionExpanded by remember(post.title) { mutableStateOf(false) }
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(notice) {
         if (notice != null) {
             delay(1_200)
             notice = null
         }
     }
-    LaunchedEffect(chromeVisible, playing, scrubbing, playbackUrl, captionExpanded, ended) {
-        if (chromeVisible && playing && !scrubbing && !captionExpanded && !ended && playbackUrl != null) {
+    LaunchedEffect(chromeVisible, playing, scrubbing, playbackUrl, ended) {
+        if (chromeVisible && playing && !scrubbing && playbackUrl != null && !ended) {
             delay(2_500)
             chromeVisible = false
         }
@@ -493,13 +486,6 @@ private fun MediaContent(
                     muted = nextMuted
                     onMutedChange(nextMuted)
                     notice = if (nextMuted) mutedLabel else unmutedLabel
-                    haptic.performHapticFeedback(
-                        if (nextMuted) {
-                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOff
-                        } else {
-                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.ToggleOn
-                        },
-                    )
                 },
                 onSeek = { fraction ->
                     val player = exoPlayer ?: return@FullscreenChrome
@@ -513,9 +499,6 @@ private fun MediaContent(
                 },
                 onSeekFinished = { scrubbing = false },
                 onExit = onBack,
-                caption = post.title,
-                captionExpanded = captionExpanded,
-                onToggleCaption = { captionExpanded = !captionExpanded },
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
             )
         }
@@ -524,39 +507,38 @@ private fun MediaContent(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = stringResource(R.string.video_done),
                     color = Color.White,
-                    style = TextStyle(fontSize = 15.sp),
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(fontSize = 14.sp),
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
                         text = stringResource(R.string.leave),
                         modifier = Modifier
-                            .height(48.dp)
                             .clickable(role = Role.Button, onClick = onBack)
-                            .padding(vertical = 14.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         color = Color.White,
-                        style = TextStyle(fontSize = 15.sp),
+                        style = TextStyle(fontSize = 14.sp),
                     )
                     Text(
                         text = stringResource(R.string.replay),
                         modifier = Modifier
-                            .height(48.dp)
-                            .clickable(role = Role.Button) {
+                            .clickable(role = Role.Button, onClick = {
                                 val player = exoPlayer ?: return@clickable
+                                ended = false
                                 player.seekTo(0)
                                 player.playWhenReady = true
-                                ended = false
-                            }
-                            .padding(vertical = 14.dp),
+                            })
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         color = Color.White,
-                        style = TextStyle(fontSize = 15.sp),
+                        style = TextStyle(fontSize = 14.sp),
                     )
                 }
             }
@@ -580,9 +562,6 @@ private fun FullscreenChrome(
     onSeek: (Float) -> Unit,
     onSeekFinished: () -> Unit,
     onExit: () -> Unit,
-    caption: String = "",
-    captionExpanded: Boolean = false,
-    onToggleCaption: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scrubLabel = stringResource(R.string.playback_position)
@@ -597,23 +576,6 @@ private fun FullscreenChrome(
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (caption.isNotBlank()) {
-            Text(
-                text = caption,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onToggleCaption,
-                    )
-                    .padding(bottom = 8.dp),
-                color = Color.White,
-                maxLines = if (captionExpanded) 8 else 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                style = TextStyle(fontSize = 14.sp),
-            )
-        }
         if (showTransport) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
