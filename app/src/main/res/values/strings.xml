@@ -78,6 +78,9 @@
     <string name="opening_links_helper">Pane shows one post. Leaving is always one Back.</string>
     <string name="section_playback">Playback</string>
     <string name="section_opening_links">Opening links</string>
+    <string name="section_developer">Developer</string>
+    <string name="open_sample_post">Open sample post</string>
+    <string name="show_samples_in_recents">Show samples in Recents</string>
     <string name="mute_videos">Mute videos by default</string>
     <string name="mute_videos_help">Sound off until you unmute. Calmer opens.</string>
     <string name="sound_muted">Muted</string>

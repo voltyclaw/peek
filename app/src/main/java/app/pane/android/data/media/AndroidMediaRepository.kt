@@ -15,6 +15,7 @@ import app.pane.android.domain.model.RemoteMediaKind
 import app.pane.android.domain.repository.MediaRepository
 import java.io.File
 import java.io.IOException
+import java.net.URI
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -72,7 +73,31 @@ class AndroidMediaRepository(
         return savedCount
     }
 
-    private suspend fun fetch(media: RemoteMedia): PreparedMedia =
+    private suspend fun fetch(media: RemoteMedia): PreparedMedia {
+        if (media.url.startsWith("file:")) return copyLocalFile(media)
+        return fetchRemote(media)
+    }
+
+    private suspend fun copyLocalFile(media: RemoteMedia): PreparedMedia = withContext(Dispatchers.IO) {
+        val source = File(URI(media.url))
+        if (!source.isFile) throw IOException("Media file is missing")
+        val mimeType = when (media.kind) {
+            RemoteMediaKind.Video -> "video/mp4"
+            RemoteMediaKind.Image -> "image/jpeg"
+        }
+        val file = newCacheFile(media, mimeType)
+        try {
+            source.inputStream().use { input ->
+                file.outputStream().buffered().use { output -> input.copyTo(output) }
+            }
+        } catch (error: Exception) {
+            file.delete()
+            throw error
+        }
+        PreparedMedia(file.absolutePath, mimeType)
+    }
+
+    private suspend fun fetchRemote(media: RemoteMedia): PreparedMedia =
         suspendCancellableCoroutine { continuation ->
             val call = client.newCall(Request.Builder().url(media.url).build())
             continuation.invokeOnCancellation { call.cancel() }

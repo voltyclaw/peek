@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -98,6 +99,7 @@ internal fun ViewerBottomBar(
     onShare: () -> Unit,
     onOverflow: () -> Unit,
     onOpen: () -> Unit,
+    sourceMark: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().background(PaneGround)) {
@@ -109,26 +111,30 @@ internal fun ViewerBottomBar(
             QuietIconButton(Icons.Rounded.Share, stringResource(R.string.share), onShare)
             QuietIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.more_options), onOverflow)
             Box(Modifier.weight(1f))
-            Text(
-                text = openLabel,
-                color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-            )
             Box(
                 modifier = Modifier
-                    .padding(start = 10.dp, end = 8.dp)
+                    .padding(end = 8.dp)
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(PaneAccent)
                     .clickable(role = Role.Button, onClick = onOpen),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.OpenInNew,
-                    contentDescription = openLabel,
-                    tint = PaneGround,
-                    modifier = Modifier.size(20.dp),
-                )
+                if (sourceMark != null) {
+                    Icon(
+                        painter = painterResource(sourceMark),
+                        contentDescription = openLabel,
+                        tint = PaneGround,
+                        modifier = Modifier.size(22.dp),
+                    )
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.OpenInNew,
+                        contentDescription = openLabel,
+                        tint = PaneGround,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             }
         }
     }
@@ -152,12 +158,10 @@ private fun QuietIconButton(
 @Composable
 internal fun OverflowSheet(
     contextLine: String,
-    openLabel: String,
     canDownload: Boolean,
     onDismiss: () -> Unit,
     onShare: () -> Unit,
     onCopyLink: () -> Unit,
-    onOpen: () -> Unit,
     onDownload: () -> Unit,
     onAddNote: () -> Unit,
 ) {
@@ -182,7 +186,6 @@ internal fun OverflowSheet(
             )
             SheetRow(Icons.Rounded.Share, stringResource(R.string.share), null, onShare)
             SheetRow(Icons.Rounded.ContentCopy, stringResource(R.string.copy_link), null, onCopyLink)
-            SheetRow(Icons.AutoMirrored.Rounded.OpenInNew, openLabel, stringResource(R.string.leaves_pane), onOpen)
             if (canDownload) {
                 SheetRow(Icons.Rounded.Download, stringResource(R.string.download), null, onDownload)
             }

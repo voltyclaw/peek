@@ -31,10 +31,15 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.pane.android.BrowserTrampoline
 import app.pane.android.BrowserTrampolinePreferences
+import app.pane.android.BuildConfig
 import app.pane.android.InstalledBrowsers
 import app.pane.android.app.AppContainer
+import app.pane.android.data.sample.SamplePosts
+import app.pane.android.data.sample.SampleRecentsPreferences
 import app.pane.android.ui.home.HandoffBrowserOption
 import app.pane.android.ui.home.HomeRoute
+import app.pane.android.ui.home.SamplePickerGroup
+import app.pane.android.ui.home.SamplePickerRow
 import app.pane.android.ui.media.VideoQualityPreferences
 import app.pane.android.ui.home.HomeViewModel
 import app.pane.android.ui.player.PlayerRoute
@@ -58,6 +63,34 @@ fun PeekNavigation(
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
+    var showSamples by remember {
+        mutableStateOf(BuildConfig.DEBUG && SampleRecentsPreferences.read(context))
+    }
+    val sampleGroups = remember {
+        if (!BuildConfig.DEBUG) {
+            emptyList()
+        } else {
+            SamplePosts.entries.groupBy { it.group }.map { (title, rows) ->
+                SamplePickerGroup(
+                    title = title,
+                    samples = rows.map { row -> SamplePickerRow(row.id, row.label, row.canonicalUrl) },
+                )
+            }
+        }
+    }
+    LaunchedEffect(showSamples) {
+        if (!BuildConfig.DEBUG) return@LaunchedEffect
+        if (showSamples) {
+            SamplePosts.entries.asReversed().forEach { entry ->
+                container.recentLinksRepository.markOpened(entry.canonicalUrl)
+            }
+        } else {
+            SamplePosts.entries.forEach { entry ->
+                container.recentLinksRepository.remove(entry.canonicalUrl)
+                container.recentLinksRepository.remove(SamplePosts.deepLink(entry.id))
+            }
+        }
+    }
     var storedHandoff by remember { mutableStateOf(BrowserTrampolinePreferences.readHandoff(context).orEmpty()) }
     var installedBrowsers by remember { mutableStateOf(InstalledBrowsers.list(context)) }
     var systemBrowser by remember { mutableStateOf(InstalledBrowsers.systemPackage(context)) }
@@ -168,6 +201,14 @@ fun PeekNavigation(
                     },
                     onRemoveRecent = homeViewModel::removeRecent,
                     onClearRecents = homeViewModel::clearRecents,
+                    showDeveloperTools = BuildConfig.DEBUG,
+                    sampleGroups = sampleGroups,
+                    showSamplesInRecents = showSamples,
+                    onShowSamplesInRecents = { enabled ->
+                        showSamples = enabled
+                        if (BuildConfig.DEBUG) SampleRecentsPreferences.write(context, enabled)
+                    },
+                    onOpenSample = { url -> backStack.add(ViewerKey(url)) },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

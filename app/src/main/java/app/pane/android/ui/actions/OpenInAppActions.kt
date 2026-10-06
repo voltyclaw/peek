@@ -16,10 +16,19 @@ internal data class OpenInAppTarget(val uri: String, val packageName: String?)
 
 internal fun openInAppLabelRes(url: String): Int = when {
     XUrls.supports(url) -> R.string.open_in_x
-    FacebookUrls.supports(url) -> R.string.open_in_facebook
+    FacebookUrls.supports(url) || FacebookUrls.isMarketplace(url) -> R.string.open_in_facebook
     RedditUrls.supports(url) -> R.string.open_in_reddit
     isInstagramUrl(url) -> R.string.open_in_instagram
     else -> R.string.open_in_app
+}
+
+/** Monochrome source glyph for the Open button. Null uses the generic arrow. */
+internal fun sourceMarkRes(url: String): Int? = when {
+    XUrls.supports(url) -> R.drawable.ic_source_x
+    FacebookUrls.supports(url) || FacebookUrls.isMarketplace(url) -> R.drawable.ic_source_facebook
+    RedditUrls.supports(url) -> R.drawable.ic_source_reddit
+    isInstagramUrl(url) -> R.drawable.ic_source_instagram
+    else -> null
 }
 
 internal fun openInAppPackages(url: String): List<String> =
@@ -56,6 +65,13 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(https, "com.reddit.frontpage"),
             OpenInAppTarget("reddit://reddit$path", "com.reddit.frontpage"),
             OpenInAppTarget(https, null),
+        )
+    }
+    if (FacebookUrls.isMarketplace(unwrapped)) {
+        return listOf(
+            OpenInAppTarget(unwrapped, "com.facebook.katana"),
+            OpenInAppTarget(unwrapped, "com.facebook.lite"),
+            OpenInAppTarget(unwrapped, null),
         )
     }
     if (isInstagramUrl(unwrapped)) {

@@ -20,12 +20,15 @@ import app.pane.android.data.reddit.AndroidRedditPageLoader
 import app.pane.android.data.reddit.RedditDirectPageLoader
 import app.pane.android.data.reddit.RedditLinkContentRepository
 import app.pane.android.data.resolver.RoutingLinkContentRepository
+import app.pane.android.data.sample.SampleLinkContentRepository
+import app.pane.android.data.sample.SampleMedia
 import app.pane.android.data.x.XDirectPageLoader
 import app.pane.android.data.x.XLinkContentRepository
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.RecentLinksRepository
+import app.pane.android.BuildConfig
 import app.pane.android.domain.usecase.ObserveRecentContentUseCase
 import app.pane.android.domain.usecase.OpenLinkUseCase
 import app.pane.android.domain.usecase.RefreshLinkUseCase
@@ -91,12 +94,16 @@ class DefaultAppContainer(
         cacheStore = linkContentCacheStore,
     )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
-        listOf(
-            RoutingLinkContentRepository.Route(instagramRepository::supports, instagramRepository),
-            RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository),
-            RoutingLinkContentRepository.Route(facebookRepository::supports, facebookRepository),
-            RoutingLinkContentRepository.Route(xRepository::supports, xRepository),
-        ),
+        buildList {
+            if (BuildConfig.DEBUG) {
+                val samples = SampleLinkContentRepository(SampleMedia.install(context))
+                add(RoutingLinkContentRepository.Route(samples::supports, samples))
+            }
+            add(RoutingLinkContentRepository.Route(instagramRepository::supports, instagramRepository))
+            add(RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository))
+            add(RoutingLinkContentRepository.Route(facebookRepository::supports, facebookRepository))
+            add(RoutingLinkContentRepository.Route(xRepository::supports, xRepository))
+        },
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())
     private val recentLinksDataStore = DataStoreFactory.create(
@@ -105,7 +112,11 @@ class DefaultAppContainer(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         produceFile = { File(context.filesDir, "recent_links.json") },
     )
-    private val recentLinksStore = DataStoreRecentLinksRepository(recentLinksDataStore, clock)
+    private val recentLinksStore = DataStoreRecentLinksRepository(
+        recentLinksDataStore,
+        clock,
+        maximumEntries = if (BuildConfig.DEBUG) 32 else 8,
+    )
     private val mediaRepository = AndroidMediaRepository(context)
     private val imageMapper = UiImageMapper()
 

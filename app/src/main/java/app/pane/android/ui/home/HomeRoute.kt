@@ -52,6 +52,11 @@ fun HomeRoute(
     onRemoveRecent: (String) -> Unit = {},
     onClearRecents: () -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
+    showDeveloperTools: Boolean = false,
+    sampleGroups: List<SamplePickerGroup> = emptyList(),
+    showSamplesInRecents: Boolean = false,
+    onShowSamplesInRecents: (Boolean) -> Unit = {},
+    onOpenSample: (String) -> Unit = {},
 ) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
@@ -192,6 +197,11 @@ fun HomeRoute(
                 FirstLaunchPreferences.dismiss(context)
                 showFirstLaunchHint = false
             },
+            showDeveloperTools = showDeveloperTools,
+            sampleGroups = sampleGroups,
+            showSamplesInRecents = showSamplesInRecents,
+            onShowSamplesInRecents = onShowSamplesInRecents,
+            onOpenSample = onOpenSample,
         )
         SnackbarHost(
             hostState = snackbarHostState,

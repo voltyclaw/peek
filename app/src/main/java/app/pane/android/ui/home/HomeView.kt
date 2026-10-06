@@ -120,7 +120,13 @@ fun HomeView(
     linkIsValid: Boolean = false,
     showLinkError: Boolean = false,
     onSubmitLink: () -> Unit = {},
+    showDeveloperTools: Boolean = false,
+    sampleGroups: List<SamplePickerGroup> = emptyList(),
+    showSamplesInRecents: Boolean = false,
+    onShowSamplesInRecents: (Boolean) -> Unit = {},
+    onOpenSample: (String) -> Unit = {},
 ) {
+    var samplePickerOpen by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -144,6 +150,10 @@ fun HomeView(
                 onHandoffBrowser,
                 onSetDefaultBrowser,
                 onClearRecents,
+                showDeveloperTools,
+                showSamplesInRecents,
+                onShowSamplesInRecents,
+                onOpenSamplePicker = { samplePickerOpen = true },
             )
             Text(
                 text = stringResource(R.string.hub_tagline),
@@ -166,6 +176,16 @@ fun HomeView(
                 is HomeUiState.Content -> RecentLinks(uiState.recentLinks, onRecentLink, onRemoveRecent)
             }
         }
+        if (samplePickerOpen) {
+            SamplePickerDialog(
+                groups = sampleGroups,
+                onDismiss = { samplePickerOpen = false },
+                onOpen = { url ->
+                    samplePickerOpen = false
+                    onOpenSample(url)
+                },
+            )
+        }
     }
 }
 
@@ -184,6 +204,10 @@ private fun HomeHeader(
     onHandoffBrowser: (String) -> Unit,
     onSetDefaultBrowser: () -> Unit,
     onClearRecents: () -> Unit,
+    showDeveloperTools: Boolean,
+    showSamplesInRecents: Boolean,
+    onShowSamplesInRecents: (Boolean) -> Unit,
+    onOpenSamplePicker: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -223,6 +247,13 @@ private fun HomeHeader(
                 onHandoffBrowser = onHandoffBrowser,
                 onSetDefaultBrowser = onSetDefaultBrowser,
                 onClearRecents = onClearRecents,
+                showDeveloperTools = showDeveloperTools,
+                showSamplesInRecents = showSamplesInRecents,
+                onShowSamplesInRecents = onShowSamplesInRecents,
+                onOpenSamplePicker = {
+                    menuOpen = false
+                    onOpenSamplePicker()
+                },
             )
         }
     }
@@ -245,6 +276,10 @@ private fun OptionsMenu(
     onHandoffBrowser: (String) -> Unit,
     onSetDefaultBrowser: () -> Unit,
     onClearRecents: () -> Unit,
+    showDeveloperTools: Boolean,
+    showSamplesInRecents: Boolean,
+    onShowSamplesInRecents: (Boolean) -> Unit,
+    onOpenSamplePicker: () -> Unit,
 ) {
     if (!expanded) return
     Dialog(
@@ -417,6 +452,42 @@ private fun OptionsMenu(
                         )
                     }
                 }
+                if (showDeveloperTools) {
+                    SettingsSection(stringResource(R.string.section_developer))
+                    Text(
+                        text = stringResource(R.string.open_sample_post),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clickable(role = Role.Button, onClick = onOpenSamplePicker)
+                            .padding(vertical = 16.dp),
+                        color = PaneInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.show_samples_in_recents),
+                            modifier = Modifier.weight(1f).padding(end = 12.dp),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Switch(
+                            checked = showSamplesInRecents,
+                            onCheckedChange = onShowSamplesInRecents,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = PaneInk,
+                                uncheckedTrackColor = PaneBorder,
+                                checkedThumbColor = PaneGround,
+                                uncheckedThumbColor = PaneInk,
+                                checkedBorderColor = Color.Transparent,
+                                uncheckedBorderColor = Color.Transparent,
+                            ),
+                        )
+                    }
+                }
                 SettingsHairline()
                 Text(
                     text = stringResource(R.string.clear_recent_posts),
@@ -464,6 +535,67 @@ private fun OptionsMenu(
                     color = PaneInk,
                     style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SamplePickerDialog(
+    groups: List<SamplePickerGroup>,
+    onDismiss: () -> Unit,
+    onOpen: (String) -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(Modifier.fillMaxSize().background(PaneGround)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 4.dp, top = 8.dp)
+                    .heightIn(min = 56.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.open_sample_post),
+                    modifier = Modifier.weight(1f),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable(role = Role.Button, onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cancel), tint = PaneMuted)
+                }
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                groups.forEachIndexed { index, group ->
+                    SettingsSection(group.title, first = index == 0)
+                    group.samples.forEach { sample ->
+                        Text(
+                            text = sample.label,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp)
+                                .clickable(role = Role.Button) { onOpen(sample.url) }
+                                .padding(vertical = 14.dp),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        )
+                    }
+                }
             }
         }
     }

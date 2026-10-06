@@ -1,6 +1,7 @@
 package app.pane.android
 
 import app.pane.android.data.facebook.FacebookUrls
+import app.pane.android.data.sample.SamplePosts
 import app.pane.android.domain.model.LinkShims
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -59,6 +60,21 @@ class IncomingLinkTest {
             "https://www.instagram.com/p/abc123/",
             LinkShims.unwrap("https://www.instagram.com/p/abc123/"),
         )
+    }
+
+    @Test
+    fun debugSampleDeepLinkOpensTheCanonicalPost() {
+        val opened = IncomingLink.urlFrom(
+            action = "android.intent.action.VIEW",
+            dataString = "pane://sample/ig-reel",
+            extraText = null,
+            extraHtml = null,
+        )
+        if (BuildConfig.DEBUG) {
+            assertEquals(SamplePosts.entry("ig-reel")!!.canonicalUrl, opened)
+        } else {
+            assertNull(opened)
+        }
     }
 
     @Test

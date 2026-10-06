@@ -1,6 +1,7 @@
 package app.pane.android
 
 import android.content.Intent
+import app.pane.android.data.sample.SamplePosts
 import app.pane.android.domain.model.LinkShims
 import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
 
@@ -40,7 +41,13 @@ internal object IncomingLink {
         clipText: String? = null,
     ): String? {
         val raw = when (action) {
-            ACTION_VIEW -> dataString?.takeIf { it.isWebUrl() }
+            ACTION_VIEW -> dataString?.let { data ->
+                if (BuildConfig.DEBUG) {
+                    SamplePosts.canonicalForDeepLink(data) ?: data.takeIf { it.isWebUrl() }
+                } else {
+                    data.takeIf { it.isWebUrl() }
+                }
+            }
             ACTION_SEND -> extractUrl(
                 extraText?.takeIf { it.isNotBlank() }
                     ?: extraHtml?.takeIf { it.isNotBlank() }

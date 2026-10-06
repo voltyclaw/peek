@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.ui.actions.openInAppLabelRes
+import app.pane.android.ui.actions.sourceMarkRes
 import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
@@ -207,6 +208,7 @@ private fun ColumnScope.ViewerContent(
 ) {
     val host = displayHost(post.sourceUrl)
     val openLabel = stringResource(openInAppLabelRes(post.sourceUrl))
+    val sourceMark = sourceMarkRes(post.sourceUrl)
     val scope = rememberCoroutineScope()
     var overflow by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf(false) }
@@ -270,10 +272,13 @@ private fun ColumnScope.ViewerContent(
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (reddit) {
                     RedditBody(post)
+                    if (outbound != null && linkCard) {
+                        LinkPreviewCard(outbound, currentItem, onOpenOutbound)
+                    }
                 } else if (post.authorThread.size >= 2) {
                     AuthorCaption(post)
                     AuthorThreadSection(post, if (hasMedia) currentItem?.image else null)
-                } else if (linkCard && outbound != null) {
+                } else if (outbound != null && linkCard) {
                     CaptionText(post)
                     LinkPreviewCard(outbound, currentItem, onOpenOutbound)
                 } else if (textOnly) {
@@ -304,11 +309,11 @@ private fun ColumnScope.ViewerContent(
         onShare = { scope.launch { onSharePost(post.sourceUrl, post.title) } },
         onOverflow = { overflow = true },
         onOpen = { scope.launch { onOpenInApp(post.sourceUrl) } },
+        sourceMark = sourceMark,
     )
     if (overflow) {
         OverflowSheet(
             contextLine = listOf(post.authorName, host).filter { it.isNotBlank() }.joinToString(" · "),
-            openLabel = openLabel,
             canDownload = canDownload,
             onDismiss = { overflow = false },
             onShare = {
@@ -318,10 +323,6 @@ private fun ColumnScope.ViewerContent(
             onCopyLink = {
                 overflow = false
                 scope.launch { onCopyLink(post.sourceUrl) }
-            },
-            onOpen = {
-                overflow = false
-                scope.launch { onOpenInApp(post.sourceUrl) }
             },
             onDownload = {
                 overflow = false
@@ -789,6 +790,7 @@ private fun ErrorShell(
 ) {
     val host = displayHost(url)
     val openLabel = stringResource(openInAppLabelRes(url))
+    val sourceMark = sourceMarkRes(url)
     var overflow by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -800,17 +802,21 @@ private fun ErrorShell(
             SourceChip(host, overMedia = false)
         }
         Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) { body() }
-        ViewerBottomBar(openLabel, onShare = onShare, onOverflow = { overflow = true }, onOpen = onOpen)
+        ViewerBottomBar(
+            openLabel,
+            onShare = onShare,
+            onOverflow = { overflow = true },
+            onOpen = onOpen,
+            sourceMark = sourceMark,
+        )
     }
     if (overflow) {
         OverflowSheet(
             contextLine = host,
-            openLabel = openLabel,
             canDownload = false,
             onDismiss = { overflow = false },
             onShare = { overflow = false; onShare() },
             onCopyLink = { overflow = false; onCopy() },
-            onOpen = { overflow = false; onOpen() },
             onDownload = {},
             onAddNote = { overflow = false },
         )

@@ -14,8 +14,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
-        versionName = "1.0.32"
+        versionCode = 35
+        versionName = "1.0.33"
     }
 
     buildTypes {
@@ -31,7 +31,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
