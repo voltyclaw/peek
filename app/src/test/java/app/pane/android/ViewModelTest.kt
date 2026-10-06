@@ -47,6 +47,7 @@ class ViewModelTest {
         val viewModel = HomeViewModel(
             observeRecentContent = ObserveRecentContentUseCase(FixtureLinkContentRepository(), recents),
             mapper = HomeUiMapper(UiImageMapper(), Clock { 61_000L }, ZoneOffset.UTC),
+            recentLinksRepository = recents,
         )
         val collection = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -161,6 +162,14 @@ private class FakeRecentLinksRepository(initial: List<RecentLink>) : RecentLinks
 
     override suspend fun markOpened(url: String) {
         openedUrls += url
+    }
+
+    override suspend fun remove(url: String) {
+        state.value = state.value.filterNot { it.url == url }
+    }
+
+    override suspend fun clear() {
+        state.value = emptyList()
     }
 }
 

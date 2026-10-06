@@ -35,6 +35,13 @@ class ExtractUrlFromTextUseCaseTest {
     }
 
     @Test
+    fun countsEveryWebUrlAndKeepsTheFirst() {
+        val text = "https://instagram.com/p/one\nhttps://reddit.com/r/pics/comments/abc/"
+        assertEquals(2, extractUrl.count(text))
+        assertEquals("https://instagram.com/p/one", extractUrl(text))
+    }
+
+    @Test
     fun rejectsMissingInvalidAndNonWebUrls() {
         assertNull(extractUrl(null))
         assertNull(extractUrl("just some text"))

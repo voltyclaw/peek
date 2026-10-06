@@ -25,6 +25,7 @@ import app.pane.android.data.x.XLinkContentRepository
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.LinkContentRepository
+import app.pane.android.domain.repository.RecentLinksRepository
 import app.pane.android.domain.usecase.ObserveRecentContentUseCase
 import app.pane.android.domain.usecase.OpenLinkUseCase
 import app.pane.android.domain.usecase.RefreshLinkUseCase
@@ -48,6 +49,7 @@ interface AppContainer {
     val downloadMedia: DownloadMediaUseCase
     val homeUiMapper: HomeUiMapper
     val viewerUiMapper: ViewerUiMapper
+    val recentLinksRepository: RecentLinksRepository
 }
 
 class DefaultAppContainer(
@@ -103,26 +105,27 @@ class DefaultAppContainer(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         produceFile = { File(context.filesDir, "recent_links.json") },
     )
-    private val recentLinksRepository = DataStoreRecentLinksRepository(recentLinksDataStore, clock)
+    private val recentLinksStore = DataStoreRecentLinksRepository(recentLinksDataStore, clock)
     private val mediaRepository = AndroidMediaRepository(context)
     private val imageMapper = UiImageMapper()
 
     override val observeRecentContent = ObserveRecentContentUseCase(
         contentRepository = contentRepository,
-        recentLinksRepository = recentLinksRepository,
+        recentLinksRepository = recentLinksStore,
     )
     override val openLink = OpenLinkUseCase(
         contentRepository = contentRepository,
-        recentLinksRepository = recentLinksRepository,
+        recentLinksRepository = recentLinksStore,
     )
     override val refreshLink = RefreshLinkUseCase(
         contentRepository = contentRepository,
-        recentLinksRepository = recentLinksRepository,
+        recentLinksRepository = recentLinksStore,
     )
     override val loadMoreComments = LoadMoreCommentsUseCase(contentRepository)
     override val prepareMediaForSharing = PrepareMediaForSharingUseCase(mediaRepository)
     override val downloadMedia = DownloadMediaUseCase(mediaRepository)
     override val homeUiMapper = HomeUiMapper(imageMapper, clock)
     override val viewerUiMapper = ViewerUiMapper(imageMapper)
+    override val recentLinksRepository = recentLinksStore
 
 }

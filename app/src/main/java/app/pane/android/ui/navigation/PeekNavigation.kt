@@ -84,7 +84,11 @@ fun PeekNavigation(
     )?.packageName.orEmpty()
     val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
-        factory = HomeViewModel.Factory(container.observeRecentContent, container.homeUiMapper),
+        factory = HomeViewModel.Factory(
+            container.observeRecentContent,
+            container.homeUiMapper,
+            container.recentLinksRepository,
+        ),
     )
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -171,6 +175,8 @@ fun PeekNavigation(
                         }
                         BrowserTrampolinePreferences.requestDefaultBrowser(context)
                     },
+                    onRemoveRecent = homeViewModel::removeRecent,
+                    onClearRecents = homeViewModel::clearRecents,
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
@@ -186,6 +192,8 @@ fun PeekNavigation(
                     startMuted = { SoundPreferences.startMuted(context) },
                     onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
+                    onLeave = { while (backStack.size > 1) backStack.removeLastOrNull() },
+                    onOpenInBrowser = { url -> InstalledBrowsers.open(context, url) },
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     modifier = Modifier.safeDrawingPadding(),
                 )

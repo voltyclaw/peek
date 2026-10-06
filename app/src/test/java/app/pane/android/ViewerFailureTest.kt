@@ -1,6 +1,7 @@
 package app.pane.android
 
 import app.pane.android.ui.model.ViewerUiState
+import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.viewerStateFor
 import java.io.IOException
 import org.junit.Assert.assertEquals
@@ -25,6 +26,6 @@ class ViewerFailureTest {
 
         val failed = state as ViewerUiState.LoadFailed
         assertEquals(url, failed.url)
-        assertEquals("Reddit blocked the request (HTTP 403)", failed.reason)
+        assertEquals(OpenFailureKind.Private.name, failed.reason)
     }
 }

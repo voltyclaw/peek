@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.map
 class DataStoreRecentLinksRepository(
     private val dataStore: DataStore<RecentLinksDocument>,
     private val clock: Clock,
-    private val maximumEntries: Int = 20,
+    private val maximumEntries: Int = 8,
 ) : RecentLinksRepository {
     override fun observeRecents(): Flow<List<RecentLink>> = dataStore.data.map { document ->
         document.links
@@ -26,5 +26,15 @@ class DataStoreRecentLinksRepository(
                     .take(maximumEntries),
             )
         }
+    }
+
+    override suspend fun remove(url: String) {
+        dataStore.updateData { current ->
+            current.copy(links = current.links.filterNot { it.url == url })
+        }
+    }
+
+    override suspend fun clear() {
+        dataStore.updateData { RecentLinksDocument(links = emptyList()) }
     }
 }

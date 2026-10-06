@@ -3,18 +3,28 @@ package app.pane.android.ui.viewer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import app.pane.android.R
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
@@ -30,6 +40,8 @@ fun ViewerRoute(
     downloadMedia: DownloadMediaUseCase,
     onBack: () -> Unit,
     onOpenMedia: (Int) -> Unit,
+    onLeave: () -> Unit = onBack,
+    onOpenInBrowser: (String) -> Boolean = { false },
     modifier: Modifier = Modifier,
     videoQuality: VideoQuality = VideoQuality.Auto,
     startMuted: () -> Boolean = { true },
@@ -37,6 +49,17 @@ fun ViewerRoute(
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val noBrowser = stringResource(R.string.browser_trampoline_no_browser)
+    var celebrated by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(viewerUiState) {
+        if (viewerUiState is ViewerUiState.Content && !celebrated) {
+            celebrated = true
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+    }
     var handedToImmersive by rememberSaveable { mutableStateOf(false) }
     var measuredWidth by remember { mutableFloatStateOf(0f) }
     var measuredHeight by remember { mutableFloatStateOf(0f) }
@@ -69,6 +92,7 @@ fun ViewerRoute(
         return
     }
 
+    Box(modifier.fillMaxSize()) {
     ViewerView(
         uiState = viewerUiState,
         onBack = onBack,
@@ -90,6 +114,15 @@ fun ViewerRoute(
                 measuredHeight = height
             }
         },
-        modifier = modifier.fillMaxSize(),
+        onLeave = onLeave,
+        onOpenInBrowser = { url ->
+            val opened = onOpenInBrowser(url)
+            if (!opened) {
+                scope.launch { snackbarHostState.showSnackbar(noBrowser, duration = SnackbarDuration.Short) }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
     )
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+    }
 }

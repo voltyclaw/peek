@@ -35,16 +35,35 @@ class RecentLinksRepositoryTest {
     }
 
     @Test
-    fun historyIsCappedAtTwentyEntries() = runTest {
-        val records = (1..20).map { RecentLinkRecord("url-$it", it.toLong()) }
+    fun historyIsCappedAtEightEntries() = runTest {
+        val records = (1..8).map { RecentLinkRecord("url-$it", it.toLong()) }
         val store = FakeDataStore(RecentLinksDocument(records))
         val repository = DataStoreRecentLinksRepository(store, Clock { 1_000 })
 
         repository.markOpened("new-url")
 
         val links = repository.observeRecents().first()
-        assertEquals(20, links.size)
+        assertEquals(8, links.size)
         assertEquals("new-url", links.first().url)
+    }
+
+    @Test
+    fun removeDropsOneLinkAndClearDropsTheRest() = runTest {
+        val store = FakeDataStore(
+            RecentLinksDocument(
+                listOf(
+                    RecentLinkRecord("one", 100),
+                    RecentLinkRecord("two", 200),
+                ),
+            ),
+        )
+        val repository = DataStoreRecentLinksRepository(store, Clock { 1 })
+
+        repository.remove("one")
+        assertEquals(listOf("two"), repository.observeRecents().first().map { it.url })
+
+        repository.clear()
+        assertEquals(emptyList<String>(), repository.observeRecents().first().map { it.url })
     }
 }
 

@@ -18,7 +18,9 @@ import app.pane.android.ui.model.AuthorThreadPostUiModel
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
+import app.pane.android.ui.model.SourceFace
 import app.pane.android.ui.model.UiImage
+import app.pane.android.ui.model.sourceFace
 import app.pane.android.ui.model.VideoSourceUiModel
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
@@ -62,39 +64,43 @@ class HomeUiMapper(
             recentLinks = recents.map { recent ->
                 val content = recent.content
                 if (content == null) {
+                    val face = sourceFace(recent.recentLink.url)
                     RecentLinkUiModel(
                         url = recent.recentLink.url,
                         title = recent.recentLink.url,
-                        sourceLabel = "",
+                        sourceLabel = face.label,
                         ageLabel = ageLabel(recent.recentLink.openedAtEpochMillis),
                         thumbnail = null,
                         thumbnailDescription = recent.recentLink.url,
                         isCached = false,
+                        sourceChip = face.chip,
                     )
                 } else {
+                    val face = faceFor(content)
                     RecentLinkUiModel(
                         url = content.url,
                         title = content.title,
-                        sourceLabel = sourceLabel(content),
+                        sourceLabel = face.label,
                         ageLabel = ageLabel(recent.recentLink.openedAtEpochMillis),
                         thumbnail = imageMapper.map(content.thumbnail).takeUnless { image ->
                             image is UiImage.Url && image.value.isBlank()
                         },
                         thumbnailDescription = content.title,
                         isCached = true,
+                        sourceChip = face.chip,
                     )
                 }
             },
         )
     }
 
-    private fun sourceLabel(content: LinkContent): String = when (content.source) {
-        LinkSource.Instagram -> if (content.kind == LinkKind.Video) "INSTAGRAM · REEL" else "INSTAGRAM · POST"
-        LinkSource.YouTube -> "YOUTUBE · VIDEO"
-        LinkSource.TikTok -> "TIKTOK · CLIP"
-        LinkSource.Reddit -> if (content.kind == LinkKind.Video) "REDDIT · VIDEO" else "REDDIT · POST"
-        LinkSource.Facebook -> if (content.kind == LinkKind.Video) "FACEBOOK · VIDEO" else "FACEBOOK · POST"
-        LinkSource.X -> if (content.kind == LinkKind.Video) "X · VIDEO" else "X · POST"
+    private fun faceFor(content: LinkContent): SourceFace = when (content.source) {
+        LinkSource.Instagram -> SourceFace("IG", "Instagram")
+        LinkSource.Reddit -> SourceFace("Reddit", "Reddit")
+        LinkSource.Facebook -> SourceFace("FB", "Facebook")
+        LinkSource.X -> SourceFace("X", "X")
+        LinkSource.YouTube -> sourceFace(content.url).takeIf { it.chip.isNotEmpty() } ?: SourceFace("YT", "YouTube")
+        LinkSource.TikTok -> sourceFace(content.url).takeIf { it.chip.isNotEmpty() } ?: SourceFace("TT", "TikTok")
     }
 
     private fun ageLabel(openedAtEpochMillis: Long): String {

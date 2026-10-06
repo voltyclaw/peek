@@ -33,6 +33,7 @@ data class RecentLinkUiModel(
     val thumbnail: UiImage?,
     val thumbnailDescription: String,
     val isCached: Boolean,
+    val sourceChip: String = "",
 )
 
 @Immutable

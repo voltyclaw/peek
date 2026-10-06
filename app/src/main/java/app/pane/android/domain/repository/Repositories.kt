@@ -52,6 +52,8 @@ interface LinkContentRepository {
 interface RecentLinksRepository {
     fun observeRecents(): Flow<List<RecentLink>>
     suspend fun markOpened(url: String)
+    suspend fun remove(url: String)
+    suspend fun clear()
 }
 
 interface MediaRepository {

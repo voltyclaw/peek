@@ -28,4 +28,6 @@ private class RecordingRecentLinksRepository : RecentLinksRepository {
     var lastOpened: String? = null
     override fun observeRecents(): Flow<List<RecentLink>> = items
     override suspend fun markOpened(url: String) { lastOpened = url }
+    override suspend fun remove(url: String) = Unit
+    override suspend fun clear() = Unit
 }

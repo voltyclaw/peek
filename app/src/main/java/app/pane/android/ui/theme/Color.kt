@@ -35,10 +35,10 @@ val LightPaneColors = PaneColors(
 
 val DarkPaneColors = PaneColors(
     ground = Color(0xFF141C16),
-    ink = Color(0xFFE7F0E8),
+    ink = Color(0xFFE8EEE9),
     accent = Color(0xFF9BC9A5),
     secondary = Color(0xFFA8CDB4),
-    muted = Color(0xFF9AADA3),
+    muted = Color(0xFF8A9A8E),
     border = Color(0xFF2A3530),
     tile = Color(0xFF1A221C),
     chip = Color(0xFF3A5238),
