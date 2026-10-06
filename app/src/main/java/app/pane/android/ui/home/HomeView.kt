@@ -1,6 +1,8 @@
 package app.pane.android.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +21,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -27,7 +33,8 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -44,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -52,6 +61,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -105,6 +115,11 @@ fun HomeView(
     onDismissFirstLaunchHint: () -> Unit = {},
     onRemoveRecent: (String) -> Unit = {},
     onClearRecents: () -> Unit = {},
+    linkDraft: String = "",
+    onLinkDraft: (String) -> Unit = {},
+    linkIsValid: Boolean = false,
+    showLinkError: Boolean = false,
+    onSubmitLink: () -> Unit = {},
 ) {
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -117,10 +132,7 @@ fun HomeView(
         ) {
             HomeHeader(
                 onOpenLinkSettings,
-                themeMode,
-                onThemeMode,
-                backBehavior,
-                onBackBehavior,
+                versionLabel,
                 videoQuality,
                 onVideoQuality,
                 soundMode,
@@ -133,26 +145,21 @@ fun HomeView(
                 onSetDefaultBrowser,
                 onClearRecents,
             )
-            if (versionLabel.isNotBlank()) {
-                Text(
-                    text = versionLabel,
-                    color = PaneMuted,
-                    style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp),
-                )
-            }
-            Spacer(Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.empty_home_hint),
-                color = PaneSecondary,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 18.sp),
+                text = stringResource(R.string.hub_tagline),
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp),
             )
-            Spacer(Modifier.height(20.dp))
-            ClipboardEntry(onPasteClick)
-            if (showFirstLaunchHint) {
-                Spacer(Modifier.height(12.dp))
-                FirstLaunchHint(onDismissFirstLaunchHint)
-            }
-            Spacer(Modifier.height(20.dp))
+            PasteField(
+                value = linkDraft,
+                onValueChange = onLinkDraft,
+                valid = linkIsValid,
+                showError = showLinkError,
+                onSubmit = onSubmitLink,
+                onPaste = onPasteClick,
+            )
+            Spacer(Modifier.height(22.dp))
             when (uiState) {
                 HomeUiState.Loading -> LoadingRecents()
                 HomeUiState.Empty -> EmptyRecents()
@@ -165,10 +172,7 @@ fun HomeView(
 @Composable
 private fun HomeHeader(
     onOpenLinkSettings: () -> Unit,
-    themeMode: ThemeMode,
-    onThemeMode: (ThemeMode) -> Unit,
-    backBehavior: BackBehavior,
-    onBackBehavior: (BackBehavior) -> Unit,
+    versionLabel: String,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
     soundMode: SoundMode,
@@ -184,7 +188,7 @@ private fun HomeHeader(
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
     Row(
-        modifier = Modifier.fillMaxWidth().height(34.dp),
+        modifier = Modifier.fillMaxWidth().height(48.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -198,19 +202,16 @@ private fun HomeHeader(
                     .semantics { contentDescription = optionsDescription },
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Icon(Icons.Rounded.Tune, contentDescription = null, tint = PaneSecondary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.Settings, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(20.dp))
             }
             OptionsMenu(
                 expanded = menuOpen,
-                themeMode = themeMode,
-                backBehavior = backBehavior,
+                versionLabel = versionLabel,
                 onDismiss = { menuOpen = false },
                 onOpenLinkSettings = {
                     menuOpen = false
                     onOpenLinkSettings()
                 },
-                onThemeMode = onThemeMode,
-                onBackBehavior = onBackBehavior,
                 videoQuality = videoQuality,
                 onVideoQuality = onVideoQuality,
                 soundMode = soundMode,
@@ -230,12 +231,9 @@ private fun HomeHeader(
 @Composable
 private fun OptionsMenu(
     expanded: Boolean,
-    themeMode: ThemeMode,
-    backBehavior: BackBehavior,
+    versionLabel: String,
     onDismiss: () -> Unit,
     onOpenLinkSettings: () -> Unit,
-    onThemeMode: (ThemeMode) -> Unit,
-    onBackBehavior: (BackBehavior) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
     soundMode: SoundMode,
@@ -249,7 +247,6 @@ private fun OptionsMenu(
     onClearRecents: () -> Unit,
 ) {
     if (!expanded) return
-    val night = app.pane.android.ui.theme.LocalPaneColors.current.night
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -360,10 +357,10 @@ private fun OptionsMenu(
                         checked = browserTrampoline,
                         onCheckedChange = onBrowserTrampoline,
                         colors = SwitchDefaults.colors(
-                            checkedTrackColor = Color(0xFF3A8F6A),
-                            uncheckedTrackColor = if (night) Color(0xFF2A3530) else Color(0xFFC9D5CC),
-                            checkedThumbColor = Color.White,
-                            uncheckedThumbColor = Color.White,
+                            checkedTrackColor = PaneInk,
+                            uncheckedTrackColor = PaneBorder,
+                            checkedThumbColor = PaneGround,
+                            uncheckedThumbColor = PaneInk,
                             checkedBorderColor = Color.Transparent,
                             uncheckedBorderColor = Color.Transparent,
                         ),
@@ -379,20 +376,21 @@ private fun OptionsMenu(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 56.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(PaneFill)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(PaneTile)
+                        .border(1.dp, PaneBorder, RoundedCornerShape(16.dp))
                         .clickable(role = Role.Button, onClick = onSetDefaultBrowser)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
                             text = stringResource(R.string.set_default_browser),
-                            color = PaneOnFill,
+                            color = PaneInk,
                             style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
                         )
                         Text(
                             text = stringResource(R.string.set_default_browser_help),
-                            color = PaneOnFill.copy(alpha = 0.82f),
+                            color = PaneMuted,
                             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
                         )
                     }
@@ -421,49 +419,28 @@ private fun OptionsMenu(
                 }
                 SettingsHairline()
                 Text(
-                    text = stringResource(R.string.back_behavior),
-                    modifier = Modifier.padding(top = 12.dp),
-                    color = PaneInk,
-                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
-                )
-                BackBehavior.entries.forEach { behavior ->
-                    val label = when (behavior) {
-                        BackBehavior.ClosePeek -> R.string.back_closes_pane
-                        BackBehavior.GoHome -> R.string.back_goes_home
-                    }
-                    val help = when (behavior) {
-                        BackBehavior.ClosePeek -> R.string.back_closes_pane_help
-                        BackBehavior.GoHome -> R.string.back_goes_home_help
-                    }
-                    SettingsChoice(
-                        title = stringResource(label),
-                        subtitle = stringResource(help),
-                        selected = backBehavior == behavior,
-                        onClick = { onBackBehavior(behavior) },
-                    )
-                }
-                SettingsSection(stringResource(R.string.appearance))
-                ThemeMode.entries.forEach { mode ->
-                    val label = when (mode) {
-                        ThemeMode.Light -> R.string.theme_light
-                        ThemeMode.Dark -> R.string.theme_dark
-                        ThemeMode.System -> R.string.theme_system
-                    }
-                    SettingsChoice(
-                        title = stringResource(label),
-                        selected = themeMode == mode,
-                        onClick = { onThemeMode(mode) },
-                    )
-                }
-                Text(
                     text = stringResource(R.string.clear_recent_posts),
                     modifier = Modifier
                         .padding(top = 16.dp)
                         .heightIn(min = 56.dp)
                         .clickable(role = Role.Button, onClick = onClearRecents)
                         .padding(vertical = 16.dp),
-                    color = PaneAccent,
+                    color = PaneInk,
                     style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+                if (versionLabel.isNotBlank()) {
+                    Text(
+                        text = versionLabel,
+                        modifier = Modifier.padding(top = 20.dp),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.licenses_note),
+                    modifier = Modifier.padding(top = 8.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
                 )
                 Text(
                     text = stringResource(R.string.settings_tagline),
@@ -484,7 +461,7 @@ private fun OptionsMenu(
                         .heightIn(min = 56.dp)
                         .clickable(role = Role.Button, onClick = onOpenLinkSettings)
                         .padding(vertical = 16.dp),
-                    color = PaneAccent,
+                    color = PaneInk,
                     style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                 )
             }
@@ -578,49 +555,86 @@ private fun FirstLaunchHint(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ClipboardEntry(onPasteClick: () -> Unit) {
-    val pasteDescription = stringResource(R.string.paste_from_clipboard)
-    Box(modifier = Modifier.fillMaxWidth().height(222.dp)) {
-        Text(
-            text = stringResource(R.string.home_statement),
-            modifier = Modifier.width(210.dp).offset(y = 6.dp),
-            color = PaneInk,
-            style = TextStyle(fontFamily = Geist, fontSize = 42.sp, fontWeight = FontWeight.Bold, letterSpacing = (-2).sp, lineHeight = 38.6.sp),
-        )
-        Box(
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-8).dp, y = 16.dp).size(width = 100.dp, height = 96.dp).rotate(-5f).clip(RoundedCornerShape(22.dp)).background(PaneBorder),
-        )
-        Box(
-            modifier = Modifier.align(Alignment.TopEnd).offset(y = 4.dp).size(width = 100.dp, height = 96.dp).clip(RoundedCornerShape(22.dp)).background(PaneTile),
-            contentAlignment = Alignment.Center,
-        ) {
-            PaneMark(Modifier.size(38.dp))
-        }
+private fun PasteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    valid: Boolean,
+    showError: Boolean,
+    onSubmit: () -> Unit,
+    onPaste: () -> Unit,
+) {
+    val focus = androidx.compose.ui.focus.FocusRequester()
+    var focused by remember { mutableStateOf(false) }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    BackHandler(enabled = focused) {
+        focus.freeFocus()
+        keyboard?.hide()
+    }
+    val border = if (focused) androidx.compose.ui.graphics.lerp(PaneBorder, PaneAccent, 0.55f) else PaneBorder
+    Column {
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(66.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(PaneFill)
-                .clickable(role = Role.Button, onClick = onPasteClick)
-                .semantics { contentDescription = pasteDescription }
-                .padding(start = 16.dp, end = 12.dp),
+                .heightIn(min = 52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(PaneTile)
+                .border(1.dp, border, RoundedCornerShape(16.dp))
+                .padding(start = 14.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(PaneOnFill.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = PaneOnFill, modifier = Modifier.size(19.dp))
-            }
-            Text(
-                text = stringResource(R.string.paste_from_clipboard),
-                modifier = Modifier.weight(1f),
-                color = PaneOnFill,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+            Icon(Icons.Rounded.Link, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(18.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f).padding(horizontal = 10.dp).focusRequester(focus).onFocusChanged { focused = it.isFocused },
+                textStyle = TextStyle(fontFamily = Inter, fontSize = 15.sp, color = PaneInk),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(PaneInk),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { onSubmit() }),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(stringResource(R.string.paste_placeholder), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 15.sp))
+                        }
+                        inner()
+                    }
+                },
             )
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(50)).background(PaneTile), contentAlignment = Alignment.Center) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = PaneInk, modifier = Modifier.size(18.dp))
+            if (valid) {
+                val chip = androidx.compose.ui.graphics.lerp(PaneTile, PaneAccent, 0.17f)
+                Text(
+                    text = stringResource(R.string.open_chip),
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(chip).clickable(role = Role.Button, onClick = onSubmit).padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = PaneAccent,
+                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                )
+            } else {
+                Row(
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onPaste).padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(16.dp))
+                    Text(stringResource(R.string.paste_chip), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+                }
             }
+        }
+        if (focused) {
+            Text(
+                text = stringResource(R.string.paste_focus_helper),
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+            )
+        }
+        if (showError) {
+            Text(
+                text = stringResource(R.string.link_invalid),
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            )
         }
     }
 }
@@ -631,12 +645,19 @@ private fun RecentLinks(
     onRecentLink: (String) -> Unit,
     onRemoveRecent: (String) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth().height(26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.recent_links), color = PaneInk, style = TextStyle(fontFamily = Geist, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp))
-            Text(stringResource(R.string.recent_count, links.size), color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(stringResource(R.string.recent_section), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
+            Text(stringResource(R.string.recent_of, links.size, 8), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
         }
         links.forEach { link -> RecentLinkRow(link, onRecentLink, onRemoveRecent) }
+        Box(Modifier.padding(top = 18.dp).width(48.dp).height(1.dp).background(PaneBorder))
+        Text(
+            text = stringResource(R.string.thats_everything),
+            modifier = Modifier.padding(top = 16.dp),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+        )
     }
 }
 
@@ -664,24 +685,19 @@ private fun RecentLinkRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (link.thumbnail != null) {
-                PeekImage(
-                    image = link.thumbnail,
-                    contentDescription = link.thumbnailDescription,
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(PaneBorder),
+            val host = app.pane.android.ui.viewer.displayHost(link.url)
+            val mark = host.firstOrNull()?.uppercase() ?: "·"
+            Box(Modifier.size(40.dp).clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
+                Text(mark, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(link.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium))
+                Text(
+                    text = stringResource(R.string.recent_meta, host, link.ageLabel),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
                 )
-            } else {
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(PaneBorder))
             }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(link.title, maxLines = 1, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
-                if (link.isCached) {
-                    Text(link.sourceLabel, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp))
-                } else {
-                    Text(stringResource(R.string.tap_to_load), color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp))
-                }
-            }
-            Text(link.ageLabel, color = PaneSecondary, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp))
         }
         Box {
             Box(
@@ -710,13 +726,33 @@ private fun RecentLinkRow(
 @Composable
 private fun LoadingRecents() {
     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = PaneAccent, modifier = Modifier.size(28.dp))
+        CircularProgressIndicator(color = PaneMuted, modifier = Modifier.size(28.dp))
     }
 }
 
 @Composable
 private fun EmptyRecents() {
-    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-        Text(stringResource(R.string.no_recent_links), color = PaneMuted, fontFamily = Inter, fontSize = 13.sp)
+    Column(Modifier.fillMaxWidth().padding(top = 36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(R.string.recent_section), modifier = Modifier.align(Alignment.Start).padding(bottom = 28.dp), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
+        PaneMark(Modifier.size(96.dp))
+        Text(
+            text = stringResource(R.string.nothing_recent_yet),
+            modifier = Modifier.padding(top = 18.dp),
+            color = PaneInk,
+            style = TextStyle(fontFamily = Inter, fontSize = 18.sp, fontWeight = FontWeight.Medium),
+        )
+        Text(
+            text = stringResource(R.string.nothing_recent_hint),
+            modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+        )
+        Box(Modifier.padding(top = 28.dp).width(48.dp).height(1.dp).background(PaneBorder))
+        Text(
+            text = stringResource(R.string.thats_all_for_now),
+            modifier = Modifier.padding(top = 16.dp),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+        )
     }
 }

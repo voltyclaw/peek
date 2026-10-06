@@ -16,7 +16,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -56,7 +55,6 @@ fun PeekNavigation(
     val backStack = rememberNavBackStack(HomeKey)
     val context = LocalContext.current
     val activity = context as? Activity
-    var backBehavior by remember { mutableStateOf(BackPreferences.read(context)) }
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
@@ -82,7 +80,6 @@ fun PeekNavigation(
         preferredPackage = storedHandoff,
         systemPackage = systemBrowser,
     )?.packageName.orEmpty()
-    val backBehaviorState = rememberUpdatedState(backBehavior)
     val homeViewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(
             container.observeRecentContent,
@@ -97,7 +94,6 @@ fun PeekNavigation(
             peekBackAction(
                 launchedFromViewLink = launchedFromViewLink,
                 stackSize = backStack.size,
-                backClosesPeek = backBehaviorState.value == BackBehavior.ClosePeek,
                 topIsPlayer = backStack.lastOrNull() is PlayerKey,
             )
         ) {
@@ -139,11 +135,6 @@ fun PeekNavigation(
                     onOpenLink = { url -> backStack.add(ViewerKey(url)) },
                     themeMode = themeMode,
                     onThemeMode = onThemeMode,
-                    backBehavior = backBehavior,
-                    onBackBehavior = { behavior ->
-                        backBehavior = behavior
-                        BackPreferences.write(context, behavior)
-                    },
                     videoQuality = videoQuality,
                     onVideoQuality = { quality ->
                         videoQuality = quality

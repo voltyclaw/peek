@@ -50,6 +50,7 @@ internal fun MutedInlineVideo(
     videoUrl: String,
     modifier: Modifier = Modifier,
     muted: Boolean = true,
+    paused: Boolean = false,
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -64,6 +65,9 @@ internal fun MutedInlineVideo(
     }
     LaunchedEffect(exoPlayer, muted) {
         exoPlayer.volume = if (muted) 0f else 1f
+    }
+    LaunchedEffect(exoPlayer, paused) {
+        exoPlayer.playWhenReady = !paused
     }
     val sizeCallback = rememberUpdatedState(onVideoSize)
     DisposableEffect(exoPlayer) {
@@ -85,7 +89,7 @@ internal fun MutedInlineVideo(
     }
     VideoSurface(
         exoPlayer = exoPlayer,
-        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
         modifier = modifier,
     )
 }

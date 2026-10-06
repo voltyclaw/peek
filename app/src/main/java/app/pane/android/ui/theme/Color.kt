@@ -19,33 +19,24 @@ data class PaneColors(
     val night: Boolean,
 )
 
-val LightPaneColors = PaneColors(
-    ground = Color(0xFFF3F6F3),
-    ink = Color(0xFF1E2A22),
-    accent = Color(0xFF3A8F6A),
-    secondary = Color(0xFF7FAE8A),
-    muted = Color(0xFF6A7A6E),
-    border = Color(0xFFD5DFD7),
-    tile = Color(0xFFE8EEE9),
-    chip = Color(0xFF8DBC76),
-    fill = Color(0xFF3A8F6A),
-    onFill = Color.White,
-    night = false,
-)
-
-val DarkPaneColors = PaneColors(
-    ground = Color(0xFF141C16),
-    ink = Color(0xFFE7F0E8),
-    accent = Color(0xFF9BC9A5),
-    secondary = Color(0xFFA8CDB4),
-    muted = Color(0xFF9AADA3),
-    border = Color(0xFF2A3530),
-    tile = Color(0xFF1A221C),
-    chip = Color(0xFF3A5238),
-    fill = Color(0xFF9BC9A5),
-    onFill = Color(0xFF141C16),
+/** M2w Warm Coral. This pass is dark-only, so light and dark share the night palette. */
+private val M2w = PaneColors(
+    ground = Color(0xFF0E0B0A),
+    ink = Color(0xFFF4EFEA),
+    accent = Color(0xFFD4886A),
+    secondary = Color(0xFF8A827A),
+    muted = Color(0xFF8A827A),
+    border = Color(0xFF262018),
+    tile = Color(0xFF191412),
+    chip = Color(0xFF191412),
+    fill = Color(0xFFD4886A),
+    onFill = Color(0xFF0E0B0A),
     night = true,
 )
+
+val LightPaneColors = M2w
+
+val DarkPaneColors = M2w
 
 /** Cooler mint for success. Distinct from the brand greens above. */
 val PaneSuccess = Color(0xFF5BA8A0)

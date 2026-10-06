@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.ui.actions.openInAppLabelRes
@@ -76,6 +77,10 @@ import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.LocalPaneColors
+import app.pane.android.ui.theme.PaneDisplay
+import app.pane.android.ui.viewer.sourceDisplayName
+import app.pane.android.ui.viewer.threadMicroLabel
+import app.pane.android.ui.viewer.ThreadLabel
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
@@ -280,12 +285,17 @@ private fun UtilityActionButton(
 }
 
 @Composable
-fun CaptionText(post: ViewerPostUiModel) {
+fun CaptionText(post: ViewerPostUiModel, large: Boolean = false) {
     Text(
-        text = autolinkedCaption(post.title, PaneAccent),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        text = autolinkedCaption(post.title, PaneInk),
+        modifier = Modifier.fillMaxWidth(),
         color = PaneInk,
-        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+        style = TextStyle(
+            fontFamily = Inter,
+            fontSize = if (large) 20.5.sp else 16.sp,
+            lineHeight = if (large) 30.sp else 22.sp,
+            fontWeight = FontWeight.Normal,
+        ),
     )
 }
 
@@ -294,66 +304,55 @@ fun CaptionText(post: ViewerPostUiModel) {
  * The reader scrolls the sequence; there is no separate jump control.
  */
 @Composable
-fun AuthorThreadSection(post: ViewerPostUiModel) {
+fun AuthorThreadSection(post: ViewerPostUiModel, inlineImage: UiImage? = null) {
     val posts = post.authorThread
     if (posts.size < 2) return
-    val openedIndex = posts.indexOfFirst { it.opened }.let { index -> if (index < 0) 0 else index }
-    val labelColor = if (LocalPaneColors.current.night) PaneAccent.copy(alpha = 0.7f) else PaneMuted
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.part_of_a_thread),
-                color = labelColor,
-                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-            )
-            Text(
-                text = stringResource(R.string.thread_position, openedIndex + 1, posts.size),
-                color = PaneMuted,
-                style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            posts.forEachIndexed { _, item ->
-                val opened = item.opened
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .then(
-                            if (opened) {
-                                Modifier.background(PaneTile).border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                ) {
+        Text(
+            text = stringResource(R.string.thread_posts, posts.size),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+        )
+        Spacer(Modifier.height(14.dp))
+        posts.forEachIndexed { index, item ->
+            Row(Modifier.fillMaxWidth()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(18.dp)) {
+                    Box(Modifier.padding(top = 6.dp).size(9.dp).clip(CircleShape).background(PaneMuted))
+                    if (index < posts.lastIndex || post.authorThreadPartial) {
+                        Box(Modifier.padding(top = 4.dp).width(2.dp).height(28.dp).background(PaneBorder))
+                    }
+                }
+                Column(Modifier.weight(1f).padding(start = 10.dp, bottom = 16.dp)) {
                     Text(
-                        text = item.author,
+                        text = stringResource(R.string.thread_index, index + 1, posts.size),
                         color = PaneMuted,
                         style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = autolinkedCaption(item.text, PaneAccent),
-                        color = PaneInk,
-                        style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 20.sp),
-                    )
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text(
+                            text = autolinkedCaption(item.text, PaneInk),
+                            modifier = Modifier.weight(1f).padding(top = 4.dp),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, lineHeight = 21.sp),
+                        )
+                        if (item.opened && inlineImage != null) {
+                            PeekImage(
+                                image = inlineImage,
+                                contentDescription = post.mediaDescription,
+                                modifier = Modifier.padding(start = 10.dp).size(width = 68.dp, height = 56.dp).clip(RoundedCornerShape(8.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            )
+                        }
+                    }
                 }
             }
         }
         if (post.authorThreadPartial) {
-            Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.author_thread_partial),
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PaneTile).padding(14.dp),
                 color = PaneMuted,
-                style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
             )
         }
     }
@@ -365,58 +364,74 @@ fun CommentsSection(
     isLoadingMore: Boolean,
     scrollOffset: Int,
     onLoadMore: () -> Unit,
+    host: String = "",
 ) {
-    val threadLabel = if (LocalPaneColors.current.night) PaneAccent.copy(alpha = 0.7f) else PaneMuted
     val showThreadBody = post.comments.isNotEmpty() ||
         post.commentCount > 0 ||
         post.canLoadMoreComments ||
         post.commentsTruncated
+    if (!showThreadBody) return
+    val loaded = countComments(post.comments)
+    val total = maxOf(post.commentCount, loaded)
+    val label = when (threadMicroLabel(host)) {
+        ThreadLabel.TopComments -> R.string.top_comments
+        ThreadLabel.Comments -> R.string.comments_label
+        ThreadLabel.Thread -> R.string.thread_label
+    }
+    val remainder = post.commentsTruncated || (post.commentCount > loaded && loaded > 0)
+    val showEndCap = !post.canLoadMoreComments && remainder
     Column(modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(PaneBorder))
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(R.string.thread),
-            color = threadLabel,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        )
-        if (showThreadBody) {
-            Spacer(Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .background(PaneTile)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (post.comments.isEmpty() && post.commentCount > 0) {
-                    Text(
-                        text = stringResource(R.string.replies_unavailable),
-                        color = PaneMuted,
-                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
-                    )
-                }
-                post.comments.forEachIndexed { index, comment ->
-                    CommentThread(comment, accentLine = index == 0)
-                }
-                if (post.commentsTruncated) {
-                    Text(
-                        text = stringResource(R.string.replies_partial),
-                        color = PaneMuted,
-                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp),
-                    )
-                }
-                if (post.canLoadMoreComments) {
-                    CommentPaginationSentinel(
-                        isLoading = isLoadingMore,
-                        scrollOffset = scrollOffset,
-                        onLoadMore = onLoadMore,
-                    )
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(label),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
+            )
+            if (total > 0) {
+                Text(
+                    text = stringResource(R.string.reply_count_of, loaded, total),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+                )
             }
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile),
+        ) {
+            if (post.comments.isEmpty() && post.commentCount > 0) {
+                Text(
+                    text = stringResource(R.string.replies_unavailable),
+                    modifier = Modifier.padding(14.dp),
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                )
+            }
+            post.comments.forEachIndexed { index, comment ->
+                if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
+                CommentThread(comment, accentLine = false)
+            }
+            if (post.canLoadMoreComments) {
+                CommentPaginationSentinel(
+                    isLoading = isLoadingMore,
+                    scrollOffset = scrollOffset,
+                    onLoadMore = onLoadMore,
+                )
+            }
+        }
+        if (showEndCap) {
+            Text(
+                text = stringResource(R.string.rest_of_thread, sourceDisplayName(host.ifBlank { post.sourceUrl })),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                color = PaneMuted.copy(alpha = 0.75f),
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            )
         }
     }
 }
+
+private fun countComments(comments: List<CommentUiModel>): Int =
+    comments.sumOf { 1 + countComments(it.replies) }
 
 @Composable
 private fun CommentPaginationSentinel(
@@ -505,7 +520,10 @@ fun CommentRow(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(comment.author, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+            Box(Modifier.size(28.dp).clip(CircleShape).background(PaneBorder), contentAlignment = Alignment.Center) {
+                Text(comment.initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+            }
+            Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
             if (folded) {
                 Text(
@@ -518,13 +536,13 @@ fun CommentRow(
         Text(
             text = redditCommentAnnotated(
                 source = comment.body,
-                linkColor = PaneAccent,
-                quoteColor = PaneSecondary,
-                codeFont = GeistMono,
+                linkColor = PaneInk,
+                quoteColor = PaneMuted,
+                codeFont = Inter,
             ),
             modifier = Modifier.fillMaxWidth(),
             color = PaneInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 21.sp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 19.sp),
         )
     }
 }

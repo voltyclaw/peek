@@ -19,22 +19,22 @@ class PeekBackTest {
     }
 
     @Test
-    fun backGoesHomeStaysInPeekEvenWhenALinkOpenedTheApp() {
+    fun sharedLinkBackFinishesEvenBelowADeeperStack() {
         assertEquals(
             PeekBackAction.Pop,
-            peekBackAction(launchedFromViewLink = true, stackSize = 3, backClosesPeek = false, topIsPlayer = true),
+            peekBackAction(launchedFromViewLink = true, stackSize = 3, topIsPlayer = true),
         )
         assertEquals(
-            PeekBackAction.ClearToHome,
-            peekBackAction(launchedFromViewLink = true, stackSize = 3, backClosesPeek = false),
+            PeekBackAction.Finish,
+            peekBackAction(launchedFromViewLink = true, stackSize = 3),
         )
         assertEquals(
-            PeekBackAction.ClearToHome,
-            peekBackAction(launchedFromViewLink = true, stackSize = 2, backClosesPeek = false),
+            PeekBackAction.Finish,
+            peekBackAction(launchedFromViewLink = true, stackSize = 2),
         )
         assertEquals(
             PeekBackAction.DeferToSystem,
-            peekBackAction(launchedFromViewLink = true, stackSize = 1, backClosesPeek = false),
+            peekBackAction(launchedFromViewLink = true, stackSize = 1),
         )
     }
 

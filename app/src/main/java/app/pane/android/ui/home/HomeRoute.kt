@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -59,8 +58,6 @@ fun HomeRoute(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val invalidClipboardMessage = stringResource(R.string.link_invalid)
-    val linkReadyMessage = stringResource(R.string.link_ready)
-    val openAction = stringResource(R.string.open_action)
     val usingFirstLink = stringResource(R.string.using_first_link)
     val linksKeptMessage = stringResource(R.string.link_settings_kept)
     val linksPartialMessage = stringResource(R.string.link_settings_partial)
@@ -71,7 +68,8 @@ fun HomeRoute(
     var showFirstLaunchHint by remember { mutableStateOf(!FirstLaunchPreferences.isDismissed(context)) }
     var leftLinkSettings by remember { mutableStateOf(false) }
     var openingLink by remember { mutableStateOf(false) }
-    var offeredClipboardUrl by remember { mutableStateOf<String?>(null) }
+    var linkDraft by remember { mutableStateOf("") }
+    var showLinkError by remember { mutableStateOf(false) }
     val versionLabel = remember(context) {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         val code = PackageInfoCompat.getLongVersionCode(info).toString()
@@ -94,29 +92,30 @@ fun HomeRoute(
         }
     }
 
-    fun offerClipboard(fromButton: Boolean) {
+    fun pasteIntoField() {
         readClipboard { clipboardText ->
             val url = extractUrlFromText(clipboardText)
             if (url == null) {
-                if (fromButton) {
-                    scope.launch { snackbarHostState.showSnackbar(invalidClipboardMessage) }
-                }
+                scope.launch { snackbarHostState.showSnackbar(invalidClipboardMessage) }
                 return@readClipboard
             }
-            if (!fromButton && url == offeredClipboardUrl) return@readClipboard
-            offeredClipboardUrl = url
-            scope.launch {
-                if (extractUrlFromText.count(clipboardText) > 1) {
-                    snackbarHostState.showSnackbar(usingFirstLink, duration = SnackbarDuration.Short)
-                }
-                val result = snackbarHostState.showSnackbar(
-                    message = linkReadyMessage,
-                    actionLabel = openAction,
-                    duration = SnackbarDuration.Long,
-                )
-                if (result == SnackbarResult.ActionPerformed) openUrl(url)
+            linkDraft = url
+            showLinkError = false
+            if (extractUrlFromText.count(clipboardText) > 1) {
+                scope.launch { snackbarHostState.showSnackbar(usingFirstLink, duration = SnackbarDuration.Short) }
             }
         }
+    }
+
+    fun submitDraft() {
+        val url = extractUrlFromText(linkDraft)
+        if (url == null) {
+            showLinkError = true
+            scope.launch { snackbarHostState.showSnackbar(invalidClipboardMessage) }
+            return
+        }
+        showLinkError = false
+        openUrl(url)
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -145,24 +144,27 @@ fun HomeRoute(
                                 snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
                             }
                         }
-                    } else {
-                        offerClipboard(fromButton = false)
                     }
                 }
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            offerClipboard(fromButton = false)
-        }
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         HomeView(
             uiState = uiState,
-            onPasteClick = { offerClipboard(fromButton = true) },
+            onPasteClick = { pasteIntoField() },
+            linkDraft = linkDraft,
+            onLinkDraft = {
+                linkDraft = it
+                showLinkError = false
+            },
+            linkIsValid = extractUrlFromText(linkDraft) != null,
+            showLinkError = showLinkError,
+            onSubmitLink = { submitDraft() },
             onRecentLink = ::openUrl,
             onRemoveRecent = onRemoveRecent,
             onClearRecents = onClearRecents,

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -65,8 +69,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
+import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
@@ -122,15 +128,33 @@ fun ViewerView(
     startMuted: () -> Boolean = { true },
     onMutedChange: (Boolean) -> Unit = {},
     onLeave: () -> Unit = {},
+    note: String = "",
+    onSaveNote: (String) -> Unit = {},
+    onOpenOutbound: (String) -> Unit = {},
 ) {
+    val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier.widthIn(max = 390.dp).fillMaxWidth().fillMaxHeight(),
         ) {
             when (uiState) {
                 is ViewerUiState.Loading -> LoadingViewer(uiState.progress, uiState.message, onBack, onRefresh)
-                is ViewerUiState.Unavailable -> UnavailableViewer(uiState.url, onBack)
-                is ViewerUiState.LoadFailed -> LoadFailedViewer(uiState.url, uiState.reason, onBack, onRefresh)
+                is ViewerUiState.Unavailable -> UnavailableViewer(
+                    url = uiState.url,
+                    onBack = onBack,
+                    onOpen = { scope.launch { onOpenInApp(uiState.url) } },
+                    onShare = { scope.launch { onSharePost(uiState.url, null) } },
+                    onCopy = { scope.launch { onCopyLink(uiState.url) } },
+                )
+                is ViewerUiState.LoadFailed -> LoadFailedViewer(
+                    url = uiState.url,
+                    reason = uiState.reason,
+                    onBack = onBack,
+                    onRetry = onRefresh,
+                    onOpen = { scope.launch { onOpenInApp(uiState.url) } },
+                    onShare = { scope.launch { onSharePost(uiState.url, null) } },
+                    onCopy = { scope.launch { onCopyLink(uiState.url) } },
+                )
                 is ViewerUiState.Content -> ViewerContent(
                     post = uiState.post,
                     isLoadingMoreComments = uiState.isLoadingMoreComments,
@@ -149,6 +173,9 @@ fun ViewerView(
                     startMuted = startMuted,
                     onMutedChange = onMutedChange,
                     onLeave = onLeave,
+                    note = note,
+                    onSaveNote = onSaveNote,
+                    onOpenOutbound = onOpenOutbound,
                 )
             }
         }
@@ -174,62 +201,147 @@ private fun ColumnScope.ViewerContent(
     startMuted: () -> Boolean,
     onMutedChange: (Boolean) -> Unit,
     onLeave: () -> Unit,
+    note: String,
+    onSaveNote: (String) -> Unit,
+    onOpenOutbound: (String) -> Unit,
 ) {
-    ViewerHeader(post.isVideo, onBack, onRefresh)
+    val host = displayHost(post.sourceUrl)
+    val openLabel = stringResource(openInAppLabelRes(post.sourceUrl))
+    val scope = rememberCoroutineScope()
+    var overflow by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf(false) }
+    var videoPaused by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val items = post.mediaItemsOrPrimary()
     val pagerState = rememberPagerState(
-        initialPage = post.initialMediaIndex.coerceIn(0, items.lastIndex),
+        initialPage = post.initialMediaIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0)),
         pageCount = items::size,
     )
-    val currentItem = items[pagerState.currentPage]
-    Column(
-        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(scrollState).padding(horizontal = 14.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (items.any(::hasVisualMedia)) {
-            Column(Modifier.padding(bottom = 18.dp)) {
-                MediaCanvas(
-                    post,
-                    items,
-                    pagerState,
-                    onOpenMedia,
-                    onMediaMeasured,
-                    videoQuality,
-                    startMuted,
-                    onMutedChange,
+    val currentItem = items.getOrNull(pagerState.currentPage)
+    val hasMedia = items.any(::hasVisualMedia)
+    val outbound = outboundLink(post.title, post.sourceUrl)
+    val linkCard = outbound != null && hasMedia && currentItem?.videoUrl == null && post.authorThread.size < 2
+    val reddit = host.contains("reddit.com")
+    val textOnly = !hasMedia && post.authorThread.size < 2 && !reddit
+    val overMedia = hasMedia && !linkCard && post.authorThread.size < 2
+    Box(Modifier.fillMaxWidth().weight(1f)) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (overMedia) {
+                Box(Modifier.fillMaxWidth()) {
+                    MediaCanvas(
+                        post,
+                        items,
+                        pagerState,
+                        onOpenMedia,
+                        onMediaMeasured,
+                        videoQuality,
+                        startMuted,
+                        onMutedChange,
+                        videoPaused,
+                        { videoPaused = !videoPaused },
+                    )
+                    Box(
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(72.dp).background(
+                            Brush.verticalGradient(listOf(Color.Transparent, PaneGround)),
+                        ),
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DonePill(onBack, overMedia = true)
+                        SourceChip(host, overMedia = true)
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DonePill(onBack, overMedia = false)
+                    SourceChip(host, overMedia = false)
+                }
+            }
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (reddit) {
+                    RedditBody(post)
+                } else if (post.authorThread.size >= 2) {
+                    AuthorCaption(post)
+                    AuthorThreadSection(post, if (hasMedia) currentItem?.image else null)
+                } else if (linkCard && outbound != null) {
+                    CaptionText(post)
+                    LinkPreviewCard(outbound, currentItem, onOpenOutbound)
+                } else if (textOnly) {
+                    Box(Modifier.padding(vertical = 8.dp).width(48.dp).height(1.dp).background(PaneBorder))
+                    CaptionText(post, large = true)
+                } else if (!overMedia) {
+                    CaptionText(post)
+                } else {
+                    AuthorCaption(post)
+                    CaptionText(post)
+                }
+                if (overMedia && post.authorThread.size < 2 && !reddit) {
+                    // caption already placed above for the image/video path
+                }
+                CommentsSection(
+                    post = post,
+                    isLoadingMore = isLoadingMoreComments,
+                    scrollOffset = scrollState.value,
+                    onLoadMore = onLoadMoreComments,
+                    host = host,
                 )
             }
         }
-        AuthorByline(
-            post = post,
-            onCopyLink = { onCopyLink(post.sourceUrl) },
-            onCopyMedia = { onCopyMedia(currentItem) },
-            onDownload = { onDownload(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
-            onShare = { onShare(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) },
-            onSharePost = { onSharePost(post.sourceUrl, post.title) },
-            onOpenInApp = { onOpenInApp(post.sourceUrl) },
-            canCopyMedia = currentItem.videoUrl == null && currentItem.image.let { image ->
-                image !is UiImage.Url || image.value.isNotBlank()
+    }
+    val canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia)
+    ViewerBottomBar(
+        openLabel = openLabel,
+        onShare = { scope.launch { onSharePost(post.sourceUrl, post.title) } },
+        onOverflow = { overflow = true },
+        onOpen = { scope.launch { onOpenInApp(post.sourceUrl) } },
+    )
+    if (overflow) {
+        OverflowSheet(
+            contextLine = listOf(post.authorName, host).filter { it.isNotBlank() }.joinToString(" · "),
+            openLabel = openLabel,
+            canDownload = canDownload,
+            onDismiss = { overflow = false },
+            onShare = {
+                overflow = false
+                scope.launch { onSharePost(post.sourceUrl, post.title) }
             },
-            canDownload = items.any(ViewerMediaItemUiModel::hasDownloadableMedia),
-            onLeave = onLeave,
+            onCopyLink = {
+                overflow = false
+                scope.launch { onCopyLink(post.sourceUrl) }
+            },
+            onOpen = {
+                overflow = false
+                scope.launch { onOpenInApp(post.sourceUrl) }
+            },
+            onDownload = {
+                overflow = false
+                scope.launch { onDownload(items.filter(ViewerMediaItemUiModel::hasDownloadableMedia)) }
+            },
+            onAddNote = {
+                overflow = false
+                editingNote = true
+            },
         )
-        Column(Modifier.fillMaxWidth()) {
-            if (post.authorThread.size >= 2) {
-                AuthorThreadSection(post)
-            } else {
-                CaptionText(post)
-            }
-            Spacer(Modifier.height(24.dp))
-            CommentsSection(
-                post = post,
-                isLoadingMore = isLoadingMoreComments,
-                scrollOffset = scrollState.value,
-                onLoadMore = onLoadMoreComments,
-            )
-        }
-        Spacer(Modifier.height(18.dp))
+    }
+    if (editingNote) {
+        NoteEditorDialog(
+            initial = note,
+            onDismiss = { editingNote = false },
+            onSave = {
+                onSaveNote(it)
+                editingNote = false
+            },
+        )
     }
 }
 
@@ -249,8 +361,8 @@ private fun ViewerHeader(isVideo: Boolean, onBack: () -> Unit, onRefresh: () -> 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
                 text = if (isVideo) "▶" else "+",
-                color = PaneAccent,
-                style = TextStyle(fontFamily = GeistMono, fontSize = if (isVideo) 10.sp else 15.sp, fontWeight = FontWeight.Bold),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = if (isVideo) 10.sp else 15.sp, fontWeight = FontWeight.Bold),
             )
             Text(
                 text = stringResource(if (isVideo) R.string.video_preview else R.string.viewing_post),
@@ -285,6 +397,8 @@ private fun MediaCanvas(
     videoQuality: VideoQuality,
     startMuted: () -> Boolean,
     onMutedChange: (Boolean) -> Unit,
+    videoPaused: Boolean = false,
+    onToggleVideo: () -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
     val current = items[pagerState.currentPage]
@@ -306,9 +420,7 @@ private fun MediaCanvas(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(with(density) { boxH.toDp() })
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
+                .height(372.dp)
                 .background(Color.Black),
         ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
@@ -357,7 +469,7 @@ private fun MediaCanvas(
                             Modifier
                         },
                     ),
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.Crop,
                     onIntrinsicSize = if (videoUrl == null) reportSize else null,
                 )
                 if (videoUrl != null && page == pagerState.currentPage) {
@@ -367,34 +479,49 @@ private fun MediaCanvas(
                     if (attachPlayer) {
                         MutedInlineVideo(
                             videoUrl = videoUrl,
-                            modifier = mediaModifier,
+                            modifier = mediaModifier.fillMaxSize(),
                             muted = inlineMuted,
+                            paused = videoPaused,
                             onVideoSize = reportSize,
                         )
                     }
                 }
                 if (videoUrl != null) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        Row(
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(PaneGround.copy(alpha = 0.55f))
+                                .clickable(role = Role.Button, onClick = onToggleVideo),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                if (videoPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                                contentDescription = stringResource(if (videoPaused) R.string.play_video else R.string.pause),
+                                tint = PaneMuted,
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
                                 .padding(12.dp)
-                                .height(28.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
-                                .background(PaneFill.copy(alpha = 0.85f))
+                                .background(PaneGround.copy(alpha = 0.55f))
                                 .clickable(role = Role.Button) {
                                     inlineMuted = !inlineMuted
                                     onMutedChange(inlineMuted)
-                                }
-                                .padding(horizontal = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 if (inlineMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
                                 contentDescription = stringResource(if (inlineMuted) R.string.unmute else R.string.mute),
-                                tint = PaneOnFill,
-                                modifier = Modifier.size(14.dp),
+                                tint = PaneMuted,
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
@@ -438,22 +565,13 @@ private fun MediaCanvas(
                 },
                 modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp),
             )
-            Box(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).clip(CircleShape).background(PaneFill.copy(alpha = 0.78f)).padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.carousel_position, pagerState.currentPage + 1, items.size),
-                    color = PaneOnFill,
-                    style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                )
-            }
         } else {
             post.duration?.let { duration ->
                 Box(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).height(28.dp).clip(CircleShape).background(PaneFill.copy(alpha = 0.85f)).padding(horizontal = 10.dp),
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).height(28.dp).clip(CircleShape).background(PaneGround.copy(alpha = 0.6f)).padding(horizontal = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(duration, color = PaneOnFill, style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Bold))
+                    Text(duration, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
                 }
             }
         }
@@ -499,14 +617,14 @@ private fun LoadingViewer(progress: Float, message: String, onBack: () -> Unit, 
             CircularProgressIndicator(
                 progress = { progress.coerceIn(0f, 1f) },
                 modifier = Modifier.size(36.dp),
-                color = PaneAccent,
+                color = PaneMuted,
                 trackColor = PaneBorder,
             )
             Spacer(Modifier.height(18.dp))
             Text(
                 text = stringResource(R.string.resolving_title),
                 color = PaneInk,
-                style = TextStyle(fontFamily = Geist, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.1).sp),
+                style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.025).em),
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -572,8 +690,8 @@ private fun LoadingProgressCard(progress: Float, message: String) {
             )
             Text(
                 text = "${(animatedProgress * 100).roundToInt()}%",
-                color = PaneAccent,
-                style = TextStyle(fontFamily = GeistMono, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
             )
         }
         Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(PaneBorder)) {
@@ -582,7 +700,7 @@ private fun LoadingProgressCard(progress: Float, message: String) {
                     .fillMaxWidth(animatedProgress)
                     .fillMaxHeight()
                     .clip(CircleShape)
-                    .background(PaneAccent),
+                    .background(PaneInk),
             )
         }
         Text(text = friendlyLoadingCopy(message), color = PaneSecondary, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
@@ -627,30 +745,124 @@ private fun friendlyLoadingCopy(message: String): String {
 }
 
 @Composable
-private fun LoadFailedViewer(url: String, reason: String, onBack: () -> Unit, onRetry: () -> Unit) {
-    FailureViewer(
-        url = url,
-        onBack = onBack,
-        label = stringResource(R.string.load_failed_label),
-        title = stringResource(R.string.couldnt_open),
-        description = stringResource(failureCopyRes(reason)),
-        detail = null,
-        actionLabel = stringResource(R.string.try_again),
-        onAction = onRetry,
-        actionIcon = Icons.Rounded.Refresh,
+private fun LoadFailedViewer(
+    url: String,
+    reason: String,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onOpen: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit,
+) {
+    ErrorShell(url, onBack, onOpen, onShare, onCopy) {
+        UnloadableBody(
+            host = displayHost(url),
+            author = "",
+            url = url,
+            hint = stringResource(failureCopyRes(reason)),
+            onRetry = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun UnavailableViewer(url: String, onBack: () -> Unit, onOpen: () -> Unit, onShare: () -> Unit, onCopy: () -> Unit) {
+    ErrorShell(url, onBack, onOpen, onShare, onCopy) {
+        UnloadableBody(
+            host = displayHost(url),
+            author = "",
+            url = url,
+            hint = stringResource(R.string.not_a_single_post),
+            onRetry = null,
+        )
+    }
+}
+
+@Composable
+private fun ErrorShell(
+    url: String,
+    onBack: () -> Unit,
+    onOpen: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit,
+    body: @Composable () -> Unit,
+) {
+    val host = displayHost(url)
+    val openLabel = stringResource(openInAppLabelRes(url))
+    var overflow by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DonePill(onBack, overMedia = false)
+            SourceChip(host, overMedia = false)
+        }
+        Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) { body() }
+        ViewerBottomBar(openLabel, onShare = onShare, onOverflow = { overflow = true }, onOpen = onOpen)
+    }
+    if (overflow) {
+        OverflowSheet(
+            contextLine = host,
+            openLabel = openLabel,
+            canDownload = false,
+            onDismiss = { overflow = false },
+            onShare = { overflow = false; onShare() },
+            onCopyLink = { overflow = false; onCopy() },
+            onOpen = { overflow = false; onOpen() },
+            onDownload = {},
+            onAddNote = { overflow = false },
+        )
+    }
+}
+
+@Composable
+private fun AuthorCaption(post: ViewerPostUiModel) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        val initial = post.authorName.firstOrNull()?.uppercase() ?: ""
+        Box(Modifier.size(40.dp).clip(CircleShape).background(PaneTile).border(1.dp, PaneBorder, CircleShape), contentAlignment = Alignment.Center) {
+            Text(initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+        }
+        Column {
+            Text(post.authorName, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
+            if (post.authorMetadata.isNotBlank()) {
+                Text(post.authorMetadata, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RedditBody(post: ViewerPostUiModel) {
+    Text(post.authorMetadata.ifBlank { post.authorName }, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+    Text(
+        text = post.title,
+        color = PaneInk,
+        style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp),
     )
 }
 
 @Composable
-private fun UnavailableViewer(url: String, onBack: () -> Unit) {
-    FailureViewer(
-        url = url,
-        onBack = onBack,
-        label = stringResource(R.string.unsupported_link_label),
-        title = stringResource(R.string.pane_cant_show),
-        description = stringResource(R.string.not_a_single_post),
-        detail = null,
-    )
+private fun LinkPreviewCard(
+    url: String,
+    item: ViewerMediaItemUiModel?,
+    onOpen: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(PaneTile).border(1.dp, PaneBorder, RoundedCornerShape(20.dp)).clickable(role = Role.Button) { onOpen(url) }.padding(12.dp),
+    ) {
+        if (item != null) {
+            PeekImage(
+                image = item.image,
+                contentDescription = item.contentDescription,
+                modifier = Modifier.fillMaxWidth().height(136.dp).clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        Text(displayHost(url), modifier = Modifier.padding(top = 10.dp), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
+        Text(url, color = PaneInk, maxLines = 2, style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold))
+    }
 }
 
 @Composable

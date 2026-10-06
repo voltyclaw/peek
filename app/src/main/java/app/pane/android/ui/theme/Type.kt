@@ -5,23 +5,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import app.pane.android.R
 
-val Geist = FontFamily(
-    Font(R.font.geist_variable, FontWeight.Normal),
-    Font(R.font.geist_variable, FontWeight.Medium),
-    Font(R.font.geist_variable, FontWeight.SemiBold),
-    Font(R.font.geist_variable, FontWeight.Bold),
-)
-
-val GeistMono = FontFamily(
-    Font(R.font.geist_mono_variable, FontWeight.Normal),
-    Font(R.font.geist_mono_variable, FontWeight.Medium),
-    Font(R.font.geist_mono_variable, FontWeight.SemiBold),
-    Font(R.font.geist_mono_variable, FontWeight.Bold),
-)
-
 val Inter = FontFamily(
-    Font(R.font.inter_variable, FontWeight.Normal),
-    Font(R.font.inter_variable, FontWeight.Medium),
-    Font(R.font.inter_variable, FontWeight.SemiBold),
-    Font(R.font.inter_variable, FontWeight.Bold),
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
 )
+
+/** T2 display. Tracking belongs on this face only. */
+val PaneDisplay = FontFamily(
+    Font(R.font.inter_tight_medium, FontWeight.Medium),
+)
+
+val Geist = Inter
+
+val GeistMono = Inter

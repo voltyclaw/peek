@@ -601,12 +601,12 @@ private fun FullscreenChrome(
                     .fillMaxWidth()
                     .semantics { contentDescription = scrubLabel },
                 colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.35f),
-                    disabledThumbColor = Color.White.copy(alpha = 0.5f),
-                    disabledActiveTrackColor = Color.White.copy(alpha = 0.35f),
-                    disabledInactiveTrackColor = Color.White.copy(alpha = 0.2f),
+                    thumbColor = Color(0xFFF4EFEA),
+                    activeTrackColor = Color(0xFF8A827A),
+                    inactiveTrackColor = Color(0xFF262018),
+                    disabledThumbColor = Color(0xFF8A827A),
+                    disabledActiveTrackColor = Color(0xFF8A827A),
+                    disabledInactiveTrackColor = Color(0xFF262018),
                 ),
             )
         }
@@ -664,7 +664,7 @@ private fun QualityButton(
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            containerColor = Color(0xFF1C2820),
+            containerColor = Color(0xFF191412),
         ) {
             options.forEach { option ->
                 val checked = if (option.auto) {

@@ -14,8 +14,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import android.net.Uri
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
 import app.pane.android.ui.actions.rememberPostActionCallbacks
@@ -38,6 +41,9 @@ fun ViewerRoute(
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
+    val context = LocalContext.current
+    val noteUrl = (viewerUiState as? ViewerUiState.Content)?.post?.sourceUrl.orEmpty()
+    var note by remember(noteUrl) { mutableStateOf(if (noteUrl.isBlank()) "" else PostNotes.read(context, noteUrl)) }
     var handedToImmersive by rememberSaveable { mutableStateOf(false) }
     var measuredWidth by remember { mutableFloatStateOf(0f) }
     var measuredHeight by remember { mutableFloatStateOf(0f) }
@@ -86,6 +92,16 @@ fun ViewerRoute(
         startMuted = startMuted,
         onMutedChange = onMutedChange,
         onLeave = onLeave,
+        note = note,
+        onSaveNote = { saved ->
+            note = saved
+            if (noteUrl.isNotBlank()) PostNotes.write(context, noteUrl, saved)
+        },
+        onOpenOutbound = { target ->
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        },
         onMediaMeasured = { width, height ->
             if (width > 1f && height > 1f) {
                 measuredWidth = width
