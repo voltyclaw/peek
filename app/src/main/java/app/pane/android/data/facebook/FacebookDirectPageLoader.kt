@@ -3,6 +3,7 @@ package app.pane.android.data.facebook
 import android.util.Log
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
 import java.io.IOException
@@ -113,6 +114,7 @@ class FacebookDirectPageLoader(
                 listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
                 return@coroutineScope chosen
             }
+            if (post.kind == FacebookUrls.Kind.Story) throw StoryUnavailableException()
             throw IOException(lastError.get())
         }
     }
@@ -165,6 +167,9 @@ class FacebookDirectPageLoader(
     }
 
     private fun targets(post: FacebookUrls.Post): List<String> {
+        if (post.kind == FacebookUrls.Kind.Story) {
+            return (listOf(post.sourceUrl) + mobileCopies(post.sourceUrl)).distinct()
+        }
         val encoded = URLEncoder.encode(post.canonicalUrl, StandardCharsets.UTF_8.name())
         val plugin = "https://www.facebook.com/plugins/post.php?href=$encoded&show_text=true&width=500"
         val extras = mobileCopies(post.canonicalUrl)

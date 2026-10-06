@@ -46,9 +46,11 @@ class SamplePostsTest {
                 "ig-image",
                 "ig-carousel",
                 "ig-reel",
+                "ig-story",
                 "fb-text",
                 "fb-image",
                 "fb-reel",
+                "fb-story",
                 "reddit-text",
                 "reddit-image",
                 "reddit-video",
@@ -74,7 +76,7 @@ class SamplePostsTest {
     @Test
     fun postsUseEachSourceShape() = runBlocking {
         val image = post("x-image")
-        assertEquals("X", image.author.metadata)
+        assertEquals("@mayaren", image.author.metadata)
         assertEquals("PHOTO", image.media.badge)
         assertTrue(image.commentCount > image.comments.size)
         assertEquals(1, (image.sourceMetadata as ExternalPostMetadata).mediaItems.size)
@@ -125,7 +127,7 @@ class SamplePostsTest {
         assertEquals(files.video, (reel.sourceMetadata as InstagramMetadata).videoVariants.first().url)
 
         val fbText = post("fb-text")
-        assertEquals("FACEBOOK", fbText.author.metadata)
+        assertEquals("mayaren", fbText.author.metadata)
         assertTrue(fbText.title.length > 240)
         assertTrue((fbText.sourceMetadata as ExternalPostMetadata).mediaItems.isEmpty())
         assertEquals(0, fbText.commentCount)

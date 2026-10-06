@@ -3,6 +3,7 @@ package app.pane.android.ui.mapper
 import app.pane.android.R
 import app.pane.android.domain.model.BundledImageKey
 import app.pane.android.domain.model.Clock
+import app.pane.android.domain.model.AuthorLines
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.ExternalPostMetadata
 import app.pane.android.domain.model.InstagramMetadata
@@ -182,6 +183,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             )
         }
         val external = sourceMetadata as? ExternalPostMetadata
+        val author = AuthorLines.present(content.author.name, content.author.metadata)
         return ViewerPostUiModel(
             title = content.title,
             isVideo = content.kind == LinkKind.Video,
@@ -190,8 +192,8 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             mediaBadge = content.media.badge,
             duration = content.media.duration,
             videoUrl = mediaItems.first().videoUrl,
-            authorName = content.author.name,
-            authorMetadata = content.author.metadata,
+            authorName = author.name,
+            authorMetadata = author.metadata,
             commentCount = content.commentCount,
             comments = content.comments.map(::mapComment),
             canLoadMoreComments = when (sourceMetadata) {

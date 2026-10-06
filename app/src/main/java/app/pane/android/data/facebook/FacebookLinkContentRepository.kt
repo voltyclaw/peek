@@ -4,6 +4,8 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.PrioritizedUrlResolver
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.AuthorLines
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.domain.model.ExternalMediaItem
 import app.pane.android.domain.model.ExternalPostMetadata
 import app.pane.android.domain.model.LinkContent
@@ -109,7 +111,11 @@ class FacebookLinkContentRepository(
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (error: Exception) {
-        Result.failure(error)
+        if (post.kind == FacebookUrls.Kind.Story) {
+            Result.failure(StoryUnavailableException())
+        } else {
+            Result.failure(error)
+        }
     }
 
     private fun map(requestedUrl: String, post: ParsedFacebookPost): LinkContent {
@@ -143,7 +149,7 @@ class FacebookLinkContentRepository(
                     else -> "TEXT"
                 },
             ),
-            author = Author(name = post.author, metadata = "FACEBOOK", avatarUrl = post.authorAvatarUrl),
+            author = facebookAuthor(requestedUrl, post),
             commentCount = 0,
             comments = emptyList(),
             sourceMetadata = ExternalPostMetadata(
@@ -158,6 +164,18 @@ class FacebookLinkContentRepository(
                     ),
                 ).filter { it.imageUrl.isNotBlank() || !it.videoUrl.isNullOrBlank() },
             ),
+        )
+    }
+
+    private fun facebookAuthor(url: String, post: ParsedFacebookPost): Author {
+        val presented = AuthorLines.present(
+            name = post.author,
+            metadata = FacebookUrls.pageHandle(url).orEmpty(),
+        )
+        return Author(
+            name = presented.name,
+            metadata = presented.metadata,
+            avatarUrl = post.authorAvatarUrl,
         )
     }
 

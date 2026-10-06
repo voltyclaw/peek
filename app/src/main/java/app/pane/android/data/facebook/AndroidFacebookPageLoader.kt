@@ -39,7 +39,10 @@ class AndroidFacebookPageLoader(
 
     override val resolverId: String = "facebook-webview"
 
-    override fun supports(url: String): Boolean = FacebookUrls.supports(url)
+    override fun supports(url: String): Boolean {
+        val post = FacebookUrls.parse(url) ?: return false
+        return post.kind != FacebookUrls.Kind.Story
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override suspend fun resolve(url: String): ParsedFacebookPost {

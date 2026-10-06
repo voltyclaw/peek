@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Share
@@ -69,7 +68,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
-import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
@@ -101,7 +99,6 @@ fun AuthorByline(
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
     onSharePost: suspend () -> Unit = {},
-    onOpenInApp: suspend () -> Unit = {},
     modifier: Modifier = Modifier,
     canCopyMedia: Boolean = true,
     canDownload: Boolean = true,
@@ -151,10 +148,8 @@ fun AuthorByline(
             exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(120)),
         ) {
             UtilityActionsRow(
-                postUrl = post.sourceUrl,
                 onCopyLink = onCopyLink,
                 onSharePost = onSharePost,
-                onOpenInApp = onOpenInApp,
                 onCopyMedia = onCopyMedia,
                 onDownload = onDownload,
                 onShare = onShare,
@@ -187,10 +182,8 @@ private fun EllipsisToggleButton(expanded: Boolean, onToggle: () -> Unit) {
 
 @Composable
 private fun UtilityActionsRow(
-    postUrl: String,
     onCopyLink: suspend () -> Unit,
     onSharePost: suspend () -> Unit,
-    onOpenInApp: suspend () -> Unit,
     onCopyMedia: suspend () -> Unit,
     onDownload: suspend () -> Unit,
     onShare: suspend () -> Unit,
@@ -211,7 +204,6 @@ private fun UtilityActionsRow(
     ) {
         UtilityActionButton(Icons.Rounded.Link, stringResource(R.string.copy_link), onCopyLink, Modifier.weight(1f))
         UtilityActionButton(Icons.Rounded.Share, stringResource(R.string.share_post), onSharePost, Modifier.weight(1f))
-        UtilityActionButton(Icons.AutoMirrored.Rounded.OpenInNew, stringResource(openInAppLabelRes(postUrl)), onOpenInApp, Modifier.weight(1f))
         if (canCopyMedia) {
             UtilityActionButton(Icons.Rounded.ContentCopy, stringResource(R.string.copy_media), onCopyMedia, Modifier.weight(1f))
         }

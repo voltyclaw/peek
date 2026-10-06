@@ -44,9 +44,21 @@ object SamplePosts {
         Entry("ig-image", "Instagram", "Image", "https://www.instagram.com/p/sampleimg1/", maxPage = 1),
         Entry("ig-carousel", "Instagram", "Carousel", "https://www.instagram.com/p/samplecar1/"),
         Entry("ig-reel", "Instagram", "Reel", "https://www.instagram.com/reel/samplereel1/"),
+        Entry(
+            "ig-story",
+            "Instagram",
+            "Story",
+            "https://www.instagram.com/stories/maya.ren/3456789012345678901/?igsh=sampletoken",
+        ),
         Entry("fb-text", "Facebook", "Text", "https://www.facebook.com/mayaren/posts/sampletext1"),
         Entry("fb-image", "Facebook", "Image", "https://www.facebook.com/mayaren/posts/samplephoto1"),
         Entry("fb-reel", "Facebook", "Video", "https://www.facebook.com/reel/samplereel1"),
+        Entry(
+            "fb-story",
+            "Facebook",
+            "Story",
+            "https://www.facebook.com/stories/100064321098765/UzpfSVsampleStory1/?view_single=1&bucket_id=100064321098765&story_fbid=sampleStory1&mibextid=wwXIfr",
+        ),
         Entry("reddit-text", "Reddit", "Self text", "https://www.reddit.com/r/hiking/comments/samplehike/first_solo/", maxPage = 1),
         Entry("reddit-image", "Reddit", "Image", "https://www.reddit.com/r/hiking/comments/sampleridge/ridge_light/"),
         Entry("reddit-video", "Reddit", "Video", "https://www.reddit.com/r/hiking/comments/sampleclip/creek_clip/"),
@@ -88,9 +100,11 @@ object SamplePosts {
         "ig-image" -> igImage(entry, files, page)
         "ig-carousel" -> igCarousel(entry, files)
         "ig-reel" -> igReel(entry, files)
+        "ig-story" -> igStory(entry, files)
         "fb-text" -> fbText(entry)
         "fb-image" -> fbImage(entry, files)
         "fb-reel" -> fbReel(entry, files)
+        "fb-story" -> fbStory(entry, files)
         "reddit-text" -> redditText(entry, page)
         "reddit-image" -> redditImage(entry, files)
         "reddit-video" -> redditVideo(entry, files)
@@ -204,7 +218,7 @@ object SamplePosts {
                     else -> "TEXT"
                 },
             ),
-            author = Author(name = "Maya Ren", metadata = "X"),
+            author = Author(name = "Maya Ren", metadata = "@mayaren"),
             commentCount = commentCount,
             comments = comments,
             sourceMetadata = ExternalPostMetadata(
@@ -266,6 +280,23 @@ object SamplePosts {
             commentCount = 1,
             cursor = null,
             badge = "CAROUSEL",
+            video = false,
+        )
+    }
+
+    private fun igStory(entry: Entry, files: SampleMedia.Files): LinkContent {
+        val caption = "A story from the ridge, one frame, then it is gone."
+        val item = igItem("ig-story-0", files.kyoto, caption)
+        return instagram(
+            entry = entry,
+            shortcode = "3456789012345678901",
+            caption = caption,
+            items = listOf(item),
+            likes = 0,
+            comments = emptyList(),
+            commentCount = 0,
+            cursor = null,
+            badge = "PHOTO",
             video = false,
         )
     }
@@ -356,6 +387,13 @@ object SamplePosts {
         images = listOf(files.kyoto),
     )
 
+    private fun fbStory(entry: Entry, files: SampleMedia.Files): LinkContent = facebook(
+        entry = entry,
+        id = "sampleStory1",
+        text = "The ridge in one frame, before the story disappears.",
+        images = listOf(files.kyoto),
+    )
+
     private fun fbReel(entry: Entry, files: SampleMedia.Files): LinkContent = facebook(
         entry = entry,
         id = "samplereel1",
@@ -387,7 +425,7 @@ object SamplePosts {
                     else -> "TEXT"
                 },
             ),
-            author = Author(name = "Maya Ren", metadata = "FACEBOOK"),
+            author = Author(name = "Maya Ren", metadata = "mayaren"),
             commentCount = 0,
             comments = emptyList(),
             sourceMetadata = ExternalPostMetadata(postId = id, mediaItems = items),
@@ -545,7 +583,7 @@ object SamplePosts {
         kind = LinkKind.Post,
         thumbnail = MediaLocation.Remote(""),
         media = Media(location = MediaLocation.Remote(""), contentDescription = "", badge = "TEXT"),
-        author = Author(name = "Maya Ren", metadata = "X"),
+        author = Author(name = "Maya Ren", metadata = "@mayaren"),
         commentCount = 0,
         comments = emptyList(),
         sourceMetadata = ExternalPostMetadata(postId = "1842700199"),
@@ -558,7 +596,7 @@ object SamplePosts {
         kind = LinkKind.Post,
         thumbnail = MediaLocation.Remote(""),
         media = Media(location = MediaLocation.Remote(""), contentDescription = "", badge = "TEXT"),
-        author = Author(name = "Maya Ren", metadata = "FACEBOOK"),
+        author = Author(name = "Maya Ren", metadata = "mayaren"),
         commentCount = 0,
         comments = emptyList(),
         sourceMetadata = ExternalPostMetadata(postId = "sampleitem"),

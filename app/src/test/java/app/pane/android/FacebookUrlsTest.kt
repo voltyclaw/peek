@@ -38,7 +38,7 @@ class FacebookUrlsTest {
         assertNull(FacebookUrls.parse("https://www.facebook.com/"))
         assertNull(FacebookUrls.parse("https://www.facebook.com/marketplace"))
         assertNull(FacebookUrls.parse("https://www.facebook.com/login.php"))
-        assertNull(FacebookUrls.parse("https://www.facebook.com/stories/123456789"))
+        assertNull(FacebookUrls.parse("https://www.facebook.com/stories"))
         assertNull(FacebookUrls.parse("https://www.facebook.com/watch/"))
         assertNull(FacebookUrls.parse("https://example.com/share/p/abc"))
     }

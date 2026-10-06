@@ -15,6 +15,7 @@ import app.pane.android.data.instagram.ParsedInstagramCommentsPage
 import app.pane.android.data.instagram.ParsedInstagramMedia
 import app.pane.android.data.instagram.VideoVersion
 import app.pane.android.domain.model.InstagramMetadata
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.domain.model.LoadProgress
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.model.MediaLocation
@@ -40,6 +41,7 @@ class InstagramRepositoryTest {
         assertTrue(repository.supports("https://instagram.com/reel/DapVyootsZw/?utm_source=copy_link"))
         assertTrue(repository.supports("https://m.instagram.com/reel/DapVyootsZw/"))
         assertTrue(repository.supports("https://l.instagram.com/p/DapVyootsZw/"))
+        assertTrue(repository.supports("https://www.instagram.com/stories/maya.ren/3456789012345678901/?igsh=token"))
         assertFalse(repository.supports("https://www.reddit.com/r/pics/comments/abc123/title/"))
         assertFalse(repository.supports("http://www.instagram.com/p/DapVyootsZw/"))
     }
@@ -154,6 +156,40 @@ class InstagramRepositoryTest {
         assertTrue(repository.resolve("http://www.instagram.com/reel/DapVyootsZw/").isFailure)
         assertTrue(repository.resolve("https://example.com/reel/DapVyootsZw/").isFailure)
         assertTrue(loader.urls.isEmpty())
+        assertTrue(
+            repository.resolve("https://www.instagram.com/stories/DapVyootsZw/").exceptionOrNull()
+                is StoryUnavailableException,
+        )
+    }
+
+    @Test
+    fun storyUrlLoadsAsOnePostAndKeepsTheShareQuery() = runTest {
+        val loader = FakePageLoader(media())
+        val repository = InstagramLinkContentRepository(listOf(loader), newCacheStore())
+        val requested = "https://www.instagram.com/stories/maya.ren/3456789012345678901/?igsh=MWRabc"
+
+        val content = repository.resolve(requested).getOrThrow()
+
+        assertEquals(
+            "https://www.instagram.com/stories/maya.ren/3456789012345678901?igsh=MWRabc",
+            loader.urls.single(),
+        )
+        assertEquals(requested, content.url)
+        assertEquals("testuser", content.author.name)
+    }
+
+    @Test
+    fun storyThatCannotBeFetchedIsStoryUnavailable() = runTest {
+        val repository = InstagramLinkContentRepository(
+            listOf(InstagramPageLoader { throw IOException("Instagram requires a login for this post") }),
+            newCacheStore(),
+        )
+
+        val result = repository.resolve(
+            "https://www.instagram.com/stories/maya.ren/3456789012345678901/?igsh=MWRabc",
+        )
+
+        assertTrue(result.exceptionOrNull() is StoryUnavailableException)
     }
 
     @Test

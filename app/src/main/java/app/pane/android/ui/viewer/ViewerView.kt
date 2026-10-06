@@ -256,7 +256,10 @@ private fun ColumnScope.ViewerContent(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         DonePill(onBack, overMedia = true)
-                        SourceChip(host, overMedia = true)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            RefreshButton(onRefresh)
+                            SourceChip(host, overMedia = true)
+                        }
                     }
                 }
             } else {
@@ -266,7 +269,10 @@ private fun ColumnScope.ViewerContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DonePill(onBack, overMedia = false)
-                    SourceChip(host, overMedia = false)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        RefreshButton(onRefresh)
+                        SourceChip(host, overMedia = false)
+                    }
                 }
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -825,15 +831,17 @@ private fun ErrorShell(
 
 @Composable
 private fun AuthorCaption(post: ViewerPostUiModel) {
+    val name = post.authorName.ifBlank { stringResource(R.string.author_unknown) }
+    val detail = post.authorMetadata.takeIf { post.authorName.isNotBlank() && it.isNotBlank() }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        val initial = post.authorName.firstOrNull()?.uppercase() ?: ""
+        val initial = name.firstOrNull()?.uppercase() ?: ""
         Box(Modifier.size(40.dp).clip(CircleShape).background(PaneTile).border(1.dp, PaneBorder, CircleShape), contentAlignment = Alignment.Center) {
             Text(initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
         }
         Column {
-            Text(post.authorName, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
-            if (post.authorMetadata.isNotBlank()) {
-                Text(post.authorMetadata, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+            Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
+            if (detail != null) {
+                Text(detail, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
             }
         }
     }

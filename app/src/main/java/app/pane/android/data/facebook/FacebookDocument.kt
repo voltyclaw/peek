@@ -1,5 +1,6 @@
 package app.pane.android.data.facebook
 
+import app.pane.android.domain.model.AuthorLines
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -60,7 +61,7 @@ object FacebookDocument {
         return ParsedFacebookPost(
             id = id,
             canonicalUrl = canonicalUrl,
-            author = actor?.name ?: "Facebook",
+            author = actor?.name?.takeUnless(AuthorLines::isSourceLabel).orEmpty(),
             text = caption,
             imageUrls = images,
             videoUrl = video,
@@ -72,7 +73,7 @@ object FacebookDocument {
 
     /** A page name, not the post body that Facebook sometimes copies into og:title. */
     fun hasDistinctAuthor(post: ParsedFacebookPost): Boolean {
-        if (post.author.isBlank() || post.author == "Facebook") return false
+        if (post.author.isBlank() || post.author == "Facebook" || AuthorLines.isSourceLabel(post.author)) return false
         return !looksLikeCaption(post.author, post.text)
     }
 

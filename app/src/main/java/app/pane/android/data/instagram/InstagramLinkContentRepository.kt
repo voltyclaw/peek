@@ -5,6 +5,8 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.PrioritizedUrlResolver
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.AuthorLines
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.InstagramMediaItem
 import app.pane.android.domain.model.InstagramMetadata
@@ -53,9 +55,7 @@ class InstagramLinkContentRepository(
         onProgress: LoadProgressListener,
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
-        val post = canonicalize(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Instagram post URL: $url"),
-        )
+        val post = canonicalize(url) ?: return unsupported(url)
         successfulCache[post.shortcode]?.let { return Result.success(it.withUrl(url)) }
         cacheStore.get(post.shortcode)?.let {
             rememberCacheHit(post.shortcode, it)
@@ -75,9 +75,11 @@ class InstagramLinkContentRepository(
     }
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> = try {
-        val post = canonicalize(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Instagram post URL: $url"),
-        )
+        val post = canonicalize(url) ?: return unsupported(url)
+        if (post.story) {
+            val current = successfulCache[post.shortcode]
+            return if (current != null) Result.success(current.withUrl(url)) else unsupported(url)
+        }
         loadMutex.withLock {
             val current = successfulCache[post.shortcode]
                 ?: cacheStore.get(post.shortcode)?.also { rememberCacheHit(post.shortcode, it) }?.content
@@ -117,9 +119,7 @@ class InstagramLinkContentRepository(
         onProgress: LoadProgressListener,
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
-        val post = canonicalize(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Instagram post URL: $url"),
-        )
+        val post = canonicalize(url) ?: return unsupported(url)
         successfulCache.remove(post.shortcode)
         resolverForShortcode.remove(post.shortcode)
         cacheStore.remove(post.shortcode)
@@ -150,7 +150,7 @@ class InstagramLinkContentRepository(
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (error: Exception) {
-        Result.failure(error)
+        if (post.story) Result.failure(StoryUnavailableException()) else Result.failure(error)
     }
 
     /**
@@ -165,7 +165,37 @@ class InstagramLinkContentRepository(
         resolverForShortcode[shortcode] = resolversById[cached.resolverId] ?: pageLoaders.first()
     }
 
+    private fun unsupported(url: String): Result<LinkContent> =
+        if (InstagramStories.isStoryUrl(url)) {
+            Result.failure(StoryUnavailableException())
+        } else {
+            Result.failure(IllegalArgumentException("Unsupported Instagram post URL: $url"))
+        }
+
+    private fun instagramAuthor(media: ParsedInstagramMedia): Author {
+        val username = media.owner.username
+            .takeUnless { it.isBlank() || it.equals("unknown", ignoreCase = true) || AuthorLines.isSourceLabel(it) }
+            .orEmpty()
+        val fullName = media.owner.full_name
+            ?.takeUnless { it.isBlank() || AuthorLines.isSourceLabel(it) }
+            .orEmpty()
+        val badge = buildString {
+            append("INSTAGRAM")
+            if (media.owner.is_verified) append(" · VERIFIED")
+            append(" · ${formatCount(media.likeCount)} LIKES")
+        }
+        val presented = AuthorLines.present(username.ifBlank { fullName }, badge)
+        return Author(
+            name = presented.name,
+            metadata = presented.metadata,
+            avatarUrl = media.owner.profile_pic_url,
+        )
+    }
+
     private fun canonicalize(url: String): CanonicalPost? {
+        InstagramStories.parse(url)?.let { story ->
+            return CanonicalPost(shortcode = story.cacheId, canonicalUrl = story.fetchUrl, story = true)
+        }
         val uri = runCatching { URI(url) }.getOrNull() ?: return null
         if (!uri.scheme.equals("https", ignoreCase = true)) return null
         if (uri.host?.lowercase() !in INSTAGRAM_HOSTS) return null
@@ -220,15 +250,7 @@ class InstagramLinkContentRepository(
                     else -> "PHOTO"
                 },
             ),
-            author = Author(
-                name = media.owner.username,
-                metadata = buildString {
-                    append("INSTAGRAM")
-                    if (media.owner.is_verified) append(" · VERIFIED")
-                    append(" · ${formatCount(media.likeCount)} LIKES")
-                },
-                avatarUrl = media.owner.profile_pic_url,
-            ),
+            author = instagramAuthor(media),
             commentCount = media.commentCount,
             comments = mapComments(media),
             sourceMetadata = InstagramMetadata(
@@ -309,7 +331,11 @@ class InstagramLinkContentRepository(
         else -> count.toString()
     }
 
-    private data class CanonicalPost(val shortcode: String, val canonicalUrl: String)
+    private data class CanonicalPost(
+        val shortcode: String,
+        val canonicalUrl: String,
+        val story: Boolean = false,
+    )
 
     private companion object {
         val POST_PATH = Regex("/(p|reel|reels)/([A-Za-z0-9_-]+)")

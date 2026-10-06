@@ -2,6 +2,7 @@ package app.pane.android.data.instagram
 
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.domain.model.LoadProgress
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
 import android.util.Log
@@ -46,7 +47,12 @@ class InstagramDirectPageLoader(
 
     override val resolverId: String = "instagram-graphql"
 
+    override fun supports(url: String): Boolean =
+        extractShortcode(url) != null || InstagramStories.parse(url) != null
+
     override suspend fun resolve(url: String): ParsedInstagramMedia = withContext(Dispatchers.IO) {
+        val story = InstagramStories.parse(url)
+        if (story != null) return@withContext resolveStory(url, story)
         val shortcode = extractShortcode(url)
             ?: throw IllegalArgumentException("Unsupported Instagram post URL: $url")
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
@@ -78,6 +84,82 @@ class InstagramDirectPageLoader(
             listener.report(1f, LoadStage.ExtractingContent)
             media
         }
+    }
+
+    private suspend fun resolveStory(url: String, story: InstagramStories.Story): ParsedInstagramMedia {
+        val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
+        listener.report(0.08f, LoadStage.Connecting)
+        val html = runCatching { getPublic(story.fetchUrl.ifBlank { url }) }.getOrNull()
+        if (html != null) {
+            parser.parse(html)?.let { return it }
+            parseStoryPage(html, story)?.let { return it }
+        }
+        if (story.mediaId.all(Char::isDigit)) {
+            val response = runCatching {
+                val variables = buildJsonObject { put("media_id", story.mediaId) }
+                request(story.fetchUrl) { lsd -> mediaQueryBody(variables, lsd) }
+            }.getOrNull()
+            if (response != null) {
+                parser.parse(response)?.let { return it }
+            }
+        }
+        throw StoryUnavailableException()
+    }
+
+    private fun getPublic(url: String): String {
+        val connection = connectionFactory(url)
+        try {
+            connection.instanceFollowRedirects = true
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 12_000
+            connection.setRequestProperty("Accept", "text/html")
+            connection.setRequestProperty("User-Agent", USER_AGENT)
+            val status = connection.responseCode
+            if (status !in 200..299) throw IOException("Instagram returned HTTP $status")
+            return connection.inputStream?.bufferedReader(StandardCharsets.UTF_8)?.use { reader ->
+                val buffer = CharArray(8_192)
+                val text = StringBuilder()
+                while (text.length < MAX_EMBED_CHARS) {
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    text.append(buffer, 0, minOf(count, MAX_EMBED_CHARS - text.length))
+                }
+                text.toString()
+            }.orEmpty()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun parseStoryPage(html: String, story: InstagramStories.Story): ParsedInstagramMedia? {
+        val image = metaContent(html, "og:image")?.takeIf { it.startsWith("http") && !isStaticAsset(it) }
+        val video = (metaContent(html, "og:video:secure_url") ?: metaContent(html, "og:video"))
+            ?.takeIf { it.startsWith("http") }
+        if (image == null && video == null) return null
+        val login = html.contains("login", ignoreCase = true) && image == null && video == null
+        if (login) return null
+        val username = story.username.takeUnless {
+            it.equals("highlights", ignoreCase = true) || it.equals("instagram", ignoreCase = true)
+        } ?: "unknown"
+        val caption = metaContent(html, "og:description")?.takeUnless { it.equals("Instagram", ignoreCase = true) }
+        return ParsedInstagramMedia(
+            pk = story.mediaId,
+            code = story.mediaId,
+            videoVersions = video?.let { listOf(VideoVersion(url = it)) }.orEmpty(),
+            imageVersions = image?.let { ImageVersions(listOf(ImageCandidate(it))) },
+            caption = caption?.let { Caption(it) },
+            likeCount = 0,
+            commentCount = 0,
+            takenAt = 0L,
+            owner = Owner(username = username),
+            comments = emptyList(),
+        )
+    }
+
+    private fun isStaticAsset(url: String): Boolean {
+        val lower = url.lowercase()
+        return "static.cdninstagram.com" in lower || lower.endsWith("/favicon.ico") || "rsrc.php" in lower
     }
 
     private fun fetchEmbed(shortcode: String): ParsedInstagramMedia? {

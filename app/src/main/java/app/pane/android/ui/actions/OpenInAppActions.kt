@@ -1,18 +1,30 @@
 package app.pane.android.ui.actions
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import app.pane.android.BrowserTrampoline
+import app.pane.android.BrowserTrampolinePreferences
+import app.pane.android.BuildConfig
+import app.pane.android.InstalledBrowsers
 import app.pane.android.R
 import app.pane.android.data.facebook.FacebookUrls
+import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
 import app.pane.android.domain.model.LinkShims
 import java.net.URI
 import java.util.Locale
 
-internal data class OpenInAppTarget(val uri: String, val packageName: String?)
+internal data class OpenInAppTarget(
+    val uri: String,
+    val packageName: String?,
+    /** When the source app cannot open a story, hand this same URL to the chosen browser. */
+    val handoffBrowser: Boolean = false,
+)
 
 internal fun openInAppLabelRes(url: String): Int = when {
     XUrls.supports(url) -> R.string.open_in_x
@@ -50,12 +62,14 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(https, null),
         )
     }
-    val facebook = FacebookUrls.parse(unwrapped)?.canonicalUrl
+    val facebook = FacebookUrls.parse(unwrapped)
     if (facebook != null) {
+        val handoff = if (facebook.kind == FacebookUrls.Kind.Story) facebook.sourceUrl else facebook.canonicalUrl
+        val story = facebook.kind == FacebookUrls.Kind.Story
         return listOf(
-            OpenInAppTarget(facebook, "com.facebook.katana"),
-            OpenInAppTarget(facebook, "com.facebook.lite"),
-            OpenInAppTarget(facebook, null),
+            OpenInAppTarget(handoff, "com.facebook.katana"),
+            OpenInAppTarget(handoff, "com.facebook.lite"),
+            OpenInAppTarget(handoff, null, handoffBrowser = story),
         )
     }
     if (RedditUrls.supports(unwrapped)) {
@@ -74,6 +88,13 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(unwrapped, null),
         )
     }
+    val igStory = InstagramStories.parse(unwrapped)
+    if (igStory != null) {
+        return listOf(
+            OpenInAppTarget(igStory.fetchUrl, "com.instagram.android"),
+            OpenInAppTarget(igStory.fetchUrl, null, handoffBrowser = true),
+        )
+    }
     if (isInstagramUrl(unwrapped)) {
         val https = instagramHttps(unwrapped)
         return listOf(
@@ -86,9 +107,18 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
 
 fun openPostInApp(context: Context, url: String): Boolean {
     if (url.isBlank()) return false
-    for (target in openInAppTargets(url)) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(target.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (target.packageName != null) intent.setPackage(target.packageName)
+    val targets = openInAppTargets(url)
+    if (BuildConfig.DEBUG) {
+        Log.i("PaneOpen", "open incoming=$url outgoing=${targets.firstOrNull()?.uri.orEmpty()}")
+    }
+    for (target in targets) {
+        val intent = if (target.handoffBrowser) {
+            handoffBrowserIntent(context, target.uri) ?: continue
+        } else {
+            Intent(Intent.ACTION_VIEW, Uri.parse(target.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+                if (target.packageName != null) setPackage(target.packageName)
+            }
+        }
         val started = try {
             context.startActivity(intent)
             true
@@ -100,6 +130,22 @@ fun openPostInApp(context: Context, url: String): Boolean {
         if (started) return true
     }
     return false
+}
+
+private fun handoffBrowserIntent(context: Context, url: String): Intent? {
+    val browsers = InstalledBrowsers.list(context)
+    val pick = BrowserTrampoline.pickHandoff(
+        candidates = browsers.map { browser ->
+            BrowserTrampoline.Candidate(browser.packageName, browser.activityName)
+        },
+        ownPackage = context.packageName,
+        preferredPackage = BrowserTrampolinePreferences.readHandoff(context),
+        systemPackage = InstalledBrowsers.systemPackage(context),
+    ) ?: return null
+    return Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        component = ComponentName(pick.packageName, pick.activityName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 }
 
 private fun redditHttps(url: String): String {

@@ -41,21 +41,63 @@ internal object IncomingLink {
         clipText: String? = null,
     ): String? {
         val raw = when (action) {
-            ACTION_VIEW -> dataString?.let { data ->
-                if (BuildConfig.DEBUG) {
-                    SamplePosts.canonicalForDeepLink(data) ?: data.takeIf { it.isWebUrl() }
+            ACTION_VIEW -> {
+                val data = dataString?.let { value ->
+                    if (BuildConfig.DEBUG) {
+                        SamplePosts.canonicalForDeepLink(value) ?: value.takeIf { it.isWebUrl() }
+                    } else {
+                        value.takeIf { it.isWebUrl() }
+                    }
+                }
+                if (data != null && data.startsWith("pane:")) {
+                    data
                 } else {
-                    data.takeIf { it.isWebUrl() }
+                    preferStoryUrl(
+                        listOfNotNull(
+                            data,
+                            extractUrl(extraText),
+                            extractUrl(extraHtml),
+                            extractUrl(clipText),
+                        ),
+                    )
                 }
             }
-            ACTION_SEND -> extractUrl(
-                extraText?.takeIf { it.isNotBlank() }
-                    ?: extraHtml?.takeIf { it.isNotBlank() }
-                    ?: clipText,
+            ACTION_SEND -> preferStoryUrl(
+                listOfNotNull(
+                    extractUrl(extraText),
+                    extractUrl(extraHtml),
+                    extractUrl(clipText),
+                ),
             )
             else -> null
         } ?: return null
         return LinkShims.unwrap(raw)
+    }
+
+    /**
+     * A share can put a short fb.watch or permalink in one extra and the full story
+     * URL (story_fbid, bucket_id, share token) in another. Keep the fuller story URL.
+     * When nothing is a story, the first candidate wins.
+     */
+    internal fun preferStoryUrl(candidates: List<String>): String? {
+        val urls = candidates
+            .map { LinkShims.unwrap(it.trim()) }
+            .filter { it.isNotEmpty() }
+        if (urls.isEmpty()) return null
+        return urls.reduce { best, next ->
+            if (storyScore(next) > storyScore(best)) next else best
+        }
+    }
+
+    private fun storyScore(url: String): Int {
+        val text = url.lowercase()
+        var score = 0
+        if ("/stories/" in text) score += 100
+        if ("story_fbid=" in text) score += 40
+        if ("bucket_id=" in text) score += 40
+        if ("view_single=" in text) score += 20
+        if ("mibextid=" in text || "igsh=" in text || "ig_story" in text) score += 10
+        return score
     }
 
     private const val ACTION_VIEW = "android.intent.action.VIEW"

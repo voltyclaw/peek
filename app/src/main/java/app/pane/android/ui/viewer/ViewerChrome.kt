@@ -141,6 +141,16 @@ internal fun ViewerBottomBar(
 }
 
 @Composable
+internal fun RefreshButton(onRefresh: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable(role = Role.Button, onClick = onRefresh),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.refresh), tint = PaneMuted, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
 private fun QuietIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
@@ -184,19 +194,23 @@ internal fun OverflowSheet(
                 color = PaneInk,
                 style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
             )
-            SheetRow(Icons.Rounded.Share, stringResource(R.string.share), null, onShare)
-            SheetRow(Icons.Rounded.ContentCopy, stringResource(R.string.copy_link), null, onCopyLink)
-            if (canDownload) {
-                SheetRow(Icons.Rounded.Download, stringResource(R.string.download), null, onDownload)
+            overflowActions(canDownload).forEach { action ->
+                when (action) {
+                    OverflowAction.Share -> SheetRow(Icons.Rounded.Share, stringResource(R.string.share), null, onShare)
+                    OverflowAction.CopyLink -> SheetRow(Icons.Rounded.ContentCopy, stringResource(R.string.copy_link), null, onCopyLink)
+                    OverflowAction.Download -> SheetRow(Icons.Rounded.Download, stringResource(R.string.download), null, onDownload)
+                    OverflowAction.AddNote -> {
+                        HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = PaneBorder, thickness = 1.dp)
+                        Text(
+                            text = stringResource(R.string.advanced),
+                            modifier = Modifier.padding(start = 22.dp, top = 16.dp, bottom = 4.dp),
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
+                        )
+                        SheetRow(Icons.Rounded.Edit, stringResource(R.string.add_note), stringResource(R.string.note_private), onAddNote, quiet = true)
+                    }
+                }
             }
-            HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = PaneBorder, thickness = 1.dp)
-            Text(
-                text = stringResource(R.string.advanced),
-                modifier = Modifier.padding(start = 22.dp, top = 16.dp, bottom = 4.dp),
-                color = PaneMuted,
-                style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
-            )
-            SheetRow(Icons.Rounded.Edit, stringResource(R.string.add_note), stringResource(R.string.note_private), onAddNote, quiet = true)
         }
     }
 }

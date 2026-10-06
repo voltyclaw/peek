@@ -23,6 +23,8 @@
     <string name="reason_private">Private or login wall</string>
     <string name="reason_expired">Link expired</string>
     <string name="reason_network">Network hiccup</string>
+    <string name="reason_story">Story unavailable</string>
+    <string name="author_unknown">Author</string>
     <string name="try_again">Try again</string>
     <string name="pane_cant_show">Pane can’t show this</string>
     <string name="not_a_single_post">This isn’t a single public post.</string>

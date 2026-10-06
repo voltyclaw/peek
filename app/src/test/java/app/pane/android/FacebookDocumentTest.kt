@@ -232,6 +232,24 @@ class FacebookDocumentTest {
         assertTrue(opened.any { it.contains("plugins/post.php") && it.contains("nasa") })
     }
 
+    @Test
+    fun storyFetchKeepsTheShareUrlAndSkipsThePostPlugin() = runTest {
+        val opened = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val loader = FacebookDirectPageLoader { url ->
+            opened += url
+            htmlConnection(PUBLIC_HTML)
+        }
+        val url = "https://www.facebook.com/stories/100064321098765/UzpfSVsampleStory1/" +
+            "?view_single=1&bucket_id=100064321098765&story_fbid=sampleStory1&mibextid=wwXIfr"
+
+        val post = loader.resolve(url)
+
+        assertEquals("NASA", post.author)
+        assertEquals("https://scontent.example/moon.jpg", post.imageUrls.first())
+        assertTrue(opened.any { it.contains("story_fbid=sampleStory1") && it.contains("bucket_id=") && it.contains("mibextid=") })
+        assertTrue(opened.none { it.contains("plugins/post.php") || it.contains("permalink.php") })
+    }
+
     private fun htmlConnection(html: String): HttpURLConnection =
         object : HttpURLConnection(URL("https://www.facebook.com/plugins/post.php")) {
             override fun setInstanceFollowRedirects(followRedirects: Boolean) {

@@ -4,6 +4,7 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.PrioritizedUrlResolver
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.AuthorLines
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
@@ -201,7 +202,7 @@ class RedditLinkContentRepository(
                 duration = primary?.durationSeconds?.takeIf { it > 0 }?.let(::formatDuration),
             ),
             author = Author(
-                name = post.author,
+                name = post.author.takeUnless { it.isBlank() || AuthorLines.isSourceLabel(it) }.orEmpty(),
                 metadata = buildString {
                     append("REDDIT · r/${post.subreddit}")
                     if (post.over18) append(" · NSFW")

@@ -4,6 +4,7 @@ import app.pane.android.data.cache.LinkContentCacheStore
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.PrioritizedUrlResolver
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.AuthorLines
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.ExternalMediaItem
 import app.pane.android.domain.model.ExternalPostMetadata
@@ -159,7 +160,7 @@ class XLinkContentRepository(
                     else -> "TEXT"
                 },
             ),
-            author = Author(name = post.author, metadata = "X"),
+            author = xAuthor(post.author, post.screenName),
             commentCount = post.commentCount,
             comments = post.replies.map(::mapReply),
             sourceMetadata = ExternalPostMetadata(
@@ -171,6 +172,16 @@ class XLinkContentRepository(
                 authorThreadPartial = post.authorThreadPartial,
             ),
         )
+    }
+
+    private fun xAuthor(name: String, screenName: String?): Author {
+        val handle = screenName?.trim()?.removePrefix("@")
+            ?.takeIf { it.isNotEmpty() && !AuthorLines.isSourceLabel(it) }
+        val display = name.takeUnless { it.isBlank() || AuthorLines.isSourceLabel(it) }.orEmpty()
+            .ifBlank { handle.orEmpty() }
+        val meta = handle?.takeIf { !it.equals(display, ignoreCase = true) }?.let { "@$it" }.orEmpty()
+        val presented = AuthorLines.present(display, meta)
+        return Author(name = presented.name, metadata = presented.metadata)
     }
 
     private fun mapReply(reply: ParsedXReply): Comment = Comment(

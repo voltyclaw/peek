@@ -1,9 +1,11 @@
 package app.pane.android
 
+import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.openFailureKind
 import app.pane.android.ui.viewer.viewerStateFor
+import app.pane.android.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -17,6 +19,17 @@ class OpenFailureTest {
         assertEquals(OpenFailureKind.Expired, openFailureKind("status 404"))
         assertEquals(OpenFailureKind.Network, openFailureKind("timeout talking to the source"))
         assertEquals(OpenFailureKind.Network, openFailureKind("<html><body>502 Bad Gateway</body></html>"))
+        assertEquals(OpenFailureKind.Story, openFailureKind("Story unavailable"))
+    }
+
+    @Test
+    fun aStoryThatCannotBeFetchedKeepsTheStoryReason() {
+        val state = viewerStateFor(
+            "https://www.facebook.com/stories/1/2",
+            StoryUnavailableException(),
+        ) as ViewerUiState.LoadFailed
+        assertEquals(OpenFailureKind.Story.name, state.reason)
+        assertEquals(R.string.reason_story, app.pane.android.ui.viewer.failureCopyRes(state.reason))
     }
 
     @Test
