@@ -250,30 +250,10 @@ private fun ColumnScope.ViewerContent(
                             Brush.verticalGradient(listOf(Color.Transparent, PaneGround)),
                         ),
                     )
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DonePill(onBack, overMedia = true)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            RefreshButton(onRefresh)
-                            SourceChip(host, overMedia = true)
-                        }
-                    }
+                    ViewerTopBar(onBack, onRefresh, overMedia = true)
                 }
             } else {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DonePill(onBack, overMedia = false)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RefreshButton(onRefresh)
-                        SourceChip(host, overMedia = false)
-                    }
-                }
+                ViewerTopBar(onBack, onRefresh, overMedia = false)
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (reddit) {
@@ -801,11 +781,10 @@ private fun ErrorShell(
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DonePill(onBack, overMedia = false)
-            SourceChip(host, overMedia = false)
         }
         Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) { body() }
         ViewerBottomBar(

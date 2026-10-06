@@ -79,18 +79,31 @@ internal fun DonePill(onDone: () -> Unit, overMedia: Boolean, modifier: Modifier
     }
 }
 
+/** Top bar of the post viewer. Done on the left, refresh on the right. The host is not shown. */
+internal enum class ViewerChromeControl { Done, Refresh }
+
+internal fun viewerTopChrome(): List<ViewerChromeControl> =
+    listOf(ViewerChromeControl.Done, ViewerChromeControl.Refresh)
+
 @Composable
-internal fun SourceChip(host: String, overMedia: Boolean, modifier: Modifier = Modifier) {
-    val fill = if (overMedia) PaneGround.copy(alpha = 0.6f) else PaneTile
-    Text(
-        text = host,
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(fill)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        color = PaneMuted,
-        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-    )
+internal fun ViewerTopBar(
+    onDone: () -> Unit,
+    onRefresh: () -> Unit,
+    overMedia: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = if (overMedia) 10.dp else 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        viewerTopChrome().forEach { control ->
+            when (control) {
+                ViewerChromeControl.Done -> DonePill(onDone, overMedia = overMedia)
+                ViewerChromeControl.Refresh -> RefreshButton(onRefresh)
+            }
+        }
+    }
 }
 
 @Composable
