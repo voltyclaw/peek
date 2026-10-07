@@ -113,6 +113,10 @@ data class ExternalThreadPost(
     val text: String,
 )
 
+/** Whether more X replies can be fetched, the public list is complete, or the guest page stopped. */
+@Serializable
+enum class XReplyContinuation { More, Exhausted, Blocked }
+
 /** Public Facebook and X posts. An X author thread is separate from other people's replies. */
 @Serializable
 data class ExternalPostMetadata(
@@ -120,6 +124,8 @@ data class ExternalPostMetadata(
     val mediaItems: List<ExternalMediaItem> = emptyList(),
     val authorThread: List<ExternalThreadPost> = emptyList(),
     val authorThreadPartial: Boolean = false,
+    val repliesCursor: String? = null,
+    val replyContinuation: XReplyContinuation? = null,
 ) : SourceMetadata
 
 @Serializable
@@ -146,6 +152,8 @@ data class Comment(
     val body: String,
     val isCreator: Boolean = false,
     val replies: List<Comment> = emptyList(),
+    val avatarUrl: String? = null,
+    val handle: String? = null,
 )
 
 @Serializable

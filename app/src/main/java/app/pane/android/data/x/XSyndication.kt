@@ -16,6 +16,8 @@ data class ParsedXReply(
     val author: String,
     val text: String,
     val createdAtEpochMillis: Long,
+    val screenName: String? = null,
+    val avatarUrl: String? = null,
 )
 
 /** One post in the author's own chain, in reading order from the root. */
@@ -55,6 +57,8 @@ data class ParsedXPost(
     val authorThreadPartial: Boolean = false,
     val videos: List<ParsedXVideo> = emptyList(),
     val avatarUrl: String? = null,
+    /** Bottom cursor from the public conversation, when the document includes one. */
+    val repliesCursor: String? = null,
 )
 
 /**

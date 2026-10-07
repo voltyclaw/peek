@@ -3,7 +3,12 @@ package app.pane.android
 import app.pane.android.data.x.XConversation
 import app.pane.android.data.x.XDirectPageLoader
 import app.pane.android.data.x.XPreviewElement
+import app.pane.android.data.x.XReplyPage
 import app.pane.android.data.x.XSyndication
+import app.pane.android.data.x.initialXReplyContinuation
+import app.pane.android.data.x.mergeXReplyPage
+import app.pane.android.data.x.ParsedXReply
+import app.pane.android.domain.model.XReplyContinuation
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -460,6 +465,97 @@ class XSyndicationTest {
         assertEquals(31, post.commentCount)
         assertEquals(listOf("Joshua", "Yuhan", "Ada"), post.replies.map { it.author })
         assertEquals("@cleo > It feels like a lot of lifetimes.", post.replies[1].text)
+    }
+
+    @Test
+    fun repliesOmitTheOpenedStatusEvenWhenAnAncestorEntryCarriesItsText() {
+        val html = """
+            entry_id:"tweet-100"
+            rest_id:"200" name:"Anshu" screen_name:"anshuc" image_url:"https://pbs.twimg.com/profile_images/anshu_normal.jpg" full_text:"the opened post"
+            rest_id:"100"
+            entry_id:"tweet-200"
+            entry_id:"conversationthread-9-tweet-9" rest_id:"9" name:"Happy" screen_name:"happy" image_url:"https://pbs.twimg.com/profile_images/happy_normal.jpg" full_text:"a real reply" created_at_ms:1710000000000
+        """.trimIndent()
+
+        val replies = XConversation.parseReplies(html, "200")
+
+        assertEquals(listOf("9"), replies.map { it.id })
+        assertEquals("Happy", replies.single().author)
+        assertEquals("happy", replies.single().screenName)
+        assertEquals("https://pbs.twimg.com/profile_images/happy_200x200.jpg", replies.single().avatarUrl)
+        assertEquals("a real reply", replies.single().text)
+    }
+
+    @Test
+    fun bottomCursorIsReadOnlyWhenTheTimelineHasOne() {
+        val html = """__typename:"TimelineTimelineCursor" value:"cursor-next" cursorType:"Bottom""""
+        assertEquals("cursor-next", XConversation.parseBottomCursor(html))
+        assertNull(XConversation.parseBottomCursor("""__typename:"TimelineTerminateTimeline" direction:"Bottom""""))
+    }
+
+    @Test
+    fun loaderFollowsABottomCursorAndStopsWhenTheNextPageIsAWall() = runTest {
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("cursor=cursor-next") -> """
+                    entry_id:"conversationthread-11-tweet-11" rest_id:"11" name:"Bea" screen_name:"bea" full_text:"second page" created_at_ms:1710000000001
+                """.trimIndent()
+                url.contains("cursor=cursor-wall") -> "login wall"
+                url.contains("syndication") -> """
+                    {"id_str":"20","text":"hello","user":{"name":"jack","screen_name":"jack"},"conversation_count":4}
+                """.trimIndent()
+                url.contains("/i/status/") -> """
+                    entry_id:"conversationthread-8-tweet-8" rest_id:"8" name:"Ada" full_text:"from x" created_at_ms:1710000000000
+                    cursorType:"Bottom" value:"cursor-next"
+                """.trimIndent()
+                else -> "<html></html>"
+            }
+            jsonConnection(body)
+        }
+
+        val post = loader.resolve("https://x.com/jack/status/20")
+        val page = loader.loadReplies("20", "cursor-next")
+        val wall = loader.loadReplies("20", "cursor-wall")
+
+        assertEquals("cursor-next", post.repliesCursor)
+        assertEquals(listOf("8"), post.replies.map { it.id })
+        assertEquals("second page", page.replies.single().text)
+        assertFalse(page.blocked)
+        assertTrue(wall.blocked)
+        assertTrue(wall.replies.isEmpty())
+    }
+
+    @Test
+    fun mergingAReplyPageDropsTheOpenedStatusAndStopsAtTheWall() {
+        val opened = ParsedXReply(id = "20", author = "Anshu", text = "root", createdAtEpochMillis = 0)
+        val kept = mergeXReplyPage(
+            primaryId = "20",
+            knownIds = setOf("9"),
+            requestedCursor = "cursor-next",
+            page = XReplyPage(
+                replies = listOf(opened, ParsedXReply("11", "Bea", "next", 0)),
+                nextCursor = null,
+                blocked = false,
+            ),
+        )
+        val wall = mergeXReplyPage(
+            primaryId = "20",
+            knownIds = setOf("9"),
+            requestedCursor = "cursor-next",
+            page = XReplyPage(
+                replies = listOf(ParsedXReply("12", "Happy", "later", 0)),
+                nextCursor = null,
+                blocked = true,
+            ),
+        )
+
+        assertEquals(listOf("11"), kept.fresh.map { it.id })
+        assertEquals(XReplyContinuation.Exhausted, kept.continuation)
+        assertEquals(XReplyContinuation.Blocked, wall.continuation)
+        assertTrue(wall.fresh.isEmpty())
+        assertEquals(XReplyContinuation.Blocked, initialXReplyContinuation(5, 1, null))
+        assertEquals(XReplyContinuation.More, initialXReplyContinuation(5, 1, "cursor-next"))
+        assertEquals(XReplyContinuation.Exhausted, initialXReplyContinuation(1, 1, null))
     }
 
     @Test

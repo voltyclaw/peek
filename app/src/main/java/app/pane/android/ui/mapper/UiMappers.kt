@@ -15,6 +15,7 @@ import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.model.RecentContent
 import app.pane.android.domain.model.RedditMetadata
 import app.pane.android.domain.model.SourceMetadata
+import app.pane.android.domain.model.XReplyContinuation
 import app.pane.android.ui.model.AuthorThreadPostUiModel
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
@@ -184,6 +185,14 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         }
         val external = sourceMetadata as? ExternalPostMetadata
         val author = AuthorLines.present(content.author.name, content.author.metadata)
+        val primaryId = when (sourceMetadata) {
+            is ExternalPostMetadata -> sourceMetadata.postId
+            is RedditMetadata -> sourceMetadata.postId
+            is InstagramMetadata -> sourceMetadata.postId
+            null -> null
+        }
+        val comments = commentsWithoutPrimary(primaryId, content.comments)
+        val xContinuation = if (content.source == LinkSource.X) external?.replyContinuation else null
         return ViewerPostUiModel(
             title = content.title,
             isVideo = content.kind == LinkKind.Video,
@@ -195,15 +204,18 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             authorName = author.name,
             authorMetadata = author.metadata,
             commentCount = content.commentCount,
-            comments = content.comments.map(::mapComment),
-            canLoadMoreComments = when (sourceMetadata) {
-                is InstagramMetadata -> sourceMetadata.commentsEndCursor != null
-                is RedditMetadata -> sourceMetadata.moreCommentIds.isNotEmpty()
+            comments = comments.map(::mapComment),
+            canLoadMoreComments = when {
+                sourceMetadata is InstagramMetadata -> sourceMetadata.commentsEndCursor != null
+                sourceMetadata is RedditMetadata -> sourceMetadata.moreCommentIds.isNotEmpty()
+                xContinuation == XReplyContinuation.More -> !external?.repliesCursor.isNullOrBlank()
                 else -> false
             },
-            commentsTruncated = content.source == LinkSource.X &&
-                content.comments.isNotEmpty() &&
-                content.commentCount > content.comments.size,
+            commentsTruncated = when (xContinuation) {
+                XReplyContinuation.Blocked -> true
+                XReplyContinuation.Exhausted, XReplyContinuation.More -> false
+                null -> content.source == LinkSource.X && content.commentCount > comments.size
+            },
             authorThread = external?.authorThread.orEmpty().map { item ->
                 AuthorThreadPostUiModel(
                     id = item.id,
@@ -255,5 +267,19 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         body = comment.body,
         isCreator = comment.isCreator,
         replies = comment.replies.map(::mapComment),
+        avatarUrl = comment.avatarUrl?.takeIf { it.startsWith("http") },
+        handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() },
     )
+}
+
+/** THREAD replies are children. The opened status stays in the primary viewer only. */
+internal fun commentsWithoutPrimary(primaryId: String?, comments: List<Comment>): List<Comment> {
+    if (primaryId.isNullOrBlank()) return comments
+    return comments.mapNotNull { comment ->
+        if (comment.id == primaryId) {
+            null
+        } else {
+            comment.copy(replies = commentsWithoutPrimary(primaryId, comment.replies))
+        }
+    }
 }

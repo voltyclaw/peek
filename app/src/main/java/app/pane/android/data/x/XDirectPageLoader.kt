@@ -38,7 +38,7 @@ class XDirectPageLoader(
     private val connectionFactory: (String) -> HttpURLConnection = { url ->
         URI(url).toURL().openConnection() as HttpURLConnection
     },
-) : XPageLoader {
+) : XPageLoader, XConversationPager {
     override val resolverId: String = "x-syndication"
 
     override fun supports(url: String): Boolean = XUrls.supports(url)
@@ -68,7 +68,7 @@ class XDirectPageLoader(
                     log("x preview ${elapsed(started)}ms id=${status.id}")
                 }
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
-                val page = mergeSlices(slices.awaitAll().filterNotNull())
+                val page = mergeSlices(slices.awaitAll().filterNotNull(), status.id)
                 val text = XConversation.longerCaption(parsed.text, page.note)
                 log(
                     "x ready ${elapsed(started)}ms thread=${page.authorThread.size} " +
@@ -82,6 +82,7 @@ class XDirectPageLoader(
                         if (item.id == parsed.id) item.copy(text = richest(item.text, text)) else item
                     },
                     authorThreadPartial = page.authorThreadPartial,
+                    repliesCursor = page.cursor,
                 )
             } else {
                 slices.forEach { it.cancel() }
@@ -105,6 +106,7 @@ class XDirectPageLoader(
         val note: String?,
         val thread: ParsedAuthorThread,
         val replies: List<ParsedXReply>,
+        val cursor: String?,
     )
 
     private data class StatusPage(
@@ -112,7 +114,22 @@ class XDirectPageLoader(
         val replies: List<ParsedXReply>,
         val authorThread: List<ParsedXThreadPost>,
         val authorThreadPartial: Boolean,
+        val cursor: String?,
     )
+
+    override suspend fun loadReplies(statusId: String, cursor: String): XReplyPage {
+        val encoded = URLEncoder.encode(cursor, StandardCharsets.UTF_8.name())
+        val html = runCatching {
+            get("https://x.com/i/status/$statusId?cursor=$encoded", json = false)
+        }.getOrNull() ?: return XReplyPage(emptyList(), nextCursor = null, blocked = true)
+        val replies = XConversation.parseReplies(html, statusId)
+        val next = XConversation.parseBottomCursor(html)?.takeIf { it.isNotBlank() && it != cursor }
+        return XReplyPage(
+            replies = replies,
+            nextCursor = next,
+            blocked = replies.isEmpty() && next == null,
+        )
+    }
 
     private fun statusPages(statusId: String, screenName: String?): List<Pair<String, String>> {
         val handle = screenName?.trim()?.takeIf { HANDLE.matches(it) }
@@ -143,15 +160,17 @@ class XDirectPageLoader(
             note = XConversation.parseNoteText(html),
             thread = XConversation.parseAuthorThread(html, statusId),
             replies = XConversation.parseReplies(html, statusId),
+            cursor = XConversation.parseBottomCursor(html),
         )
     }
 
     /** Merge in request order so a fast host does not reshuffle replies ahead of an earlier one. */
-    private fun mergeSlices(slices: List<StatusSlice>): StatusPage {
+    private fun mergeSlices(slices: List<StatusSlice>, statusId: String): StatusPage {
         var note: String? = null
         var thread = emptyList<ParsedXThreadPost>()
         var threadPartial = false
         val replies = LinkedHashMap<String, ParsedXReply>()
+        var cursor: String? = null
         for (slice in slices) {
             val foundNote = slice.note
             if (foundNote != null && foundNote.length > (note?.length ?: 0)) note = foundNote
@@ -165,13 +184,15 @@ class XDirectPageLoader(
                     replies[reply.id] = reply
                 }
             }
+            if (cursor == null && !slice.cursor.isNullOrBlank()) cursor = slice.cursor
         }
         val threadIds = thread.map { it.id }.toSet()
         return StatusPage(
             note = note,
-            replies = replies.values.filter { it.id !in threadIds },
+            replies = replies.values.filter { it.id !in threadIds && it.id != statusId },
             authorThread = thread,
             authorThreadPartial = threadPartial && thread.size >= 2,
+            cursor = cursor,
         )
     }
 

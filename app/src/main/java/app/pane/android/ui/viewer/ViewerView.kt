@@ -79,6 +79,7 @@ import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
 import app.pane.android.ui.components.PeekImage
+import app.pane.android.ui.components.ProfileAvatar
 import app.pane.android.ui.media.MAX_FRAMED_MEDIA_HEIGHT
 import app.pane.android.ui.media.MutedInlineVideo
 import app.pane.android.ui.media.VideoPlaybackQuality
@@ -285,6 +286,7 @@ private fun ColumnScope.ViewerContent(
                     scrollOffset = scrollState.value,
                     onLoadMore = onLoadMoreComments,
                     host = host,
+                    onOpenSource = { scope.launch { onOpenInApp(post.sourceUrl) } },
                 )
             }
         }
@@ -813,11 +815,8 @@ private fun ErrorShell(
 private fun AuthorCaption(post: ViewerPostUiModel) {
     val name = post.authorName.ifBlank { stringResource(R.string.author_unknown) }
     val detail = post.authorMetadata.takeIf { post.authorName.isNotBlank() && it.isNotBlank() }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        val initial = name.firstOrNull()?.uppercase() ?: ""
-        Box(Modifier.size(40.dp).clip(CircleShape).background(PaneTile).border(1.dp, PaneBorder, CircleShape), contentAlignment = Alignment.Center) {
-            Text(initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
-        }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        ProfileAvatar(image = post.authorAvatar, label = name, size = 40.dp)
         Column {
             Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
             if (detail != null) {

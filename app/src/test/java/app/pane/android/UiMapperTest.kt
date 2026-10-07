@@ -3,6 +3,10 @@ package app.pane.android
 import app.pane.android.data.fixture.FixtureCatalog
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.Author
+import app.pane.android.domain.model.Comment
+import app.pane.android.domain.model.ExternalPostMetadata
+import app.pane.android.domain.model.ExternalThreadPost
+import app.pane.android.domain.model.XReplyContinuation
 import app.pane.android.domain.model.InstagramMediaItem
 import app.pane.android.domain.model.InstagramMetadata
 import app.pane.android.domain.model.LinkContent
@@ -20,6 +24,7 @@ import app.pane.android.ui.mapper.ViewerUiMapper
 import app.pane.android.ui.model.HomeUiState
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -111,6 +116,110 @@ class UiMapperTest {
         assertEquals("https://v.redd.it/clip/DASH_720.mp4", viewed.videoUrl)
         assertEquals("https://preview.redd.it/poster.jpg", (viewed.media as app.pane.android.ui.model.UiImage.Url).value)
     }
+
+    @Test
+    fun threadDropsTheOpenedStatusForASinglePostAndAnAuthorThread() {
+        val mapper = ViewerUiMapper(UiImageMapper())
+        val single = mapper.map(
+            xContent(
+                postId = "200",
+                comments = listOf(
+                    comment("200", "the opened post"),
+                    comment("9", "a real reply", handle = "happy", avatar = "https://pbs.twimg.com/profile_images/happy.jpg"),
+                ),
+                commentCount = 5,
+                continuation = XReplyContinuation.Blocked,
+            ),
+        )
+        val thread = mapper.map(
+            xContent(
+                postId = "200",
+                comments = listOf(comment("200", "the opened post"), comment("9", "a real reply")),
+                commentCount = 2,
+                continuation = XReplyContinuation.Exhausted,
+                authorThread = listOf(
+                    ExternalThreadPost("19", "Anshu", "earlier"),
+                    ExternalThreadPost("200", "Anshu", "the opened post"),
+                ),
+            ),
+        )
+
+        assertEquals(listOf("9"), single.comments.map { it.id })
+        assertEquals("happy", single.comments.single().handle)
+        assertEquals("https://pbs.twimg.com/profile_images/happy.jpg", single.comments.single().avatarUrl)
+        assertTrue(single.commentsTruncated)
+        assertFalse(single.canLoadMoreComments)
+        assertEquals(listOf("9"), thread.comments.map { it.id })
+        assertEquals(listOf("19", "200"), thread.authorThread.map { it.id })
+        assertFalse(thread.commentsTruncated)
+    }
+
+    @Test
+    fun xCursorKeepsPagingUntilTheThreadIsExhausted() {
+        val mapper = ViewerUiMapper(UiImageMapper())
+        val paging = mapper.map(
+            xContent(
+                postId = "1",
+                comments = listOf(comment("2", "first")),
+                commentCount = 4,
+                continuation = XReplyContinuation.More,
+                cursor = "cursor-next",
+            ),
+        )
+        val done = mapper.map(
+            xContent(
+                postId = "1",
+                comments = listOf(comment("2", "first")),
+                commentCount = 4,
+                continuation = XReplyContinuation.Exhausted,
+            ),
+        )
+
+        assertTrue(paging.canLoadMoreComments)
+        assertFalse(paging.commentsTruncated)
+        assertFalse(done.canLoadMoreComments)
+        assertFalse(done.commentsTruncated)
+    }
+
+    private fun comment(
+        id: String,
+        body: String,
+        handle: String? = null,
+        avatar: String? = null,
+    ): Comment = Comment(
+        id = id,
+        author = "Ada",
+        initial = "A",
+        age = "1h",
+        body = body,
+        handle = handle,
+        avatarUrl = avatar,
+    )
+
+    private fun xContent(
+        postId: String,
+        comments: List<Comment>,
+        commentCount: Int,
+        continuation: XReplyContinuation?,
+        cursor: String? = null,
+        authorThread: List<ExternalThreadPost> = emptyList(),
+    ): LinkContent = LinkContent(
+        url = "https://x.com/anshuc/status/$postId",
+        title = "the opened post",
+        source = LinkSource.X,
+        kind = LinkKind.Post,
+        thumbnail = MediaLocation.Remote(""),
+        media = Media(MediaLocation.Remote(""), "the opened post", badge = "TEXT"),
+        author = Author("Anshu", "@anshuc", avatarUrl = "https://pbs.twimg.com/profile_images/anshu.jpg"),
+        commentCount = commentCount,
+        comments = comments,
+        sourceMetadata = ExternalPostMetadata(
+            postId = postId,
+            authorThread = authorThread,
+            repliesCursor = cursor,
+            replyContinuation = continuation,
+        ),
+    )
 
     private fun redditContent(
         url: String,

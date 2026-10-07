@@ -132,4 +132,6 @@ data class CommentUiModel(
     val body: String,
     val isCreator: Boolean,
     val replies: List<CommentUiModel>,
+    val avatarUrl: String? = null,
+    val handle: String? = null,
 )

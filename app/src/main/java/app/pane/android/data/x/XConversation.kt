@@ -3,9 +3,9 @@ package app.pane.android.data.x
 /**
  * Public conversation embedded in the logged-out status page.
  *
- * Replies from other people are a short list ahead of the login wall. That document’s
- * conversation cursor is null, and the guest TweetDetail query id in the page does not
- * resolve, so there is no further logged-out reply page to request.
+ * Replies from other people are the conversation entries after the opened status.
+ * A guest timeline often ends with no bottom cursor. When the document does include
+ * a Bottom cursor, that value is the next page. The opened status is never a reply.
  *
  * An author thread is different: the same page lists the account’s own chain in order.
  * Posts before the opened status use display type Tweet. The opened status and later
@@ -63,6 +63,10 @@ object XConversation {
             val beforeStart = if (index == 0) 0 else matches[index - 1].range.last + 1
             val before = source.substring(beforeStart, match.range.first)
             val slice = if (after.contains("full_text")) after else before
+            // An ancestor row often reuses the opened status as the first tweet in its slice.
+            // That is the primary post, not a reply, even when the entry id is a different status.
+            val subjectId = REST_ID.find(slice)?.groupValues?.get(1)
+            if (subjectId == focalId || (subjectId != null && subjectId != tweetId)) continue
             val text = firstJsString(slice, "full_text")?.trim().orEmpty()
             if (text.isBlank()) continue
             val author = firstJsString(slice, "name")
@@ -74,10 +78,27 @@ object XConversation {
                 author = author,
                 text = text,
                 createdAtEpochMillis = created,
+                screenName = firstJsString(slice, "screen_name")?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() },
+                avatarUrl = profileImage(slice),
             )
             if (replies.size >= MAX_REPLIES) break
         }
         return replies.distinctBy(ParsedXReply::id)
+    }
+
+    /**
+     * The next public reply page, when this document has a Bottom cursor with a value.
+     * A terminated guest timeline has no such cursor.
+     */
+    fun parseBottomCursor(html: String): String? {
+        val source = normalize(html)
+        for (match in BOTTOM_CURSOR.findAll(source)) {
+            val start = maxOf(0, match.range.first - 500)
+            val end = minOf(source.length, match.range.last + 500)
+            val value = CURSOR_VALUE.find(source.substring(start, end))?.groupValues?.get(1)
+            if (!value.isNullOrBlank() && value != "null") return value
+        }
+        return null
     }
 
     /**
@@ -262,6 +283,11 @@ object XConversation {
 
     private data class StringMarker(val token: String, val escaped: Boolean)
 
+    private fun profileImage(slice: String): String? {
+        val raw = PROFILE_IMAGE.find(slice)?.groupValues?.get(1) ?: return null
+        return XSyndication.profileImageUrl(raw)
+    }
+
     private fun parseThreadBlock(slice: String): ThreadBlock? {
         val id = REST_ID.find(slice)?.groupValues?.get(1) ?: return null
         val screenName = firstJsString(slice, "screen_name")?.trim().orEmpty()
@@ -315,6 +341,9 @@ object XConversation {
     private val CREATED = Regex("""created_at_ms"?\s*:\s*"?(\d+)""")
     private val DISPLAY_TYPE = Regex("""display_type"?\s*:\s*"(Tweet|SelfThread)"""")
     private val REST_ID = Regex("""rest_id"?\s*:\s*"(\d+)"""")
+    private val PROFILE_IMAGE = Regex("""image_url"?\s*:\s*"(https://pbs\.twimg\.com/profile_images/[^"]+)"""")
+    private val BOTTOM_CURSOR = Regex("""cursorType"?\s*:\s*"Bottom"""")
+    private val CURSOR_VALUE = Regex("""value"?\s*:\s*"([^"]+)"""")
     private const val MAX_REPLIES = 200
     private const val BLOCK_WINDOW = 80_000
     private const val NOTE_WINDOW = 80_000

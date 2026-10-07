@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -54,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
@@ -64,10 +66,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
+import coil3.compose.AsyncImage
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.ViewerPostUiModel
@@ -357,21 +361,30 @@ fun CommentsSection(
     scrollOffset: Int,
     onLoadMore: () -> Unit,
     host: String = "",
+    onOpenSource: () -> Unit = {},
 ) {
-    val showThreadBody = post.comments.isNotEmpty() ||
-        post.commentCount > 0 ||
-        post.canLoadMoreComments ||
-        post.commentsTruncated
+    val sourceHost = host.ifBlank { post.sourceUrl }
+    val x = isXHost(sourceHost)
+    // T5: no replies and no guest wall — omit the section, including the THREAD label.
+    val showThreadBody = if (x) {
+        post.comments.isNotEmpty() || post.canLoadMoreComments || post.commentsTruncated
+    } else {
+        post.comments.isNotEmpty() ||
+            post.commentCount > 0 ||
+            post.canLoadMoreComments ||
+            post.commentsTruncated
+    }
     if (!showThreadBody) return
     val loaded = countComments(post.comments)
     val total = maxOf(post.commentCount, loaded)
-    val label = when (threadMicroLabel(host)) {
+    val label = when (threadMicroLabel(sourceHost)) {
         ThreadLabel.TopComments -> R.string.top_comments
         ThreadLabel.Comments -> R.string.comments_label
         ThreadLabel.Thread -> R.string.thread_label
     }
     val remainder = post.commentsTruncated || (post.commentCount > loaded && loaded > 0)
-    val showEndCap = !post.canLoadMoreComments && remainder
+    val showEndCap = !x && !post.canLoadMoreComments && remainder
+    val showReplyList = post.comments.isNotEmpty() || (!x && post.commentCount > 0) || post.canLoadMoreComments
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -387,33 +400,46 @@ fun CommentsSection(
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile),
-        ) {
-            if (post.comments.isEmpty() && post.commentCount > 0) {
-                Text(
-                    text = stringResource(R.string.replies_unavailable),
-                    modifier = Modifier.padding(14.dp),
-                    color = PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
-                )
+        if (showReplyList) {
+            Spacer(Modifier.height(10.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile),
+            ) {
+                if (!x && post.comments.isEmpty() && post.commentCount > 0) {
+                    Text(
+                        text = stringResource(R.string.replies_unavailable),
+                        modifier = Modifier.padding(14.dp),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                    )
+                }
+                post.comments.forEachIndexed { index, comment ->
+                    if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
+                    CommentThread(comment, accentLine = false, profile = x)
+                }
+                if (post.canLoadMoreComments) {
+                    if (x) {
+                        ReplyFetchSpinner(
+                            isLoading = isLoadingMore,
+                            scrollOffset = scrollOffset,
+                            onLoadMore = onLoadMore,
+                        )
+                    } else {
+                        CommentPaginationSentinel(
+                            isLoading = isLoadingMore,
+                            scrollOffset = scrollOffset,
+                            onLoadMore = onLoadMore,
+                        )
+                    }
+                }
             }
-            post.comments.forEachIndexed { index, comment ->
-                if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
-                CommentThread(comment, accentLine = false)
-            }
-            if (post.canLoadMoreComments) {
-                CommentPaginationSentinel(
-                    isLoading = isLoadingMore,
-                    scrollOffset = scrollOffset,
-                    onLoadMore = onLoadMore,
-                )
-            }
+        }
+        if (x && post.commentsTruncated && !post.canLoadMoreComments) {
+            MoreRepliesOnX(onOpen = onOpenSource, modifier = Modifier.padding(top = if (showReplyList) 14.dp else 10.dp))
         }
         if (showEndCap) {
             Text(
-                text = stringResource(R.string.rest_of_thread, sourceDisplayName(host.ifBlank { post.sourceUrl })),
+                text = stringResource(R.string.rest_of_thread, sourceDisplayName(sourceHost)),
                 modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 color = PaneMuted.copy(alpha = 0.75f),
                 style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
@@ -422,8 +448,70 @@ fun CommentsSection(
     }
 }
 
+private fun isXHost(host: String): Boolean {
+    val value = host.lowercase()
+    return value == "x.com" || value.endsWith(".x.com") || value.contains("twitter.com") || value.contains("x.com/")
+}
+
 private fun countComments(comments: List<CommentUiModel>): Int =
     comments.sumOf { 1 + countComments(it.replies) }
+
+@Composable
+private fun ReplyFetchSpinner(
+    isLoading: Boolean,
+    scrollOffset: Int,
+    onLoadMore: () -> Unit,
+) {
+    val rootView = LocalView.current
+    val loading = stringResource(R.string.loading_more_replies)
+    var lastRequestedScrollOffset by remember { mutableIntStateOf(-1) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .semantics { contentDescription = loading }
+            .onGloballyPositioned { coordinates ->
+                val visible = coordinates.boundsInWindow().top < rootView.height
+                if (scrollOffset > lastRequestedScrollOffset && visible && !isLoading) {
+                    lastRequestedScrollOffset = scrollOffset
+                    onLoadMore()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = PaneMuted,
+                strokeWidth = 2.dp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreRepliesOnX(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PaneTile)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.more_replies_on_x),
+            color = PaneInk,
+            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+        )
+        Text(
+            text = stringResource(R.string.open_in_x),
+            modifier = Modifier.clickable(role = Role.Button, onClick = onOpen),
+            color = PaneInk,
+            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+        )
+    }
+}
 
 @Composable
 private fun CommentPaginationSentinel(
@@ -456,7 +544,7 @@ private fun CommentPaginationSentinel(
 }
 
 @Composable
-fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) {
+fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0, profile: Boolean = false) {
     var collapsed by rememberSaveable(comment.id) { mutableStateOf(false) }
     val canFold = comment.replies.isNotEmpty()
     val expanded = commentBranchExpanded(
@@ -468,11 +556,16 @@ fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = step.dp)
-            .drawBehind {
-                drawLine(lineColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 2.dp.toPx())
-            }
-            .padding(start = 10.dp, top = 2.dp, bottom = 2.dp),
+            .padding(start = if (profile) 0.dp else step.dp)
+            .then(
+                if (profile) {
+                    Modifier
+                } else {
+                    Modifier.drawBehind {
+                        drawLine(lineColor, start = Offset(0f, 0f), end = Offset(0f, size.height), strokeWidth = 2.dp.toPx())
+                    }.padding(start = 10.dp, top = 2.dp, bottom = 2.dp)
+                },
+            ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CommentRow(
@@ -483,10 +576,11 @@ fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0) 
             } else {
                 null
             },
+            profile = profile,
         )
         if (expanded) {
             comment.replies.forEach { reply ->
-                CommentThread(reply, accentLine = false, depth = depth + 1)
+                CommentThread(reply, accentLine = false, depth = depth + 1, profile = profile)
             }
         }
     }
@@ -497,8 +591,13 @@ fun CommentRow(
     comment: CommentUiModel,
     folded: Boolean = false,
     onToggleFold: (() -> Unit)? = null,
+    profile: Boolean = false,
 ) {
     val toggleLabel = stringResource(if (folded) R.string.expand_replies else R.string.collapse_replies)
+    if (profile) {
+        XReplyRow(comment, folded, toggleLabel, onToggleFold)
+        return
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -536,5 +635,96 @@ fun CommentRow(
             color = PaneInk,
             style = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 19.sp),
         )
+    }
+}
+
+@Composable
+private fun XReplyRow(
+    comment: CommentUiModel,
+    folded: Boolean,
+    toggleLabel: String,
+    onToggleFold: (() -> Unit)?,
+) {
+    val handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .then(
+                if (onToggleFold != null) {
+                    Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold)
+                } else {
+                    Modifier
+                },
+            ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        ProfileAvatar(
+            image = comment.avatarUrl?.let { UiImage.Url(it) },
+            label = comment.author,
+            size = 32.dp,
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+                if (comment.age.isNotBlank()) {
+                    Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
+                }
+                if (folded) {
+                    Text("+", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                }
+            }
+            if (handle != null) {
+                Text("@$handle", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+            }
+            Text(
+                text = redditCommentAnnotated(
+                    source = comment.body,
+                    linkColor = PaneInk,
+                    quoteColor = PaneMuted,
+                    codeFont = Inter,
+                ),
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                color = PaneInk,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+            )
+        }
+    }
+}
+
+/** Real profile photo. A letter shows only when the URL is missing or the image fails. */
+@Composable
+fun ProfileAvatar(
+    image: UiImage?,
+    label: String,
+    size: Dp,
+) {
+    val url = (image as? UiImage.Url)?.value?.takeIf { it.startsWith("http") }
+    var failed by remember(url) { mutableStateOf(false) }
+    Box(
+        modifier = Modifier.size(size).clip(CircleShape).background(PaneTile).border(1.dp, PaneBorder, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (url != null && !failed) {
+            AsyncImage(
+                model = url,
+                contentDescription = label,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                onError = { failed = true },
+            )
+        } else {
+            val initial = label.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString().orEmpty()
+            Text(
+                text = initial,
+                color = PaneMuted,
+                style = TextStyle(
+                    fontFamily = Inter,
+                    fontSize = if (size < 36.dp) 12.sp else 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+        }
     }
 }

@@ -12,6 +12,7 @@ import app.pane.android.domain.model.ExternalThreadPost
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
+import app.pane.android.domain.model.XReplyContinuation
 import app.pane.android.domain.model.Media
 import app.pane.android.domain.model.PlayableVideo
 import app.pane.android.domain.model.MediaLocation
@@ -25,7 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class XLinkContentRepository(
-    pageLoaders: List<XPageLoader>,
+    private val pageLoaders: List<XPageLoader>,
     private val cacheStore: LinkContentCacheStore,
 ) : LinkContentRepository {
     private val resolverChain = PrioritizedUrlResolver(pageLoaders)
@@ -63,7 +64,30 @@ class XLinkContentRepository(
         )
         val current = cached(status.id, url)
             ?: return Result.failure(IllegalStateException("Load the X post before loading more comments"))
-        return Result.success(current)
+        val metadata = current.sourceMetadata as? ExternalPostMetadata ?: return Result.success(current)
+        val cursor = metadata.repliesCursor
+        if (metadata.replyContinuation != XReplyContinuation.More || cursor.isNullOrBlank()) {
+            return Result.success(current)
+        }
+        val pager = pageLoaders.filterIsInstance<XConversationPager>().firstOrNull()
+            ?: return Result.success(store(status.id, blocked(current, metadata)))
+        return try {
+            val page = pager.loadReplies(status.id, cursor)
+            val known = current.comments.map { it.id }.toSet()
+            val merged = mergeXReplyPage(metadata.postId, known, cursor, page)
+            val updated = current.copy(
+                comments = current.comments + merged.fresh.map(::mapReply),
+                sourceMetadata = metadata.copy(
+                    repliesCursor = merged.cursor,
+                    replyContinuation = merged.continuation,
+                ),
+            )
+            Result.success(store(status.id, updated))
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            Result.success(store(status.id, blocked(current, metadata)))
+        }
     }
 
     override suspend fun refresh(url: String): Result<LinkContent> =
@@ -144,6 +168,7 @@ class XLinkContentRepository(
         }
         val primaryImage = images.firstOrNull().orEmpty()
         val isVideo = !video.isNullOrBlank()
+        val replies = post.replies.filter { it.id != post.id }
         return LinkContent(
             url = requestedUrl,
             title = post.text,
@@ -162,7 +187,7 @@ class XLinkContentRepository(
             ),
             author = xAuthor(post.author, post.screenName, post.avatarUrl),
             commentCount = post.commentCount,
-            comments = post.replies.map(::mapReply),
+            comments = replies.map(::mapReply),
             sourceMetadata = ExternalPostMetadata(
                 postId = post.id,
                 mediaItems = items,
@@ -170,9 +195,29 @@ class XLinkContentRepository(
                     ExternalThreadPost(id = item.id, author = item.author, text = item.text)
                 },
                 authorThreadPartial = post.authorThreadPartial,
+                repliesCursor = post.repliesCursor,
+                replyContinuation = initialXReplyContinuation(
+                    commentCount = post.commentCount,
+                    loaded = replies.size,
+                    cursor = post.repliesCursor,
+                ),
             ),
         )
     }
+
+    private suspend fun store(id: String, content: LinkContent): LinkContent {
+        successfulCache[id] = content
+        cacheStore.put(cacheKey(id), content, "x-syndication")
+        return content
+    }
+
+    private fun blocked(current: LinkContent, metadata: ExternalPostMetadata): LinkContent =
+        current.copy(
+            sourceMetadata = metadata.copy(
+                repliesCursor = null,
+                replyContinuation = XReplyContinuation.Blocked,
+            ),
+        )
 
     private fun xAuthor(name: String, screenName: String?, avatarUrl: String?): Author {
         val handle = screenName?.trim()?.removePrefix("@")
@@ -194,6 +239,8 @@ class XLinkContentRepository(
             initial = reply.author.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?",
             age = formatAge(reply.createdAtEpochMillis),
             body = reply.text,
+            avatarUrl = reply.avatarUrl?.takeIf { it.startsWith("http") },
+            handle = reply.screenName?.removePrefix("@")?.takeIf { it.isNotEmpty() },
         )
 
     private fun formatAge(createdAtEpochMillis: Long): String {
@@ -212,3 +259,35 @@ class XLinkContentRepository(
 
     private fun cacheKey(id: String): String = "x:$id"
 }
+
+internal data class XReplyMerge(
+    val fresh: List<ParsedXReply>,
+    val cursor: String?,
+    val continuation: XReplyContinuation,
+)
+
+/** Drops the opened status, then keeps paging, stops cleanly, or marks the guest wall. */
+internal fun mergeXReplyPage(
+    primaryId: String,
+    knownIds: Set<String>,
+    requestedCursor: String,
+    page: XReplyPage,
+): XReplyMerge {
+    if (page.blocked || page.nextCursor == requestedCursor) {
+        return XReplyMerge(emptyList(), cursor = null, continuation = XReplyContinuation.Blocked)
+    }
+    val fresh = page.replies.filter { it.id != primaryId && it.id !in knownIds }
+    val next = page.nextCursor?.takeIf { it.isNotBlank() }
+    return when {
+        fresh.isEmpty() && next == null -> XReplyMerge(emptyList(), null, XReplyContinuation.Blocked)
+        next == null -> XReplyMerge(fresh, null, XReplyContinuation.Exhausted)
+        else -> XReplyMerge(fresh, next, XReplyContinuation.More)
+    }
+}
+
+internal fun initialXReplyContinuation(commentCount: Int, loaded: Int, cursor: String?): XReplyContinuation =
+    when {
+        !cursor.isNullOrBlank() -> XReplyContinuation.More
+        commentCount > loaded -> XReplyContinuation.Blocked
+        else -> XReplyContinuation.Exhausted
+    }

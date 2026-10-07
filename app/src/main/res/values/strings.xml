@@ -176,6 +176,8 @@
     <string name="top_comments">TOP COMMENTS</string>
     <string name="reply_count_of">%1$d of %2$d</string>
     <string name="rest_of_thread">Rest of the thread lives on %1$s</string>
+    <string name="more_replies_on_x">More replies on X</string>
+    <string name="loading_more_replies">Loading more replies</string>
     <string name="hub_tagline">Paste a link. View it. Leave.</string>
     <string name="paste_placeholder">Paste a link...</string>
     <string name="paste_chip">Paste</string>
