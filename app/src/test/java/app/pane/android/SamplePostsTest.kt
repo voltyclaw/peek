@@ -67,6 +67,7 @@ class SamplePostsTest {
     fun deepLinksResolveToCanonicalPosts() {
         SamplePosts.entries.forEach { entry ->
             assertEquals(entry.canonicalUrl, SamplePosts.canonicalForDeepLink(SamplePosts.deepLink(entry.id)))
+            assertEquals(entry, SamplePosts.entryFor(SamplePosts.deepLink(entry.id)))
             assertEquals(entry.canonicalUrl, SamplePosts.canonicalForDeepLink("pane://sample/${entry.id}/"))
         }
         assertNull(SamplePosts.canonicalForDeepLink("pane://sample/missing"))

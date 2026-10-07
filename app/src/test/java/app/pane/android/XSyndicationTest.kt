@@ -421,6 +421,48 @@ class XSyndicationTest {
     }
 
     @Test
+    fun aNoteTweetKeepsTheBodyPastTheFirstQuoteAndADifferentShortLink() {
+        val preview = "Opus 5.5 on https://t.co/RWvZWjo4hs\n---\nOkay. I need a minute.\n\n" +
+            "I cloned the thing expecting maybe forty or fifty families, and my reaction went from \"huh\" to \"wait,"
+        val note = "Opus 5.5 on https://t.co/YK5THQVTKf\n---\nOkay. I need a minute.\n\n" +
+            "I cloned the thing expecting maybe forty or fifty families, and my reaction went from \"huh\" to \"wait, what\" " +
+            "in about six lines. Family 003 claims a zero-free half-plane."
+        val html = """
+            __typename:"NoteTweet" text:"${jsEscape(note)}"
+            entry_id:"conversationthread-8-tweet-8" name:"Joshua" full_text:"@cleo lol at the auto suggestion" created_at_ms:1710000000000
+            entry_id:"conversationthread-9-tweet-9" name:"Yuhan" full_text:"@cleo &gt; It feels like a lot of lifetimes." created_at_ms:1710000000001
+            entry_id:"conversationthread-10-tweet-10" name:"Ada" full_text:"third public reply" created_at_ms:1710000000002
+        """.trimIndent()
+
+        assertEquals(note, XConversation.parseNoteText(html))
+        assertTrue(XConversation.longerCaption(preview, note).contains("wait, what"))
+        assertEquals(">", XConversation.decodeEntities("&gt;"))
+
+        val loader = XDirectPageLoader { url ->
+            val body = when {
+                url.contains("syndication") -> """
+                    {"id_str":"2107618065869574208","text":${jsonString(preview)},"conversation_count":31,"note_tweet":{"id":"note-only"},"user":{"name":"Cleo","screen_name":"ereliuer_eteer","profile_image_url_https":"https://pbs.twimg.com/profile_images/abc_normal.jpg"}}
+                """.trimIndent()
+                url.contains("/i/status/") -> html
+                else -> "<html>login wall</html>"
+            }
+            jsonConnection(body)
+        }
+
+        val post = runBlocking { loader.resolve("https://x.com/ereliuer_eteer/status/2107618065869574208") }
+
+        assertEquals("Cleo", post.author)
+        assertEquals("ereliuer_eteer", post.screenName)
+        assertEquals("https://pbs.twimg.com/profile_images/abc_200x200.jpg", post.avatarUrl)
+        assertTrue(post.text.contains("wait, what"))
+        assertTrue(post.text.contains("zero-free half-plane"))
+        assertFalse(post.text.endsWith("wait,"))
+        assertEquals(31, post.commentCount)
+        assertEquals(listOf("Joshua", "Yuhan", "Ada"), post.replies.map { it.author })
+        assertEquals("@cleo > It feels like a lot of lifetimes.", post.replies[1].text)
+    }
+
+    @Test
     fun loaderFallsThroughATombstoneToOEmbed() = runTest {
         val opened = Collections.synchronizedList(mutableListOf<String>())
         val loader = XDirectPageLoader { url ->
@@ -439,6 +481,19 @@ class XSyndicationTest {
         assertTrue(opened.any { it.contains("cdn.syndication.twimg.com") && it.contains("token=6dq1a2xwd93") })
         assertTrue(opened.any { it.startsWith("https://publish.twitter.com/oembed") })
     }
+
+    private fun jsEscape(text: String): String = buildString {
+        text.forEach { char ->
+            when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                else -> append(char)
+            }
+        }
+    }
+
+    private fun jsonString(text: String): String = "\"" + jsEscape(text) + "\""
 
     private fun jsonConnection(body: String): HttpURLConnection =
         object : HttpURLConnection(URL("https://cdn.syndication.twimg.com/tweet-result")) {

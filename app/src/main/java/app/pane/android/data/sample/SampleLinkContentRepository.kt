@@ -12,7 +12,7 @@ class SampleLinkContentRepository(
 ) : LinkContentRepository {
     private val pages = ConcurrentHashMap<String, Int>()
 
-    fun supports(url: String): Boolean = SamplePosts.entryForCanonical(url) != null
+    fun supports(url: String): Boolean = SamplePosts.entryFor(url) != null
 
     override suspend fun resolve(url: String): Result<LinkContent> = outcome(url, reset = false)
 
@@ -23,13 +23,13 @@ class SampleLinkContentRepository(
     ): Result<LinkContent> = outcome(url, reset = false)
 
     override suspend fun peekCached(url: String): LinkContent? {
-        val entry = SamplePosts.entryForCanonical(url) ?: return null
+        val entry = SamplePosts.entryFor(url) ?: return null
         if (entry.kind != SamplePosts.Kind.Post) return SamplePosts.render(entry, files, 0)
         return SamplePosts.render(entry, files, pages[entry.id] ?: 0)
     }
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> {
-        val entry = SamplePosts.entryForCanonical(url)
+        val entry = SamplePosts.entryFor(url)
             ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
         if (entry.kind != SamplePosts.Kind.Post) return outcome(url, reset = false)
         val current = pages[entry.id] ?: 0
@@ -50,7 +50,7 @@ class SampleLinkContentRepository(
     ): Result<LinkContent> = outcome(url, reset = true)
 
     private fun outcome(url: String, reset: Boolean): Result<LinkContent> {
-        val entry = SamplePosts.entryForCanonical(url)
+        val entry = SamplePosts.entryFor(url)
             ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
         if (reset) pages.remove(entry.id)
         return when (entry.kind) {

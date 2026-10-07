@@ -54,6 +54,7 @@ data class ParsedXPost(
     val authorThread: List<ParsedXThreadPost> = emptyList(),
     val authorThreadPartial: Boolean = false,
     val videos: List<ParsedXVideo> = emptyList(),
+    val avatarUrl: String? = null,
 )
 
 /**
@@ -87,6 +88,7 @@ object XSyndication {
         val user = root.obj("user")
         val author = user?.string("name") ?: user?.string("screen_name") ?: "X"
         val screenName = user?.string("screen_name")
+        val avatarUrl = profileImageUrl(user?.string("profile_image_url_https"))
         val images = mutableListOf<String>()
         (root["photos"] as? JsonArray)?.forEach { photo ->
             (photo as? JsonObject)?.string("url")?.takeIf { it.startsWith("http") }?.let(images::add)
@@ -108,7 +110,17 @@ object XSyndication {
             commentCount = comments,
             screenName = screenName,
             videos = videos,
+            avatarUrl = avatarUrl,
         )
+    }
+
+    /** Syndication serves a 48px `_normal` avatar. The same file exists at 200px. */
+    internal fun profileImageUrl(raw: String?): String? {
+        val url = raw?.takeIf { it.startsWith("http") } ?: return null
+        return url
+            .replace("_normal.", "_200x200.")
+            .replace("_mini.", "_200x200.")
+            .replace("_bigger.", "_200x200.")
     }
 
     fun parseOEmbed(body: String, id: String, canonicalUrl: String): ParsedXPost? {

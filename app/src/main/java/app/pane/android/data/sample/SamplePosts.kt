@@ -80,6 +80,10 @@ object SamplePosts {
 
     fun entryForCanonical(url: String): Entry? = byUrl[url.trim()]
 
+    /** Canonical https URL, or a debug `pane://sample/{id}` deep link. */
+    fun entryFor(url: String): Entry? =
+        entryForCanonical(url) ?: canonicalForDeepLink(url)?.let(::entryForCanonical)
+
     fun deepLink(id: String): String = "pane://sample/$id"
 
     fun canonicalForDeepLink(url: String): String? {

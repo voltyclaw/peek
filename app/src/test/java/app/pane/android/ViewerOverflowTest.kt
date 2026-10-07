@@ -25,5 +25,22 @@ class ViewerOverflowTest {
             assertEquals(source, withoutMedia, overflowActions(canDownload = false))
         }
         assertFalse(overflowActions(true).any { it.name.contains("Open", ignoreCase = true) })
+        assertFalse(overflowActions(false).any { it.name.contains("Open", ignoreCase = true) })
+    }
+
+    @Test
+    fun redditTextHidesDownloadAndAMediaPostShowsIt() {
+        val redditText = overflowActions(canDownload = false)
+        val mediaPost = overflowActions(canDownload = true)
+        assertEquals(
+            listOf(OverflowAction.Share, OverflowAction.CopyLink, OverflowAction.AddNote),
+            redditText,
+        )
+        assertEquals(
+            listOf(OverflowAction.Share, OverflowAction.CopyLink, OverflowAction.Download, OverflowAction.AddNote),
+            mediaPost,
+        )
+        assertFalse(redditText.any { it.name.contains("Open", ignoreCase = true) })
+        assertFalse(mediaPost.any { it.name.contains("Open", ignoreCase = true) })
     }
 }

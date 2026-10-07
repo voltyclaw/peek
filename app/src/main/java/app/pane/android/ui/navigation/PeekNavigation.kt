@@ -78,17 +78,22 @@ fun PeekNavigation(
             }
         }
     }
+    // The developer switch bulk-seeds every sample. It must not wipe Recents on launch
+    // when it is off: a successful pane://sample open writes its own row and should stay.
+    var sampleSeedApplied by remember { mutableStateOf(false) }
     LaunchedEffect(showSamples) {
         if (!BuildConfig.DEBUG) return@LaunchedEffect
         if (showSamples) {
             SamplePosts.entries.asReversed().forEach { entry ->
                 container.recentLinksRepository.markOpened(entry.canonicalUrl)
             }
-        } else {
+            sampleSeedApplied = true
+        } else if (sampleSeedApplied) {
             SamplePosts.entries.forEach { entry ->
                 container.recentLinksRepository.remove(entry.canonicalUrl)
                 container.recentLinksRepository.remove(SamplePosts.deepLink(entry.id))
             }
+            sampleSeedApplied = false
         }
     }
     var storedHandoff by remember { mutableStateOf(BrowserTrampolinePreferences.readHandoff(context).orEmpty()) }

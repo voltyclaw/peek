@@ -91,7 +91,7 @@ object XConversation {
         while (from < source.length) {
             val at = source.indexOf("NoteTweet", from)
             if (at < 0) break
-            val window = source.substring(at, minOf(source.length, at + 20_000))
+            val window = source.substring(at, minOf(source.length, at + NOTE_WINDOW))
             val longest = jsStrings(window, "text").maxByOrNull { it.length }?.trim()
             if (!longest.isNullOrBlank() && longest.length > (best?.length ?: 0)) best = longest
             from = at + "NoteTweet".length
@@ -99,36 +99,70 @@ object XConversation {
         return best?.takeIf { it.isNotBlank() }
     }
 
-    /** Keep a longer public body when it continues the short preview. */
+    /**
+     * Keep a longer public body when it continues the short preview.
+     * A note tweet often repeats the opening words but uses a different t.co code
+     * than the 280-character preview, so the two copies diverge before 48 characters.
+     */
     fun longerCaption(preview: String, candidate: String?): String {
         val extra = candidate?.trim().orEmpty()
-        if (extra.length <= preview.length) return preview
-        val head = preview.trim().take(48)
-        if (head.length >= 16 && extra.startsWith(head)) return extra
+        val base = preview.trim()
+        if (extra.length <= base.length) return preview
+        if (base.isNotEmpty() && extra.startsWith(base)) return extra
+        if (commonPrefixLength(base, extra) >= 24) return extra
         return preview
     }
 
-    /** Logged-out HTML is sometimes a JSON blob with escaped quotes. Both shapes share one parser. */
-    internal fun normalize(html: String): String =
-        html.replace("\\u0022", "\"").replace("\\\"", "\"")
+    /** HTML entities that the status document leaves inside JavaScript strings. */
+    internal fun decodeEntities(text: String): String {
+        if ('&' !in text) return text
+        return text
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+            .replace("&amp;", "&")
+    }
+
+    private fun commonPrefixLength(left: String, right: String): Int {
+        val limit = minOf(left.length, right.length)
+        var index = 0
+        while (index < limit && left[index] == right[index]) index += 1
+        return index
+    }
+
+    /**
+     * Logged-out HTML is sometimes a JSON blob with escaped quotes.
+     * Do not unescape every `\"` up front: a note tweet's body contains real quotes,
+     * and flattening them makes the string parser stop at the first one.
+     */
+    internal fun normalize(html: String): String {
+        val unicode = html.replace("\\u0022", "\"")
+        val rawDelimiter = unicode.contains("full_text:\"") || unicode.contains("\"full_text\":\"")
+        val escapedDelimiter = unicode.contains("full_text:\\\"") || unicode.contains("\\\"full_text\\\":\\\"")
+        // A fully escaped blob has no raw string delimiters. Unescape that shape only.
+        // A live status page uses raw quotes and keeps \" inside the note body.
+        return if (escapedDelimiter && !rawDelimiter) unicode.replace("\\\"", "\"") else unicode
+    }
 
     private fun firstJsString(slice: String, key: String): String? {
         var best: String? = null
         var bestAt = Int.MAX_VALUE
-        for (marker in listOf("$key:\"", "$key\":\"")) {
+        for (marker in stringMarkers(key)) {
             var from = 0
             while (from < slice.length) {
-                val start = slice.indexOf(marker, from)
+                val start = slice.indexOf(marker.token, from)
                 if (start < 0) break
                 val previous = if (start == 0) ' ' else slice[start - 1]
-                if (!previous.isLetterOrDigit() && previous != '_') {
+                if (!previous.isLetterOrDigit() && previous != '_' && previous != '\\') {
                     if (start < bestAt) {
                         bestAt = start
-                        best = readJsString(slice, start + marker.length)
+                        best = readMarkedString(slice, start + marker.token.length, marker.escaped)
                     }
                     break
                 }
-                from = start + marker.length
+                from = start + marker.token.length
             }
         }
         return best
@@ -136,19 +170,31 @@ object XConversation {
 
     private fun jsStrings(slice: String, key: String): List<String> {
         val found = ArrayList<String>()
-        for (marker in listOf("$key:\"", "$key\":\"")) {
+        for (marker in stringMarkers(key)) {
             var from = 0
             while (from < slice.length) {
-                val start = slice.indexOf(marker, from)
+                val start = slice.indexOf(marker.token, from)
                 if (start < 0) break
                 val previous = if (start == 0) ' ' else slice[start - 1]
-                if (!previous.isLetterOrDigit() && previous != '_') {
-                    found += readJsString(slice, start + marker.length)
+                if (!previous.isLetterOrDigit() && previous != '_' && previous != '\\') {
+                    found += readMarkedString(slice, start + marker.token.length, marker.escaped)
                 }
-                from = start + marker.length
+                from = start + marker.token.length
             }
         }
         return found
+    }
+
+    private fun stringMarkers(key: String): List<StringMarker> = listOf(
+        StringMarker("$key:\"", escaped = false),
+        StringMarker("$key\":\"", escaped = false),
+        StringMarker("$key:\\\"", escaped = true),
+        StringMarker("$key\\\":\\\"", escaped = true),
+    )
+
+    private fun readMarkedString(source: String, start: Int, escaped: Boolean): String {
+        val raw = if (escaped) readEscapedJsString(source, start) else readJsString(source, start)
+        return decodeEntities(raw)
     }
 
     private fun readJsString(source: String, start: Int): String {
@@ -181,6 +227,40 @@ object XConversation {
         }
         return out.toString()
     }
+
+    /** A fully escaped blob (`full_text:\"…\"`) ends at the first backslash-quote. */
+    private fun readEscapedJsString(source: String, start: Int): String {
+        val out = StringBuilder()
+        var index = start
+        while (index < source.length) {
+            val char = source[index]
+            if (char == '\\' && index + 1 < source.length) {
+                when (val escaped = source[index + 1]) {
+                    '"' -> return out.toString()
+                    'n' -> out.append('\n')
+                    'r' -> out.append('\r')
+                    't' -> out.append('\t')
+                    'u' -> {
+                        val hex = source.substring(index + 2, minOf(source.length, index + 6))
+                        if (hex.length == 4 && hex.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
+                            out.append(hex.toInt(16).toChar())
+                            index += 6
+                            continue
+                        }
+                        out.append(escaped)
+                    }
+                    else -> out.append(escaped)
+                }
+                index += 2
+                continue
+            }
+            out.append(char)
+            index += 1
+        }
+        return out.toString()
+    }
+
+    private data class StringMarker(val token: String, val escaped: Boolean)
 
     private fun parseThreadBlock(slice: String): ThreadBlock? {
         val id = REST_ID.find(slice)?.groupValues?.get(1) ?: return null
@@ -236,5 +316,6 @@ object XConversation {
     private val DISPLAY_TYPE = Regex("""display_type"?\s*:\s*"(Tweet|SelfThread)"""")
     private val REST_ID = Regex("""rest_id"?\s*:\s*"(\d+)"""")
     private const val MAX_REPLIES = 200
-    private const val BLOCK_WINDOW = 24_000
+    private const val BLOCK_WINDOW = 80_000
+    private const val NOTE_WINDOW = 80_000
 }

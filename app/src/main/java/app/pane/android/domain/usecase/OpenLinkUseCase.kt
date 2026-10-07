@@ -14,5 +14,10 @@ class OpenLinkUseCase(
         onProgress: LoadProgressListener = LoadProgressListener {},
         onPreview: (LinkContent) -> Unit = {},
     ): Result<LinkContent> =
-        contentRepository.resolve(url, onProgress, onPreview).onSuccess { recentLinksRepository.markOpened(url) }
+        contentRepository.resolve(url, onProgress, onPreview).onSuccess { content ->
+            // Success only. A failed or unloadable open does not get a Recents row.
+            // Sample deep links record the canonical https post, which is what the row displays.
+            val record = content.url.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: url
+            recentLinksRepository.markOpened(record)
+        }
 }

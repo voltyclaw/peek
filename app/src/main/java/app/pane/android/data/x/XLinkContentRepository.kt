@@ -160,7 +160,7 @@ class XLinkContentRepository(
                     else -> "TEXT"
                 },
             ),
-            author = xAuthor(post.author, post.screenName),
+            author = xAuthor(post.author, post.screenName, post.avatarUrl),
             commentCount = post.commentCount,
             comments = post.replies.map(::mapReply),
             sourceMetadata = ExternalPostMetadata(
@@ -174,14 +174,18 @@ class XLinkContentRepository(
         )
     }
 
-    private fun xAuthor(name: String, screenName: String?): Author {
+    private fun xAuthor(name: String, screenName: String?, avatarUrl: String?): Author {
         val handle = screenName?.trim()?.removePrefix("@")
             ?.takeIf { it.isNotEmpty() && !AuthorLines.isSourceLabel(it) }
         val display = name.takeUnless { it.isBlank() || AuthorLines.isSourceLabel(it) }.orEmpty()
             .ifBlank { handle.orEmpty() }
         val meta = handle?.takeIf { !it.equals(display, ignoreCase = true) }?.let { "@$it" }.orEmpty()
         val presented = AuthorLines.present(display, meta)
-        return Author(name = presented.name, metadata = presented.metadata)
+        return Author(
+            name = presented.name,
+            metadata = presented.metadata,
+            avatarUrl = avatarUrl?.takeIf { it.startsWith("http") },
+        )
     }
 
     private fun mapReply(reply: ParsedXReply): Comment = Comment(

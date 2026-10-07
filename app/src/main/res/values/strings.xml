@@ -22,12 +22,13 @@
     <string name="couldnt_open">Couldn’t open that</string>
     <string name="reason_private">Private or login wall</string>
     <string name="reason_expired">Link expired</string>
-    <string name="reason_network">Network hiccup</string>
+    <string name="reason_network">The post couldn\'t load. The connection timed out or you\'re offline.</string>
     <string name="reason_story">Story unavailable</string>
     <string name="author_unknown">Author</string>
     <string name="try_again">Try again</string>
     <string name="pane_cant_show">Pane can’t show this</string>
-    <string name="not_a_single_post">This isn’t a single public post.</string>
+    <string name="not_a_single_post">This isn’t a public single-post link.</string>
+    <string name="nothing_to_paste">Nothing to paste.</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="caption_more">more</string>
     <string name="leave">Leave</string>

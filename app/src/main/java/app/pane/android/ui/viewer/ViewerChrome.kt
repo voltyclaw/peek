@@ -300,6 +300,7 @@ internal fun UnloadableBody(
     url: String,
     hint: String,
     onRetry: (() -> Unit)?,
+    title: String? = null,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 28.dp),
@@ -312,7 +313,7 @@ internal fun UnloadableBody(
             PaneMark(Modifier.size(72.dp))
         }
         Text(
-            text = stringResource(R.string.couldnt_load_this),
+            text = title ?: stringResource(R.string.couldnt_load_this),
             modifier = Modifier.padding(top = 22.dp),
             color = PaneInk,
             style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.025).em),
@@ -324,12 +325,12 @@ internal fun UnloadableBody(
             style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
         )
         if (onRetry != null) Row(
-            modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(20.dp)).background(PaneTile).border(1.dp, PaneBorder, RoundedCornerShape(20.dp)).clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(20.dp)).background(PaneInk).clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(Icons.Rounded.Refresh, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(16.dp))
-            Text(stringResource(R.string.retry), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+            Icon(Icons.Rounded.Refresh, contentDescription = null, tint = PaneGround, modifier = Modifier.size(16.dp))
+            Text(stringResource(R.string.retry), color = PaneGround, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
         }
         Text(
             text = stringResource(R.string.from_label),

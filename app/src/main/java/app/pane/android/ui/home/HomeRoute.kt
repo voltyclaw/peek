@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +64,7 @@ fun HomeRoute(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val invalidClipboardMessage = stringResource(R.string.link_invalid)
+    val nothingToPasteMessage = stringResource(R.string.nothing_to_paste)
     val usingFirstLink = stringResource(R.string.using_first_link)
     val linksKeptMessage = stringResource(R.string.link_settings_kept)
     val linksPartialMessage = stringResource(R.string.link_settings_partial)
@@ -73,7 +75,7 @@ fun HomeRoute(
     var showFirstLaunchHint by remember { mutableStateOf(!FirstLaunchPreferences.isDismissed(context)) }
     var leftLinkSettings by remember { mutableStateOf(false) }
     var openingLink by remember { mutableStateOf(false) }
-    var linkDraft by remember { mutableStateOf("") }
+    var linkDraft by rememberSaveable { mutableStateOf("") }
     var showLinkError by remember { mutableStateOf(false) }
     val versionLabel = remember(context) {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -100,11 +102,19 @@ fun HomeRoute(
     fun pasteIntoField() {
         readClipboard { clipboardText ->
             val url = extractUrlFromText(clipboardText)
-            if (url == null) {
-                scope.launch { snackbarHostState.showSnackbar(invalidClipboardMessage) }
-                return@readClipboard
+            when (pasteOutcome(clipboardText, url)) {
+                PasteOutcome.Empty -> {
+                    scope.launch { snackbarHostState.showSnackbar(nothingToPasteMessage) }
+                    return@readClipboard
+                }
+                PasteOutcome.NotALink -> {
+                    scope.launch { snackbarHostState.showSnackbar(invalidClipboardMessage) }
+                    return@readClipboard
+                }
+                PasteOutcome.Ready -> Unit
             }
-            linkDraft = url
+            val pasted = url ?: return@readClipboard
+            linkDraft = pasted
             showLinkError = false
             if (extractUrlFromText.count(clipboardText) > 1) {
                 scope.launch { snackbarHostState.showSnackbar(usingFirstLink, duration = SnackbarDuration.Short) }
@@ -208,4 +218,13 @@ fun HomeRoute(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+internal enum class PasteOutcome { Empty, NotALink, Ready }
+
+/** Empty clipboard is its own message. A clipboard with no link stays the invalid-link message. */
+internal fun pasteOutcome(text: CharSequence?, url: String?): PasteOutcome = when {
+    text.isNullOrBlank() -> PasteOutcome.Empty
+    url.isNullOrBlank() -> PasteOutcome.NotALink
+    else -> PasteOutcome.Ready
 }

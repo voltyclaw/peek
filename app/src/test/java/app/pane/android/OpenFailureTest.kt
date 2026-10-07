@@ -6,8 +6,10 @@ import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.openFailureKind
 import app.pane.android.ui.viewer.viewerStateFor
 import app.pane.android.R
+import java.net.UnknownHostException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OpenFailureTest {
@@ -39,5 +41,28 @@ class OpenFailureTest {
         assertEquals(OpenFailureKind.Network.name, state.reason)
         assertFalse(state.reason.contains("<"))
         assertFalse(state.reason.contains("500"))
+    }
+
+    @Test
+    fun anOfflineKnownPostIsARetryableNetworkFailure() {
+        val url = "https://www.reddit.com/r/hiking/comments/samplehike/first_solo/"
+        val state = viewerStateFor(
+            url,
+            UnknownHostException("Unable to resolve host \"www.reddit.com\": No address associated with hostname"),
+        ) as ViewerUiState.LoadFailed
+        assertEquals(OpenFailureKind.Network.name, state.reason)
+        assertEquals(R.string.reason_network, app.pane.android.ui.viewer.failureCopyRes(state.reason))
+        assertTrue(app.pane.android.ui.viewer.failureOffersRetry(state))
+        assertFalse(state.reason.contains("single"))
+    }
+
+    @Test
+    fun aClassificationMissIsNotARetryableNetworkFailure() {
+        val state = viewerStateFor(
+            "https://example.com/not-a-post",
+            IllegalArgumentException("Unsupported link"),
+        )
+        assertTrue(state is ViewerUiState.Unavailable)
+        assertFalse(app.pane.android.ui.viewer.failureOffersRetry(state))
     }
 }

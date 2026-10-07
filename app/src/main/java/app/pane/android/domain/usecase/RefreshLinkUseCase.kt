@@ -14,5 +14,8 @@ class RefreshLinkUseCase(
         onProgress: LoadProgressListener = LoadProgressListener {},
         onPreview: (LinkContent) -> Unit = {},
     ): Result<LinkContent> =
-        contentRepository.refresh(url, onProgress, onPreview).onSuccess { recentLinksRepository.markOpened(url) }
+        contentRepository.refresh(url, onProgress, onPreview).onSuccess { content ->
+            val record = content.url.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: url
+            recentLinksRepository.markOpened(record)
+        }
 }

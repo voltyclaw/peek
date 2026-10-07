@@ -256,25 +256,25 @@ private fun ColumnScope.ViewerContent(
                 ViewerTopBar(onBack, onRefresh, overMedia = false)
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
                 if (reddit) {
                     RedditBody(post)
                     if (outbound != null && linkCard) {
                         LinkPreviewCard(outbound, currentItem, onOpenOutbound)
                     }
-                } else if (post.authorThread.size >= 2) {
-                    AuthorCaption(post)
-                    AuthorThreadSection(post, if (hasMedia) currentItem?.image else null)
-                } else if (outbound != null && linkCard) {
-                    CaptionText(post)
-                    LinkPreviewCard(outbound, currentItem, onOpenOutbound)
-                } else if (textOnly) {
-                    Box(Modifier.padding(vertical = 8.dp).width(48.dp).height(1.dp).background(PaneBorder))
-                    CaptionText(post, large = true)
-                } else if (!overMedia) {
-                    CaptionText(post)
                 } else {
-                    AuthorCaption(post)
-                    CaptionText(post)
+                    if (showAuthor) AuthorCaption(post)
+                    if (post.authorThread.size >= 2) {
+                        AuthorThreadSection(post, if (hasMedia) currentItem?.image else null)
+                    } else if (outbound != null && linkCard) {
+                        CaptionText(post)
+                        LinkPreviewCard(outbound, currentItem, onOpenOutbound)
+                    } else if (textOnly) {
+                        Box(Modifier.padding(vertical = 8.dp).width(48.dp).height(1.dp).background(PaneBorder))
+                        CaptionText(post, large = true)
+                    } else {
+                        CaptionText(post)
+                    }
                 }
                 if (overMedia && post.authorThread.size < 2 && !reddit) {
                     // caption already placed above for the image/video path
@@ -759,8 +759,9 @@ private fun UnavailableViewer(url: String, onBack: () -> Unit, onOpen: () -> Uni
             host = displayHost(url),
             author = "",
             url = url,
-            hint = stringResource(R.string.not_a_single_post),
+            hint = stringResource(R.string.unsupported_link_description),
             onRetry = null,
+            title = stringResource(R.string.not_a_single_post),
         )
     }
 }
