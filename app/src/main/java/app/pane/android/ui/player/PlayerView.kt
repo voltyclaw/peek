@@ -70,7 +70,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -84,7 +83,7 @@ import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.media.VideoSurface
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.displayVideoSize
-import app.pane.android.ui.media.exoPlayerFor
+import app.pane.android.ui.media.rememberPlaybackSession
 import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.media.fittedContentPx
 import kotlinx.coroutines.delay
@@ -141,8 +140,8 @@ fun PlayerView(
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (uiState) {
             is ViewerUiState.Loading -> LoadingMedia(uiState, onBack)
-            is ViewerUiState.Unavailable -> UnavailableMedia(onBack)
-            is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, uiState.reason, failed = true)
+            is ViewerUiState.Unavailable -> UnavailableMedia(onBack, url = uiState.url)
+            is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, url = uiState.url, reason = uiState.reason, failed = true)
             is ViewerUiState.Content -> MediaContent(
                 post = uiState.post,
                 initialMediaIndex = initialMediaIndex,
@@ -196,9 +195,18 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnavailableMedia(onBack: () -> Unit, reason: String = "", failed: Boolean = false) {
+private fun UnavailableMedia(onBack: () -> Unit, url: String = "", reason: String = "", failed: Boolean = false) {
+    val context = LocalContext.current
+    val knownSource = remember(url) {
+        app.pane.android.ui.actions.sourceAppNameRes(url)
+    }
     val title = stringResource(if (failed) R.string.couldnt_open else R.string.pane_cant_show)
-    val body = if (failed) stringResource(failureCopyRes(reason)) else stringResource(R.string.link_isnt_public_post)
+    val sourceName = knownSource?.let { stringResource(it) }
+    val body = when {
+        failed -> stringResource(failureCopyRes(reason))
+        sourceName != null -> stringResource(R.string.link_isnt_public_post, sourceName)
+        else -> stringResource(R.string.cant_show_link_here)
+    }
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
@@ -254,28 +262,31 @@ private fun MediaContent(
     }
     val qualityOptions = VideoPlaybackQuality.renditions(currentItem.videoSources)
     val autoSelected = sessionChoice == "auto" || (sessionChoice.isEmpty() && videoQuality == VideoQuality.Auto)
-    val context = LocalContext.current
-    val initialMuted = remember(currentItem.id) { startMuted() }
-    val exoPlayer = remember(currentItem.id, playbackUrl != null) {
-        playbackUrl?.let { url ->
-            exoPlayerFor(context, url).apply {
-                repeatMode = Player.REPEAT_MODE_OFF
-                volume = if (initialMuted) 0f else 1f
-                playWhenReady = true
-            }
+    val session = rememberPlaybackSession()
+    val exoPlayer = playbackUrl?.let { url ->
+        session.acquire(post.sourceUrl, currentItem.id, url, freshMuted = startMuted()).player.exo
+    }
+    LaunchedEffect(sessionChoice) {
+        if (sessionChoice.isEmpty()) return@LaunchedEffect
+        val url = playbackUrl ?: return@LaunchedEffect
+        session.switchUrl(post.sourceUrl, currentItem.id, url)
+    }
+    var resumeAfterPhoto by remember(post.sourceUrl) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(playbackUrl) {
+        val held = session.player ?: return@LaunchedEffect
+        if (playbackUrl == null) {
+            if (resumeAfterPhoto == null) resumeAfterPhoto = held.playWhenReady
+            held.playWhenReady = false
+        } else {
+            val resume = resumeAfterPhoto ?: return@LaunchedEffect
+            held.playWhenReady = resume
+            resumeAfterPhoto = null
         }
     }
-    LaunchedEffect(exoPlayer, playbackUrl) {
-        val player = exoPlayer ?: return@LaunchedEffect
-        val url = playbackUrl ?: return@LaunchedEffect
-        val current = player.currentMediaItem?.localConfiguration?.uri?.toString()
-        if (current == url) return@LaunchedEffect
-        val position = if (current == null) 0L else player.currentPosition.coerceAtLeast(0L)
-        val resume = player.playWhenReady
-        player.setMediaItem(MediaItem.fromUri(url), position)
-        player.prepare()
-        player.playWhenReady = resume
+    if (exoPlayer != null) {
+        SideEffect { exoPlayer.repeatMode = Player.REPEAT_MODE_OFF }
     }
+    val initialMuted = exoPlayer?.let { it.volume <= 0.001f } ?: startMuted()
     val density = LocalDensity.current
     val revealThreshold = with(density) { 56.dp.toPx() }
     var chromeVisible by remember(currentItem.id) { mutableStateOf(playbackUrl != null) }
@@ -286,10 +297,14 @@ private fun MediaContent(
     val mutedLabel = stringResource(R.string.playback_muted)
     val unmutedLabel = stringResource(R.string.playback_unmuted)
     val qualityNotice = stringResource(R.string.playback_quality_toast)
-    var positionMs by remember(exoPlayer) { mutableLongStateOf(0L) }
+    var positionMs by remember(exoPlayer) {
+        mutableLongStateOf(exoPlayer?.currentPosition?.coerceAtLeast(0L) ?: 0L)
+    }
     var durationMs by remember(exoPlayer) { mutableLongStateOf(0L) }
     var scrubbing by remember(exoPlayer) { mutableStateOf(false) }
-    var ended by remember(exoPlayer) { mutableStateOf(false) }
+    var ended by remember(exoPlayer) {
+        mutableStateOf(exoPlayer?.playbackState == Player.STATE_ENDED)
+    }
     LaunchedEffect(notice) {
         if (notice != null) {
             delay(1_200)
@@ -303,7 +318,8 @@ private fun MediaContent(
         }
     }
     LaunchedEffect(exoPlayer, muted) {
-        exoPlayer?.volume = if (muted) 0f else 1f
+        val player = exoPlayer ?: return@LaunchedEffect
+        player.volume = if (muted) 0f else player.volume.takeIf { it > 0.001f } ?: 1f
     }
     LaunchedEffect(exoPlayer, scrubbing) {
         val player = exoPlayer ?: return@LaunchedEffect
@@ -339,10 +355,7 @@ private fun MediaContent(
                 }
             }
             player.addListener(listener)
-            onDispose {
-                player.removeListener(listener)
-                player.release()
-            }
+            onDispose { player.removeListener(listener) }
         }
     }
 

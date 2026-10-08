@@ -245,6 +245,8 @@ private fun ColumnScope.ViewerContent(
                         onMutedChange,
                         videoPaused,
                         { videoPaused = !videoPaused },
+                        post.sourceUrl,
+                        { videoPaused = it },
                     )
                     Box(
                         Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(72.dp).background(
@@ -388,6 +390,8 @@ private fun MediaCanvas(
     onMutedChange: (Boolean) -> Unit,
     videoPaused: Boolean = false,
     onToggleVideo: () -> Unit = {},
+    postUrl: String = "",
+    onPausedChange: (Boolean) -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
     val current = items[pagerState.currentPage]
@@ -467,10 +471,16 @@ private fun MediaCanvas(
                     LaunchedEffect(videoUrl) { attachPlayer = true }
                     if (attachPlayer) {
                         MutedInlineVideo(
+                            postUrl = postUrl,
+                            mediaKey = item.id,
                             videoUrl = videoUrl,
                             modifier = mediaModifier.fillMaxSize(),
                             muted = inlineMuted,
                             paused = videoPaused,
+                            onContinuity = { playing, isMuted ->
+                                inlineMuted = isMuted
+                                onPausedChange(!playing)
+                            },
                             onVideoSize = reportSize,
                         )
                     }

@@ -1,14 +1,23 @@
 package app.pane.android.ui.media
 
 import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.app.Application
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -43,30 +52,41 @@ private fun isRedditMediaUrl(url: String): Boolean {
     return host == "v.redd.it" || host.endsWith(".redd.it") || host.endsWith(".redditmedia.com")
 }
 
-/** Framed posts play in place. Sound follows the saved mute mode until a tap opens fullscreen. */
+/** Framed posts play in place. The same player is reused when the post opens fullscreen. */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 internal fun MutedInlineVideo(
+    postUrl: String,
+    mediaKey: String,
     videoUrl: String,
     modifier: Modifier = Modifier,
     muted: Boolean = true,
     paused: Boolean = false,
+    onContinuity: (playing: Boolean, muted: Boolean) -> Unit = { _, _ -> },
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
-    val exoPlayer = remember(videoUrl) {
-        exoPlayerFor(context, videoUrl).apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            repeatMode = Player.REPEAT_MODE_ONE
-            volume = if (muted) 0f else 1f
-            playWhenReady = true
-            prepare()
-        }
+    val session = rememberPlaybackSession()
+    val acquired = session.acquire(postUrl, mediaKey, videoUrl, freshMuted = muted)
+    val exoPlayer = acquired.player.exo
+    val reused = remember(postUrl, mediaKey) { acquired.reused }
+    var skipMute by remember(postUrl, mediaKey) { mutableStateOf(reused) }
+    var skipPause by remember(postUrl, mediaKey) { mutableStateOf(reused) }
+    SideEffect { exoPlayer.repeatMode = Player.REPEAT_MODE_ONE }
+    LaunchedEffect(postUrl, mediaKey) {
+        if (reused) onContinuity(exoPlayer.playWhenReady, exoPlayer.volume <= 0.001f)
     }
     LaunchedEffect(exoPlayer, muted) {
-        exoPlayer.volume = if (muted) 0f else 1f
+        if (skipMute) {
+            skipMute = false
+            return@LaunchedEffect
+        }
+        exoPlayer.volume = if (muted) 0f else exoPlayer.volume.takeIf { it > 0.001f } ?: 1f
     }
     LaunchedEffect(exoPlayer, paused) {
+        if (skipPause) {
+            skipPause = false
+            return@LaunchedEffect
+        }
         exoPlayer.playWhenReady = !paused
     }
     val sizeCallback = rememberUpdatedState(onVideoSize)
@@ -82,16 +102,70 @@ internal fun MutedInlineVideo(
             }
         }
         exoPlayer.addListener(listener)
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
-        }
+        onDispose { exoPlayer.removeListener(listener) }
     }
     VideoSurface(
         exoPlayer = exoPlayer,
         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
         modifier = modifier,
     )
+}
+
+@Composable
+internal fun rememberPlaybackSession(): PlaybackSession<ExoContinuable> {
+    val context = LocalContext.current
+    val owner = context.findActivity()
+    checkNotNull(owner) { "Playback needs an activity." }
+    return viewModel<PlaybackSessionViewModel>(owner).session
+}
+
+internal class PlaybackSessionViewModel(app: Application) : AndroidViewModel(app) {
+    val session: PlaybackSession<ExoContinuable> = PlaybackSession { url ->
+        ExoContinuable(exoPlayerFor(getApplication(), url))
+    }
+
+    override fun onCleared() {
+        session.release()
+    }
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+internal class ExoContinuable(val exo: ExoPlayer) : ContinuablePlayer {
+    override var mediaUrl: String? = null
+    override var positionMs: Long
+        get() = exo.currentPosition.coerceAtLeast(0L)
+        set(value) {
+            exo.seekTo(value)
+        }
+    override var playWhenReady: Boolean
+        get() = exo.playWhenReady
+        set(value) {
+            exo.playWhenReady = value
+        }
+    override var volume: Float
+        get() = exo.volume
+        set(value) {
+            exo.volume = value
+        }
+
+    override fun load(url: String, positionMs: Long) {
+        mediaUrl = url
+        exo.setMediaItem(MediaItem.fromUri(url), positionMs)
+        exo.prepare()
+    }
+
+    override fun release() {
+        exo.release()
+    }
+}
+
+internal fun Context.findActivity(): ComponentActivity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is ComponentActivity) return current
+        current = current.baseContext
+    }
+    return null
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -118,5 +192,6 @@ internal fun VideoSurface(
             view.player = exoPlayer
             view.resizeMode = resizeMode
         },
+        onRelease = { view -> view.player = null },
     )
 }

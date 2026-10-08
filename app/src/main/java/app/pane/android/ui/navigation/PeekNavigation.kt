@@ -40,7 +40,9 @@ import app.pane.android.ui.home.HandoffBrowserOption
 import app.pane.android.ui.home.HomeRoute
 import app.pane.android.ui.home.SamplePickerGroup
 import app.pane.android.ui.home.SamplePickerRow
+import app.pane.android.ui.media.PlaybackSessionViewModel
 import app.pane.android.ui.media.VideoQualityPreferences
+import app.pane.android.ui.media.findActivity
 import app.pane.android.ui.home.HomeViewModel
 import app.pane.android.ui.player.PlayerRoute
 import app.pane.android.ui.player.PlayerViewModel
@@ -59,6 +61,16 @@ fun PeekNavigation(
 ) {
     val backStack = rememberNavBackStack(HomeKey)
     val context = LocalContext.current
+    val playbackOwner = context.findActivity()
+    val playbackSession = playbackOwner?.let { viewModel<PlaybackSessionViewModel>(it).session }
+    val activePostUrl = when (val top = backStack.lastOrNull()) {
+        is ViewerKey -> top.url
+        is PlayerKey -> top.url
+        else -> null
+    }
+    LaunchedEffect(activePostUrl) {
+        playbackSession?.retainOnly(activePostUrl)
+    }
     val activity = context as? Activity
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }

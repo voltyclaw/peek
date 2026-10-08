@@ -326,13 +326,17 @@ internal fun OpenRecovery(
             resolveExternalPackage(context, url, packageName)
         }
     }
+    val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
     val headline = when (presentation.headline) {
-        RecoveryHeadline.NotPublic -> stringResource(R.string.link_isnt_public_post)
+        RecoveryHeadline.NotPublic -> if (presentation.appNameRes != null) {
+            stringResource(R.string.link_isnt_public_post, appName)
+        } else {
+            stringResource(R.string.cant_show_link_here)
+        }
         RecoveryHeadline.CantShow -> stringResource(R.string.cant_show_link_here)
         RecoveryHeadline.Offline -> stringResource(R.string.youre_offline)
         RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
     }
-    val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
     val body = when (presentation.body) {
         RecoveryBody.NamedApp -> stringResource(R.string.open_it_in_app, appName)
         RecoveryBody.Browser -> stringResource(R.string.open_it_in_browser_instead)
