@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Pane</string>
     <string name="pane_wordmark">Pane</string>
-    <string name="first_launch_hint">Paste a public link to open one post here—no feed.</string>
+    <string name="first_launch_hint">Paste a public link. You get one post, then you\'re free to go.</string>
     <string name="paste_a_link">Paste a link</string>
     <string name="home_empty_line">One post. No feed. Then leave.</string>
     <string name="or_type_a_link">Or type a link</string>
@@ -20,14 +20,15 @@
     <string name="couldnt_open">Couldn’t open that</string>
     <string name="reason_private">Private or login wall</string>
     <string name="reason_expired">Link expired</string>
-    <string name="reason_network">The post couldn\'t load. The connection timed out or you\'re offline.</string>
+    <string name="reason_network">The connection dropped. Check it, then try again.</string>
     <string name="reason_story">Story unavailable</string>
     <string name="author_unknown">Author</string>
     <string name="try_again">Try again</string>
-    <string name="pane_cant_show">Pane can’t show this</string>
+    <string name="pane_cant_show">This one won\'t fit in Pane</string>
     <string name="link_isnt_public_post">This one lives on %1$s</string>
     <string name="cant_show_link_here">Outside Pane\'s map</string>
     <string name="open_it_in_app">Pane can\'t preview it — open in %1$s.</string>
+    <string name="open_in_app_body">Open it in %1$s to view.</string>
     <string name="open_it_in_browser_instead">Open it in your browser — Pane steps aside.</string>
     <string name="youre_offline">Looks like you\'re offline</string>
     <string name="couldnt_load_post">This post didn\'t load</string>
@@ -61,6 +62,7 @@
     <string name="pause">Pause</string>
     <string name="mute">Mute</string>
     <string name="unmute">Unmute</string>
+    <string name="enter_fullscreen">Enter fullscreen</string>
     <string name="exit_fullscreen">Exit fullscreen</string>
     <string name="load_more_comments">Load more comments</string>
     <string name="loading_more_comments">Loading more comments…</string>

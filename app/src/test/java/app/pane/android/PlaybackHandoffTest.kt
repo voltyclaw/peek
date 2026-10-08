@@ -2,8 +2,12 @@ package app.pane.android
 
 import app.pane.android.ui.media.ContinuablePlayer
 import app.pane.android.ui.media.PlaybackSession
+import app.pane.android.ui.media.SurfaceGesture
+import app.pane.android.ui.media.SurfaceGestureAction
+import app.pane.android.ui.media.VideoSurfaceKind
 import app.pane.android.ui.media.applyCarry
 import app.pane.android.ui.media.carry
+import app.pane.android.ui.media.surfaceGestureAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -99,6 +103,35 @@ class PlaybackHandoffTest {
         assertTrue(player.playWhenReady)
         assertSame(player, session.acquire(POST, MEDIA, URL, freshMuted = true).player)
         assertEquals(HIGH, player.mediaUrl)
+    }
+
+    @Test
+    fun gestureNavigationLeavesTheSharedPlayerInPlace() {
+        val session = session()
+        val inline = session.acquire(POST, MEDIA, URL, freshMuted = true).player
+        inline.positionMs = 1_500L
+        inline.volume = 0.4f
+        inline.playWhenReady = false
+
+        assertEquals(
+            SurfaceGestureAction.ToggleControls,
+            surfaceGestureAction(VideoSurfaceKind.Inline, SurfaceGesture.SingleTap),
+        )
+        assertEquals(
+            SurfaceGestureAction.EnterFullscreen,
+            surfaceGestureAction(VideoSurfaceKind.Inline, SurfaceGesture.DoubleTap),
+        )
+        assertEquals(
+            SurfaceGestureAction.ExitFullscreen,
+            surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap),
+        )
+
+        val fullscreen = session.acquire(POST, MEDIA, URL, freshMuted = true)
+        assertTrue(fullscreen.reused)
+        assertSame(inline, fullscreen.player)
+        assertEquals(1_500L, fullscreen.player.positionMs)
+        assertEquals(0.4f, fullscreen.player.volume, 0.001f)
+        assertFalse(fullscreen.player.playWhenReady)
     }
 
     @Test

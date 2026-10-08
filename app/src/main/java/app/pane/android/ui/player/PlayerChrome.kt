@@ -59,12 +59,15 @@ internal fun formatPlaybackClock(positionMs: Long): String {
     }
 }
 
-/** A vertical swipe leaves immersive media for the framed post. Sideways stays a gallery swipe. */
-internal fun swipeExitsFullscreen(totalDx: Float, totalDy: Float, thresholdPx: Float): Boolean {
-    if (thresholdPx <= 0f) return false
-    if (kotlin.math.abs(totalDx) > kotlin.math.abs(totalDy)) return false
-    return kotlin.math.abs(totalDy) >= thresholdPx
-}
+/**
+ * Swipe-down does not leave fullscreen. Sideways movement stays a gallery swipe.
+ * The parameters stay so a later lock can tell a vertical drag from a sideways one.
+ */
+internal fun swipeExitsFullscreen(
+    @Suppress("UNUSED_PARAMETER") totalDx: Float,
+    @Suppress("UNUSED_PARAMETER") totalDy: Float,
+    @Suppress("UNUSED_PARAMETER") thresholdPx: Float,
+): Boolean = false
 
 private const val PORTRAIT_FILL_FRACTION = 0.72f
 

@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import app.pane.android.BrowserTrampoline
@@ -113,36 +112,117 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
 
 fun openPostInApp(context: Context, url: String): Boolean = openExternally(context, url)
 
+internal enum class ExternalStart { Started, NotFound, Security }
+
+internal data class ExternalLaunchAttempt(val url: String, val packageName: String)
+
+internal data class ExternalLaunchOutcome(
+    val started: Boolean,
+    val usedPackage: String?,
+    val fellBackToBrowser: Boolean,
+    val logAppLabelFallback: Boolean,
+)
+
+/** Packaged VIEW attempts, in order. A null package is never launched from here. */
+internal fun packagedAttempts(url: String): List<ExternalLaunchAttempt> =
+    openInAppTargets(url).mapNotNull { target ->
+        val packageName = target.packageName ?: return@mapNotNull null
+        ExternalLaunchAttempt(target.uri, packageName)
+    }
+
+internal data class OpenAffordance(
+    val opensInApp: Boolean,
+    val appNameRes: Int?,
+    val markRes: Int?,
+    val useGlobe: Boolean,
+)
+
+/** Installed state comes from package info or a launcher intent, not from resolveActivity. */
+internal fun openAffordance(url: String, installed: (String) -> Boolean): OpenAffordance {
+    val appNameRes = sourceAppNameRes(url)
+    val opensInApp = appNameRes != null && openInAppPackages(url).any(installed)
+    return OpenAffordance(
+        opensInApp = opensInApp,
+        appNameRes = appNameRes,
+        markRes = if (opensInApp) sourceMarkFor(appNameRes) else null,
+        useGlobe = !opensInApp,
+    )
+}
+
 /**
- * One Open path for the body button, the coral tile, and the thread hard-wall tile.
- * The intent carries the full incoming URL. A source app is used only when
- * resolveActivity says that app will handle it. Otherwise the handoff browser,
- * then the system chooser, receives the same URL. A package-less VIEW is never
- * started, so the tap cannot land back inside Pane.
+ * Try each known source package with setPackage before any browser.
+ * ActivityNotFoundException and SecurityException move to the next package.
+ */
+internal fun performExternalLaunch(
+    url: String,
+    installed: (String) -> Boolean,
+    start: (ExternalLaunchAttempt) -> ExternalStart,
+    openBrowser: (String) -> Boolean,
+    openChooser: (String) -> Boolean,
+): ExternalLaunchOutcome {
+    val attempts = packagedAttempts(url)
+    val openUrl = attempts.firstOrNull()?.url ?: externalOpenUrl(url)
+    val labeledInApp = openAffordance(url, installed).opensInApp
+    for (attempt in attempts) {
+        if (start(attempt) == ExternalStart.Started) {
+            return ExternalLaunchOutcome(
+                started = true,
+                usedPackage = attempt.packageName,
+                fellBackToBrowser = false,
+                logAppLabelFallback = false,
+            )
+        }
+    }
+    val openedBrowser = openBrowser(openUrl)
+    val started = openedBrowser || openChooser(openUrl)
+    return ExternalLaunchOutcome(
+        started = started,
+        usedPackage = null,
+        fellBackToBrowser = true,
+        logAppLabelFallback = labeledInApp,
+    )
+}
+
+/**
+ * One Open path for the unloadable button, the coral tile, and the thread hard-wall tile.
+ * A known source package is started directly. The launch is not gated on resolveActivity
+ * or getPackageInfo. Only a missing activity falls through to the next package, then the
+ * handoff browser, then the chooser. A package-less VIEW is never started.
  */
 fun openExternally(context: Context, url: String): Boolean {
     if (url.isBlank()) return false
-    val plan = externalOpen(url, context.packageName) { packageName ->
-        resolveExternalPackage(context, externalOpenUrl(url), packageName)
+    val outcome = performExternalLaunch(
+        url = url,
+        installed = { packageName -> packageInstalled(context, packageName) },
+        start = { attempt -> startPackaged(context, attempt) },
+        openBrowser = { openUrl ->
+            val browser = handoffBrowserIntent(context, openUrl)
+            browser != null && start(context, browser)
+        },
+        openChooser = { openUrl ->
+            val chooser = Intent.createChooser(viewIntent(openUrl, null), null)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            start(context, chooser)
+        },
+    )
+    if (outcome.logAppLabelFallback) {
+        Log.w("PaneOpen", "label said app but launch fell back to browser url=$url")
     }
     if (BuildConfig.DEBUG) {
-        Log.i("PaneOpen", "open incoming=$url outgoing=${plan.url} package=${plan.packageName}")
+        Log.i(
+            "PaneOpen",
+            "open incoming=$url package=${outcome.usedPackage} fallback=${outcome.fellBackToBrowser}",
+        )
     }
-    if (plan.packageName != null && startView(context, plan.url, plan.packageName)) return true
-    val browser = handoffBrowserIntent(context, plan.url)
-    if (browser != null && start(context, browser)) return true
-    val chooser = Intent.createChooser(viewIntent(plan.url, null), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return start(context, chooser)
+    return outcome.started
 }
 
-internal data class ExternalOpen(
-    val url: String,
-    val packageName: String?,
-    val opensInApp: Boolean,
-    val appNameRes: Int?,
-    val sourceKnown: Boolean,
-    val markRes: Int?,
-)
+/** Best-effort install check once package visibility includes the source app. */
+internal fun packageInstalled(context: Context, packageName: String): Boolean {
+    val manager = context.packageManager
+    if (runCatching { manager.getPackageInfo(packageName, 0) }.getOrNull() != null) return true
+    return manager.getLaunchIntentForPackage(packageName) != null
+}
 
 internal enum class RecoveryReason { Unloadable, Offline, Timeout, Other }
 
@@ -165,76 +245,33 @@ internal fun externalOpenUrl(url: String): String {
     return targets.firstOrNull()?.uri ?: LinkShims.unwrap(url)
 }
 
-internal fun externalOpen(
-    url: String,
-    ownPackage: String,
-    resolve: (packageName: String) -> String?,
-): ExternalOpen {
-    val openUrl = externalOpenUrl(url)
-    val appNameRes = sourceAppNameRes(url)
-    for (target in openInAppTargets(url)) {
-        val packageName = target.packageName ?: continue
-        if (packageName == ownPackage || isBrowserPackage(packageName)) continue
-        val resolved = resolve(packageName) ?: continue
-        if (resolved != packageName || resolved == ownPackage || isBrowserPackage(resolved)) continue
-        return ExternalOpen(
-            url = openUrl,
-            packageName = packageName,
-            opensInApp = appNameRes != null,
-            appNameRes = appNameRes,
-            sourceKnown = appNameRes != null,
-            markRes = sourceMarkFor(appNameRes),
-        )
-    }
-    return ExternalOpen(
-        url = openUrl,
-        packageName = null,
-        opensInApp = false,
-        appNameRes = appNameRes,
-        sourceKnown = appNameRes != null,
-        markRes = null,
-    )
-}
-
 internal fun recoveryPresentation(
     url: String,
     reason: RecoveryReason = RecoveryReason.Unloadable,
-    ownPackage: String = "",
-    resolve: (String) -> String? = { null },
+    installed: (String) -> Boolean = { false },
 ): RecoveryPresentation {
-    val open = externalOpen(url, ownPackage, resolve)
+    val affordance = openAffordance(url, installed)
     val network = reason == RecoveryReason.Offline || reason == RecoveryReason.Timeout
     val headline = when (reason) {
         RecoveryReason.Offline -> RecoveryHeadline.Offline
         RecoveryReason.Timeout -> RecoveryHeadline.CouldntLoad
         RecoveryReason.Unloadable, RecoveryReason.Other ->
-            if (open.sourceKnown) RecoveryHeadline.NotPublic else RecoveryHeadline.CantShow
+            if (affordance.appNameRes != null) RecoveryHeadline.NotPublic else RecoveryHeadline.CantShow
     }
-    val named = open.opensInApp && open.appNameRes != null
     val body = when {
         network -> RecoveryBody.CheckConnection
-        named -> RecoveryBody.NamedApp
+        affordance.opensInApp -> RecoveryBody.NamedApp
         else -> RecoveryBody.Browser
     }
     return RecoveryPresentation(
         headline = headline,
         body = body,
         retryPrimary = network,
-        opensInApp = named,
-        appNameRes = open.appNameRes,
-        openUrl = open.url,
-        markRes = if (named) open.markRes else null,
+        opensInApp = affordance.opensInApp,
+        appNameRes = affordance.appNameRes,
+        openUrl = externalOpenUrl(url),
+        markRes = affordance.markRes,
     )
-}
-
-internal fun resolveExternalPackage(context: Context, url: String, packageName: String): String? {
-    val resolved = context.packageManager
-        .resolveActivity(viewIntent(url, packageName), PackageManager.MATCH_DEFAULT_ONLY)
-        ?.activityInfo
-        ?.packageName
-        ?: return null
-    if (resolved != packageName || resolved == context.packageName || isBrowserPackage(resolved)) return null
-    return resolved
 }
 
 internal fun sourceAppNameRes(url: String): Int? {
@@ -271,13 +308,14 @@ internal fun sourceMarkFor(appNameRes: Int?): Int? = when (appNameRes) {
     else -> null
 }
 
-internal fun isBrowserPackage(packageName: String): Boolean {
-    if (packageName in BROWSER_PACKAGES) return true
-    return packageName.contains(".browser") || packageName.endsWith(".chrome")
+private fun startPackaged(context: Context, attempt: ExternalLaunchAttempt): ExternalStart = try {
+    context.startActivity(viewIntent(attempt.url, attempt.packageName))
+    ExternalStart.Started
+} catch (_: ActivityNotFoundException) {
+    ExternalStart.NotFound
+} catch (_: SecurityException) {
+    ExternalStart.Security
 }
-
-private fun startView(context: Context, url: String, packageName: String): Boolean =
-    start(context, viewIntent(url, packageName))
 
 private fun viewIntent(url: String, packageName: String?): Intent =
     Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
@@ -294,20 +332,6 @@ private fun start(context: Context, intent: Intent): Boolean = try {
 } catch (_: SecurityException) {
     false
 }
-
-private val BROWSER_PACKAGES = setOf(
-    "com.android.chrome",
-    "com.chrome.beta",
-    "com.chrome.dev",
-    "com.google.android.apps.chrome",
-    "com.sec.android.app.sbrowser",
-    "com.android.browser",
-    "com.brave.browser",
-    "org.mozilla.firefox",
-    "com.microsoft.emmx",
-    "com.opera.browser",
-    "com.opera.mini.native",
-)
 
 private fun handoffBrowserIntent(context: Context, url: String): Intent? {
     val browsers = InstalledBrowsers.list(context)

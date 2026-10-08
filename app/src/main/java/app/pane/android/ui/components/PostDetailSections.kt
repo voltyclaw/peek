@@ -84,8 +84,8 @@ import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.LocalPaneColors
 import app.pane.android.ui.theme.PaneDisplay
 import app.pane.android.ui.actions.RecoveryReason
+import app.pane.android.ui.actions.packageInstalled
 import app.pane.android.ui.actions.recoveryPresentation
-import app.pane.android.ui.actions.resolveExternalPackage
 import app.pane.android.ui.viewer.sourceDisplayNameFallback
 import app.pane.android.ui.viewer.sourceDisplayNameRes
 import app.pane.android.ui.viewer.threadMicroLabel
@@ -506,8 +506,8 @@ private fun ReplyFetchSpinner(
 private fun MoreRepliesOnX(url: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val presentation = remember(url) {
-        recoveryPresentation(url, RecoveryReason.Other, context.packageName) { packageName ->
-            resolveExternalPackage(context, url, packageName)
+        recoveryPresentation(url, RecoveryReason.Other) { packageName ->
+            packageInstalled(context, packageName)
         }
     }
     val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()

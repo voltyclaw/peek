@@ -59,8 +59,10 @@ import app.pane.android.R
 import app.pane.android.ui.actions.RecoveryBody
 import app.pane.android.ui.actions.RecoveryHeadline
 import app.pane.android.ui.actions.RecoveryReason
+import app.pane.android.ui.actions.OpenAffordance
+import app.pane.android.ui.actions.openAffordance
+import app.pane.android.ui.actions.packageInstalled
 import app.pane.android.ui.actions.recoveryPresentation
-import app.pane.android.ui.actions.resolveExternalPackage
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneDisplay
 import app.pane.android.ui.theme.PaneAccent
@@ -126,6 +128,7 @@ internal fun ViewerBottomBar(
     onOverflow: () -> Unit,
     onOpen: () -> Unit,
     sourceMark: Int? = null,
+    useGlobe: Boolean = false,
     showOpen: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -147,15 +150,20 @@ internal fun ViewerBottomBar(
                     .clickable(role = Role.Button, onClick = onOpen),
                 contentAlignment = Alignment.Center,
             ) {
-                if (sourceMark != null) {
-                    Icon(
+                when {
+                    sourceMark != null -> Icon(
                         painter = painterResource(sourceMark),
                         contentDescription = openLabel,
                         tint = PaneGround,
                         modifier = Modifier.size(22.dp),
                     )
-                } else {
-                    Icon(
+                    useGlobe -> Icon(
+                        Icons.Rounded.Public,
+                        contentDescription = openLabel,
+                        tint = PaneGround,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    else -> Icon(
                         Icons.AutoMirrored.Rounded.OpenInNew,
                         contentDescription = openLabel,
                         tint = PaneGround,
@@ -308,6 +316,12 @@ internal fun NoteEditorDialog(
 }
 
 @Composable
+internal fun rememberOpenAffordance(url: String): OpenAffordance {
+    val context = LocalContext.current
+    return remember(url) { openAffordance(url) { packageInstalled(context, it) } }
+}
+
+@Composable
 internal fun OpenRecovery(
     url: String,
     reason: OpenFailureKind?,
@@ -322,8 +336,8 @@ internal fun OpenRecovery(
         else -> RecoveryReason.Other
     }
     val presentation = remember(url, recoveryReason) {
-        recoveryPresentation(url, recoveryReason, context.packageName) { packageName ->
-            resolveExternalPackage(context, url, packageName)
+        recoveryPresentation(url, recoveryReason) { packageName ->
+            packageInstalled(context, packageName)
         }
     }
     val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
@@ -338,7 +352,7 @@ internal fun OpenRecovery(
         RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
     }
     val body = when (presentation.body) {
-        RecoveryBody.NamedApp -> stringResource(R.string.open_it_in_app, appName)
+        RecoveryBody.NamedApp -> stringResource(R.string.open_in_app_body, appName)
         RecoveryBody.Browser -> stringResource(R.string.open_it_in_browser_instead)
         RecoveryBody.CheckConnection -> stringResource(R.string.check_connection)
     }

@@ -4,10 +4,6 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +79,17 @@ import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.media.VideoSurface
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.displayVideoSize
+import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
+import app.pane.android.ui.media.FullscreenOrientationLock
+import app.pane.android.ui.media.SurfaceGesture
+import app.pane.android.ui.media.SurfaceGestureAction
+import app.pane.android.ui.media.VideoSurfaceKind
+import app.pane.android.ui.media.confirmedMediaTaps
+import app.pane.android.ui.media.controlsAutoHide
+import app.pane.android.ui.media.fullscreenOrientation
 import app.pane.android.ui.media.rememberPlaybackSession
+import app.pane.android.ui.media.rememberTouchExplorationEnabled
+import app.pane.android.ui.media.surfaceGestureAction
 import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.media.fittedContentPx
 import kotlinx.coroutines.delay
@@ -120,7 +126,7 @@ fun PlayerView(
         val previousLightNavigationBars = controller?.isAppearanceLightNavigationBars
         controller?.isAppearanceLightStatusBars = false
         controller?.isAppearanceLightNavigationBars = false
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        val previousOrientation = activity?.requestedOrientation
         onDispose {
             if (previousLightStatusBars != null) {
                 controller.isAppearanceLightStatusBars = previousLightStatusBars
@@ -128,7 +134,9 @@ fun PlayerView(
             if (previousLightNavigationBars != null) {
                 controller.isAppearanceLightNavigationBars = previousLightNavigationBars
             }
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            if (previousOrientation != null) {
+                activity.requestedOrientation = previousOrientation
+            }
         }
     }
     SideEffect {
@@ -288,8 +296,8 @@ private fun MediaContent(
     }
     val initialMuted = exoPlayer?.let { it.volume <= 0.001f } ?: startMuted()
     val density = LocalDensity.current
-    val revealThreshold = with(density) { 56.dp.toPx() }
-    var chromeVisible by remember(currentItem.id) { mutableStateOf(playbackUrl != null) }
+    val touchExploration = rememberTouchExplorationEnabled()
+    var chromeVisible by remember(currentItem.id) { mutableStateOf(playbackUrl != null || touchExploration) }
     var playbackSize by remember(playbackUrl) { mutableStateOf<Pair<Float, Float>?>(null) }
     var playing by remember(exoPlayer) { mutableStateOf(exoPlayer?.playWhenReady == true) }
     var muted by remember(exoPlayer) { mutableStateOf(initialMuted) }
@@ -311,9 +319,28 @@ private fun MediaContent(
             notice = null
         }
     }
-    LaunchedEffect(chromeVisible, playing, scrubbing, playbackUrl, ended) {
-        if (chromeVisible && playing && !scrubbing && playbackUrl != null && !ended) {
-            delay(2_500)
+    val hostView = LocalView.current
+    val contentWidth = playbackSize?.first ?: currentItem.width?.toFloat() ?: 0f
+    val contentHeight = playbackSize?.second ?: currentItem.height?.toFloat() ?: 0f
+    val orientationLock = fullscreenOrientation(contentWidth, contentHeight)
+    LaunchedEffect(orientationLock) {
+        val activity = hostView.context as? Activity ?: return@LaunchedEffect
+        activity.requestedOrientation = when (orientationLock) {
+            FullscreenOrientationLock.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            FullscreenOrientationLock.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+    LaunchedEffect(touchExploration) {
+        if (touchExploration) chromeVisible = true
+    }
+    LaunchedEffect(chromeVisible, playing, scrubbing, playbackUrl, ended, touchExploration) {
+        if (
+            chromeVisible &&
+            playbackUrl != null &&
+            !ended &&
+            controlsAutoHide(playing, scrubbing, touchExploration)
+        ) {
+            delay(CONTROLS_AUTO_HIDE_MS)
             chromeVisible = false
         }
     }
@@ -364,36 +391,22 @@ private fun MediaContent(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .pointerInput(onBack, revealThreshold) {
-                val slop = viewConfiguration.touchSlop
-                awaitEachGesture {
-                    val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
-                    var totalDx = 0f
-                    var totalDy = 0f
-                    var decided = false
-                    var vertical = false
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!change.pressed) {
-                            if (vertical && swipeExitsFullscreen(totalDx, totalDy, revealThreshold)) onBack()
-                            break
-                        }
-                        val delta = change.position - change.previousPosition
-                        totalDx += delta.x
-                        totalDy += delta.y
-                        if (!decided && (kotlin.math.abs(totalDx) > slop || kotlin.math.abs(totalDy) > slop)) {
-                            decided = true
-                            vertical = kotlin.math.abs(totalDy) > kotlin.math.abs(totalDx)
-                        }
-                        if (vertical) change.consume()
+            .confirmedMediaTaps(
+                onSingleTapConfirmed = {
+                    if (
+                        surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
+                            == SurfaceGestureAction.ToggleControls
+                    ) {
+                        chromeVisible = !chromeVisible
                     }
-                }
-            }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { chromeVisible = !chromeVisible },
+                },
+                onDoubleTap = {
+                    when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
+                        SurfaceGestureAction.ExitFullscreen -> onBack()
+                        SurfaceGestureAction.EnterFullscreen -> Unit
+                        SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
+                    }
+                },
             ),
     ) {
         val boxW = constraints.maxWidth.toFloat()
@@ -433,11 +446,7 @@ private fun MediaContent(
                 PeekImage(
                     image = item.image,
                     contentDescription = item.contentDescription,
-                    modifier = mediaModifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { chromeVisible = !chromeVisible },
-                    ),
+                    modifier = mediaModifier,
                     contentScale = ContentScale.Fit,
                 )
                 if (page == pagerState.currentPage && pageVideo != null && exoPlayer != null) {
@@ -624,38 +633,51 @@ private fun FullscreenChrome(
             )
         }
         Row(
-            modifier = Modifier
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-                .background(Color.Black.copy(alpha = 0.55f))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showTransport) {
-                ChromeButton(
-                    icon = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    description = stringResource(if (playing) R.string.pause else R.string.play_video),
-                    onClick = onTogglePlay,
-                )
-                ChromeButton(
-                    icon = if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
-                    description = stringResource(if (muted) R.string.unmute else R.string.mute),
-                    onClick = onToggleMute,
-                )
-                if (qualityOptions.isNotEmpty()) {
-                    QualityButton(
-                        options = qualityOptions,
-                        selectedUrl = selectedUrl,
-                        autoSelected = autoSelected,
-                        onQuality = onQuality,
+            Row(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showTransport) {
+                    ChromeButton(
+                        icon = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        description = stringResource(if (playing) R.string.pause else R.string.play_video),
+                        onClick = onTogglePlay,
                     )
+                    ChromeButton(
+                        icon = if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                        description = stringResource(if (muted) R.string.unmute else R.string.mute),
+                        onClick = onToggleMute,
+                    )
+                    if (qualityOptions.isNotEmpty()) {
+                        QualityButton(
+                            options = qualityOptions,
+                            selectedUrl = selectedUrl,
+                            autoSelected = autoSelected,
+                            onQuality = onQuality,
+                        )
+                    }
                 }
             }
-            ChromeButton(
-                icon = Icons.Rounded.FullscreenExit,
-                description = stringResource(R.string.exit_fullscreen),
-                onClick = onExit,
-            )
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+            ) {
+                ChromeButton(
+                    icon = Icons.Rounded.FullscreenExit,
+                    description = stringResource(R.string.exit_fullscreen),
+                    onClick = onExit,
+                )
+            }
         }
     }
 }

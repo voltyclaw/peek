@@ -63,9 +63,9 @@ class VideoAutoplayTest {
     }
 
     @Test
-    fun swipeUpOrDownLeavesImmersiveAndASidewaysMoveDoesNot() {
-        assertTrue(swipeExitsFullscreen(totalDx = 4f, totalDy = 80f, thresholdPx = 56f))
-        assertTrue(swipeExitsFullscreen(totalDx = 4f, totalDy = -80f, thresholdPx = 56f))
+    fun swipeDoesNotLeaveFullscreen() {
+        assertFalse(swipeExitsFullscreen(totalDx = 4f, totalDy = 80f, thresholdPx = 56f))
+        assertFalse(swipeExitsFullscreen(totalDx = 4f, totalDy = -80f, thresholdPx = 56f))
         assertFalse(swipeExitsFullscreen(totalDx = 90f, totalDy = 40f, thresholdPx = 56f))
         assertFalse(swipeExitsFullscreen(totalDx = 0f, totalDy = 20f, thresholdPx = 56f))
         assertFalse(swipeExitsFullscreen(totalDx = 0f, totalDy = -80f, thresholdPx = 0f))

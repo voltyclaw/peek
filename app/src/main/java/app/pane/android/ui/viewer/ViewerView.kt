@@ -37,10 +37,6 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +70,11 @@ import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.actions.sourceMarkRes
+import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
+import app.pane.android.ui.media.InlineVideoChrome
+import app.pane.android.ui.media.confirmedMediaTaps
+import app.pane.android.ui.media.controlsAutoHide
+import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.components.AuthorByline
 import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
@@ -109,6 +110,7 @@ import app.pane.android.ui.theme.PaneMuted
 import app.pane.android.ui.theme.PaneSecondary
 import app.pane.android.ui.theme.PaneTile
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -208,8 +210,13 @@ private fun ColumnScope.ViewerContent(
     onOpenOutbound: (String) -> Unit,
 ) {
     val host = displayHost(post.sourceUrl)
-    val openLabel = stringResource(openInAppLabelRes(post.sourceUrl))
-    val sourceMark = sourceMarkRes(post.sourceUrl)
+    val affordance = rememberOpenAffordance(post.sourceUrl)
+    val appName = affordance.appNameRes?.let { stringResource(it) }.orEmpty()
+    val openLabel = if (affordance.opensInApp && affordance.appNameRes != null) {
+        stringResource(R.string.open_in_named_app, appName)
+    } else {
+        stringResource(R.string.open_in_browser)
+    }
     val scope = rememberCoroutineScope()
     var overflow by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf(false) }
@@ -299,7 +306,8 @@ private fun ColumnScope.ViewerContent(
         onShare = { scope.launch { onSharePost(post.sourceUrl, post.title) } },
         onOverflow = { overflow = true },
         onOpen = { scope.launch { onOpenInApp(post.sourceUrl) } },
-        sourceMark = sourceMark,
+        sourceMark = affordance.markRes,
+        useGlobe = affordance.useGlobe,
     )
     if (overflow) {
         OverflowSheet(
@@ -446,10 +454,39 @@ private fun MediaCanvas(
                 measured = measured + (item.id to (width to height))
                 if (page == pagerState.currentPage) onMediaMeasured(width, height)
             }
+            val touchExploration = rememberTouchExplorationEnabled()
+            var showControls by remember(videoUrl) { mutableStateOf(videoUrl != null && touchExploration) }
+            var scrubbing by remember(videoUrl) { mutableStateOf(false) }
+            LaunchedEffect(touchExploration, videoUrl) {
+                if (videoUrl != null && touchExploration) showControls = true
+            }
+            LaunchedEffect(showControls, videoPaused, scrubbing, touchExploration, videoUrl) {
+                if (
+                    videoUrl != null &&
+                    showControls &&
+                    controlsAutoHide(
+                        playing = !videoPaused,
+                        scrubbing = scrubbing,
+                        touchExplorationEnabled = touchExploration,
+                    )
+                ) {
+                    delay(CONTROLS_AUTO_HIDE_MS)
+                    showControls = false
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(role = Role.Button, onClick = { onOpenMedia(page) }),
+                    .then(
+                        if (videoUrl == null) {
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                        } else {
+                            Modifier.confirmedMediaTaps(
+                                onSingleTapConfirmed = { showControls = !showControls },
+                                onDoubleTap = { onOpenMedia(page) },
+                            )
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 PeekImage(
@@ -485,45 +522,18 @@ private fun MediaCanvas(
                         )
                     }
                 }
-                if (videoUrl != null) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(PaneGround.copy(alpha = 0.55f))
-                                .clickable(role = Role.Button, onClick = onToggleVideo),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                if (videoPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                                contentDescription = stringResource(if (videoPaused) R.string.play_video else R.string.pause),
-                                tint = PaneMuted,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(12.dp)
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(PaneGround.copy(alpha = 0.55f))
-                                .clickable(role = Role.Button) {
-                                    inlineMuted = !inlineMuted
-                                    onMutedChange(inlineMuted)
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                if (inlineMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
-                                contentDescription = stringResource(if (inlineMuted) R.string.unmute else R.string.mute),
-                                tint = PaneMuted,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
+                if (videoUrl != null && showControls) {
+                    InlineVideoChrome(
+                        paused = videoPaused,
+                        muted = inlineMuted,
+                        onTogglePlay = onToggleVideo,
+                        onToggleMute = {
+                            inlineMuted = !inlineMuted
+                            onMutedChange(inlineMuted)
+                        },
+                        onEnterFullscreen = { onOpenMedia(page) },
+                        onScrubbing = { scrubbing = it },
+                    )
                 }
             }
         }
@@ -564,7 +574,7 @@ private fun MediaCanvas(
                 },
                 modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp),
             )
-        } else {
+        } else if (items[pagerState.currentPage].videoUrl == null) {
             post.duration?.let { duration ->
                 Box(
                     modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).height(28.dp).clip(CircleShape).background(PaneGround.copy(alpha = 0.6f)).padding(horizontal = 10.dp),

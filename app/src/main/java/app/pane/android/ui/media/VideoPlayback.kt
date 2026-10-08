@@ -3,18 +3,49 @@ package app.pane.android.ui.media
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.pane.android.R
+import app.pane.android.ui.player.playbackFraction
+import app.pane.android.ui.player.seekPositionMs
+import kotlinx.coroutines.delay
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.app.Application
@@ -109,6 +140,117 @@ internal fun MutedInlineVideo(
         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
         modifier = modifier,
     )
+}
+
+/**
+ * Controls for the framed video. Play and pause live on the center button.
+ * The fullscreen button is the bottom-right control. A bare tap never reaches this layer.
+ */
+@Composable
+internal fun InlineVideoChrome(
+    paused: Boolean,
+    muted: Boolean,
+    onTogglePlay: () -> Unit,
+    onToggleMute: () -> Unit,
+    onEnterFullscreen: () -> Unit,
+    onScrubbing: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val session = rememberPlaybackSession()
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
+    var scrubbing by remember { mutableStateOf(false) }
+    LaunchedEffect(scrubbing) { onScrubbing(scrubbing) }
+    LaunchedEffect(scrubbing) {
+        while (true) {
+            val exo = session.player?.exo
+            if (exo != null && !scrubbing) {
+                positionMs = exo.currentPosition.coerceAtLeast(0L)
+                val duration = exo.duration
+                durationMs = if (duration > 0L) duration else 0L
+            }
+            delay(200)
+        }
+    }
+    val scrubLabel = stringResource(R.string.playback_position)
+    Box(modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(role = Role.Button, onClick = onTogglePlay),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                contentDescription = stringResource(if (paused) R.string.play_video else R.string.pause),
+                tint = Color.White,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClick = onToggleMute),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                        contentDescription = stringResource(if (muted) R.string.unmute else R.string.mute),
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Slider(
+                    value = playbackFraction(positionMs, durationMs),
+                    onValueChange = { fraction ->
+                        val exo = session.player?.exo ?: return@Slider
+                        val duration = exo.duration
+                        if (duration <= 0L) return@Slider
+                        scrubbing = true
+                        durationMs = duration
+                        val target = seekPositionMs(duration, fraction)
+                        positionMs = target
+                        exo.seekTo(target)
+                    },
+                    onValueChangeFinished = { scrubbing = false },
+                    enabled = durationMs > 0L,
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { contentDescription = scrubLabel },
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFFF4EFEA),
+                        activeTrackColor = Color(0xFF8A827A),
+                        inactiveTrackColor = Color(0xFF262018),
+                    ),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClick = onEnterFullscreen),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Fullscreen,
+                        contentDescription = stringResource(R.string.enter_fullscreen),
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+    }
 }
 
 @Composable
