@@ -8,7 +8,7 @@ import java.util.Locale
  * Host matching stays here so a later applicationId or brand change does not touch it.
  */
 object FacebookUrls {
-    enum class Kind { Post, Reel, Watch, Short, Story }
+    enum class Kind { Post, Reel, Watch, Short, Story, ShareShort }
 
     data class Post(
         val id: String,
@@ -80,6 +80,8 @@ object FacebookUrls {
                 }
                 hit(segments[2], canonical, kind)
             }
+            segments.firstOrNull() == "share" && segments.size == 2 && isId(segments[1]) ->
+                hit(segments[1], original, Kind.ShareShort)
             segments.firstOrNull() == "reel" || segments.firstOrNull() == "reels" -> {
                 val id = segments.getOrNull(1)?.takeIf(::isId) ?: return null
                 hit(id, "https://www.facebook.com/reel/$id", Kind.Reel)

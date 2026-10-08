@@ -198,7 +198,7 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 @Composable
 private fun UnavailableMedia(onBack: () -> Unit, reason: String = "", failed: Boolean = false) {
     val title = stringResource(if (failed) R.string.couldnt_open else R.string.pane_cant_show)
-    val body = if (failed) stringResource(failureCopyRes(reason)) else stringResource(R.string.not_a_single_post)
+    val body = if (failed) stringResource(failureCopyRes(reason)) else stringResource(R.string.link_isnt_public_post)
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),

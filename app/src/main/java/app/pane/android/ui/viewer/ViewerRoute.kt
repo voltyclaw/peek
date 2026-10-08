@@ -19,6 +19,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import app.pane.android.R
+import app.pane.android.ui.actions.openExternally
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
 import app.pane.android.ui.actions.rememberPostActionCallbacks
@@ -87,7 +90,10 @@ fun ViewerRoute(
         onDownload = callbacks.onDownload,
         onShare = callbacks.onShare,
         onSharePost = callbacks.onSharePost,
-        onOpenInApp = callbacks.onOpenInApp,
+        onOpenInApp = { url ->
+            if (openExternally(context, url)) onBack()
+            else Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+        },
         videoQuality = videoQuality,
         startMuted = startMuted,
         onMutedChange = onMutedChange,

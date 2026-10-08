@@ -2,6 +2,7 @@ package app.pane.android
 
 import app.pane.android.data.facebook.FacebookDirectPageLoader
 import app.pane.android.data.facebook.FacebookDocument
+import app.pane.android.data.facebook.FacebookShareRedirect
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -249,6 +250,79 @@ class FacebookDocumentTest {
         assertTrue(opened.any { it.contains("story_fbid=sampleStory1") && it.contains("bucket_id=") && it.contains("mibextid=") })
         assertTrue(opened.none { it.contains("plugins/post.php") || it.contains("permalink.php") })
     }
+
+    @Test
+    fun aShareShortlinkRedirectResolvesToThePublicPost() = runTest {
+        val opened = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val loader = FacebookDirectPageLoader { url ->
+            opened += url
+            if (url.contains("/share/19j1v6TgD9")) {
+                redirectConnection("https://www.facebook.com/nasa/posts/pfbid0123")
+            } else {
+                htmlConnection(PUBLIC_HTML)
+            }
+        }
+
+        val post = loader.resolve("https://www.facebook.com/share/19j1v6TgD9/")
+
+        assertEquals("NASA", post.author)
+        assertEquals("The moon, closer than it looks.", post.text)
+        assertTrue(opened.any { it.contains("/share/19j1v6TgD9") })
+        assertTrue(opened.any { it.contains("nasa") && it.contains("pfbid0123") })
+    }
+
+    @Test
+    fun aShareShortlinkThatDoesNotLandOnAPostStaysUnloadable() = runTest {
+        val loader = FacebookDirectPageLoader {
+            htmlConnection(
+                """
+                <html><meta property="og:title" content="Facebook">
+                <meta property="og:description" content="Log into Facebook">
+                <form id="login_form"></form></html>
+                """.trimIndent(),
+            )
+        }
+
+        val error = runCatching { loader.resolve("https://www.facebook.com/share/19j1v6TgD9/") }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+    }
+
+    @Test
+    fun shareRedirectReadsALocationHeaderAndAnOgUrl() {
+        assertEquals(
+            "https://www.facebook.com/nasa/posts/pfbid0123",
+            FacebookShareRedirect.nextUrl(
+                status = 302,
+                location = "https://www.facebook.com/nasa/posts/pfbid0123",
+                html = "",
+                current = "https://www.facebook.com/share/19j1v6TgD9/",
+            ),
+        )
+        val html = """<meta property="og:url" content="https://www.facebook.com/nasa/posts/pfbid0123&amp;ref=share">"""
+        assertEquals(
+            "https://www.facebook.com/nasa/posts/pfbid0123&ref=share",
+            FacebookShareRedirect.nextUrl(200, null, html, "https://www.facebook.com/share/19j1v6TgD9/"),
+        )
+    }
+
+    private fun redirectConnection(location: String): HttpURLConnection =
+        object : HttpURLConnection(URL("https://www.facebook.com/share/19j1v6TgD9/")) {
+            override fun setInstanceFollowRedirects(followRedirects: Boolean) {
+                super.setInstanceFollowRedirects(followRedirects)
+            }
+            override fun setRequestMethod(method: String) {
+                super.setRequestMethod(method)
+            }
+            override fun connect() = Unit
+            override fun disconnect() = Unit
+            override fun usingProxy(): Boolean = false
+            override fun getResponseCode(): Int = HTTP_MOVED_TEMP
+            override fun getHeaderField(name: String?): String? =
+                if (name.equals("Location", ignoreCase = true)) location else super.getHeaderField(name)
+            override fun getInputStream() = ByteArrayInputStream(ByteArray(0))
+            override fun getErrorStream() = inputStream
+        }
 
     private fun htmlConnection(html: String): HttpURLConnection =
         object : HttpURLConnection(URL("https://www.facebook.com/plugins/post.php")) {

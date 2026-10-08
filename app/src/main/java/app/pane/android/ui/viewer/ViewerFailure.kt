@@ -13,12 +13,14 @@ enum class OpenFailureKind {
     Private,
     Expired,
     Network,
+    Offline,
     Story,
 }
 
 fun openFailureKind(message: String?): OpenFailureKind {
     val lower = message.orEmpty().lowercase()
     if (containsAny(lower, "story unavailable")) return OpenFailureKind.Story
+    if (isOfflineMessage(lower)) return OpenFailureKind.Offline
     if (isConnectivityMessage(lower)) return OpenFailureKind.Network
     if (containsAny(lower, "private", "login", "log in", "sign in", "unauthorized", "forbidden", "blocked", "checkpoint")) {
         return OpenFailureKind.Private
@@ -31,21 +33,26 @@ fun openFailureKind(message: String?): OpenFailureKind {
     return OpenFailureKind.Network
 }
 
-/** Offline, DNS, and timeouts are recoverable. They are not "not a public post". */
-private fun isConnectivityMessage(lower: String): Boolean = containsAny(
+/** No route to the host. Distinct from a timeout so the screen can say you're offline. */
+private fun isOfflineMessage(lower: String): Boolean = containsAny(
     lower,
-    "timeout",
-    "timed out",
     "offline",
     "unknown host",
     "unable to resolve",
     "failed to connect",
-    "connection reset",
     "connection refused",
     "unreachable",
     "no address",
     "network is unreachable",
     "enotfound",
+)
+
+/** Timeouts and resets are recoverable. They are not "not a public post". */
+private fun isConnectivityMessage(lower: String): Boolean = containsAny(
+    lower,
+    "timeout",
+    "timed out",
+    "connection reset",
 )
 
 /** String resource for a failure the screen is allowed to show. Never the raw message. */
@@ -55,6 +62,7 @@ fun failureCopyRes(reason: String): Int {
         OpenFailureKind.Private -> R.string.reason_private
         OpenFailureKind.Expired -> R.string.reason_expired
         OpenFailureKind.Network -> R.string.reason_network
+        OpenFailureKind.Offline -> R.string.youre_offline
         OpenFailureKind.Story -> R.string.reason_story
     }
 }
@@ -65,9 +73,13 @@ fun viewerStateFor(url: String, error: Throwable): ViewerUiState = when {
         url = url,
         reason = OpenFailureKind.Story.name,
     )
-    error is UnknownHostException || error is SocketTimeoutException || error is ConnectException ->
+    error is UnknownHostException || error is ConnectException ->
+        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
+    error is SocketTimeoutException ->
         ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network.name)
     error is IllegalArgumentException -> ViewerUiState.Unavailable(url)
+    error is IOException && isOfflineMessage(error.message.orEmpty().lowercase()) ->
+        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
     error is IOException && isConnectivityMessage(error.message.orEmpty().lowercase()) ->
         ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network.name)
     else -> ViewerUiState.LoadFailed(

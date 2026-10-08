@@ -60,7 +60,10 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -80,7 +83,11 @@ import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.LocalPaneColors
 import app.pane.android.ui.theme.PaneDisplay
-import app.pane.android.ui.viewer.sourceDisplayName
+import app.pane.android.ui.actions.RecoveryReason
+import app.pane.android.ui.actions.recoveryPresentation
+import app.pane.android.ui.actions.resolveExternalPackage
+import app.pane.android.ui.viewer.sourceDisplayNameFallback
+import app.pane.android.ui.viewer.sourceDisplayNameRes
 import app.pane.android.ui.viewer.threadMicroLabel
 import app.pane.android.ui.viewer.ThreadLabel
 import app.pane.android.ui.theme.PaneAccent
@@ -435,11 +442,17 @@ fun CommentsSection(
             }
         }
         if (x && post.commentsTruncated && !post.canLoadMoreComments) {
-            MoreRepliesOnX(onOpen = onOpenSource, modifier = Modifier.padding(top = if (showReplyList) 14.dp else 10.dp))
+            MoreRepliesOnX(
+                url = post.sourceUrl,
+                onOpen = onOpenSource,
+                modifier = Modifier.padding(top = if (showReplyList) 14.dp else 10.dp),
+            )
         }
         if (showEndCap) {
+            val sourceName = sourceDisplayNameRes(sourceHost)?.let { stringResource(it) }
+                ?: sourceDisplayNameFallback(sourceHost)
             Text(
-                text = stringResource(R.string.rest_of_thread, sourceDisplayName(sourceHost)),
+                text = stringResource(R.string.rest_of_thread, sourceName),
                 modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 color = PaneMuted.copy(alpha = 0.75f),
                 style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
@@ -490,7 +503,19 @@ private fun ReplyFetchSpinner(
 }
 
 @Composable
-private fun MoreRepliesOnX(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+private fun MoreRepliesOnX(url: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val presentation = remember(url) {
+        recoveryPresentation(url, RecoveryReason.Other, context.packageName) { packageName ->
+            resolveExternalPackage(context, url, packageName)
+        }
+    }
+    val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
+    val openLabel = if (presentation.opensInApp && presentation.appNameRes != null) {
+        stringResource(R.string.open_in_named_app, appName)
+    } else {
+        stringResource(R.string.open_in_browser)
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -505,8 +530,14 @@ private fun MoreRepliesOnX(onOpen: () -> Unit, modifier: Modifier = Modifier) {
             style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
         )
         Text(
-            text = stringResource(R.string.open_in_x),
-            modifier = Modifier.clickable(role = Role.Button, onClick = onOpen),
+            text = openLabel,
+            modifier = Modifier
+                .clickable(role = Role.Button, onClick = onOpen)
+                .clearAndSetSemantics {
+                    role = Role.Button
+                    contentDescription = openLabel
+                    this.onClick { onOpen(); true }
+                },
             color = PaneInk,
             style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
         )

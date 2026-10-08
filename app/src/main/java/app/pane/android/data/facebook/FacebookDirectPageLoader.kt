@@ -43,8 +43,9 @@ class FacebookDirectPageLoader(
     override fun supports(url: String): Boolean = FacebookUrls.supports(url)
 
     override suspend fun resolve(url: String): ParsedFacebookPost = withContext(Dispatchers.IO) {
-        val post = FacebookUrls.parse(url)
+        val opened = FacebookUrls.parse(url)
             ?: throw IllegalArgumentException("Unsupported Facebook post URL: $url")
+        val post = resolveShareShort(opened)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
         val started = System.nanoTime()
@@ -189,6 +190,58 @@ class FacebookDirectPageLoader(
             .replace("://mbasic.facebook.com/", "://m.facebook.com/")
         return listOf(mbasic, touch).filter { it != canonical && it.startsWith("https://") }
     }
+
+    private fun resolveShareShort(opened: FacebookUrls.Post): FacebookUrls.Post {
+        if (opened.kind != FacebookUrls.Kind.ShareShort) return opened
+        val landed = followShare(opened.sourceUrl)
+        val next = FacebookUrls.parse(landed)
+        if (next == null || next.kind == FacebookUrls.Kind.ShareShort) {
+            throw IllegalArgumentException("Unsupported Facebook post URL: ${opened.sourceUrl}")
+        }
+        return next
+    }
+
+    /** Follows a short `/share/<id>/` hop until it is a post, reel, or story URL. */
+    private fun followShare(start: String): String {
+        var current = start
+        repeat(4) {
+            val known = FacebookUrls.parse(current)
+            if (known != null && known.kind != FacebookUrls.Kind.ShareShort) return current
+            val connection = connectionFactory(current)
+            try {
+                connection.instanceFollowRedirects = false
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8_000
+                connection.readTimeout = 12_000
+                connection.setRequestProperty("Accept", "text/html,application/xhtml+xml")
+                connection.setRequestProperty("User-Agent", USER_AGENT)
+                val status = connection.responseCode
+                val location = connection.getHeaderField("Location")
+                val html = if (status in 200..299) readLimited(connection) else ""
+                val next = FacebookShareRedirect.nextUrl(status, location, html, current)
+                if (next.isNullOrBlank() || next == current) return current
+                current = next
+            } finally {
+                connection.disconnect()
+            }
+        }
+        return current
+    }
+
+    private fun readLimited(connection: HttpURLConnection): String =
+        (connection.inputStream ?: connection.errorStream)
+            ?.bufferedReader(StandardCharsets.UTF_8)
+            ?.use { reader ->
+                val buffer = CharArray(8_192)
+                val text = StringBuilder()
+                while (text.length < MAX_CHARS) {
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    text.append(buffer, 0, minOf(count, MAX_CHARS - text.length))
+                }
+                text.toString()
+            }
+            .orEmpty()
 
     private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
         val connection = connectionFactory(url)

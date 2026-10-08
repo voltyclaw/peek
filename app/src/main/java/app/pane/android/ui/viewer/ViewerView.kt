@@ -743,28 +743,16 @@ private fun LoadFailedViewer(
     onShare: () -> Unit,
     onCopy: () -> Unit,
 ) {
-    ErrorShell(url, onBack, onOpen, onShare, onCopy) {
-        UnloadableBody(
-            host = displayHost(url),
-            author = "",
-            url = url,
-            hint = stringResource(failureCopyRes(reason)),
-            onRetry = onRetry,
-        )
+    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrElse { openFailureKind(reason) }
+    ErrorShell(url, onBack, onOpen, onShare, onCopy, showOpen = false) {
+        OpenRecovery(url = url, reason = kind, onOpen = onOpen, onRetry = onRetry)
     }
 }
 
 @Composable
 private fun UnavailableViewer(url: String, onBack: () -> Unit, onOpen: () -> Unit, onShare: () -> Unit, onCopy: () -> Unit) {
-    ErrorShell(url, onBack, onOpen, onShare, onCopy) {
-        UnloadableBody(
-            host = displayHost(url),
-            author = "",
-            url = url,
-            hint = stringResource(R.string.unsupported_link_description),
-            onRetry = null,
-            title = stringResource(R.string.not_a_single_post),
-        )
+    ErrorShell(url, onBack, onOpen, onShare, onCopy, showOpen = false) {
+        OpenRecovery(url = url, reason = null, onOpen = onOpen, onRetry = {})
     }
 }
 
@@ -775,6 +763,7 @@ private fun ErrorShell(
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onCopy: () -> Unit,
+    showOpen: Boolean = true,
     body: @Composable () -> Unit,
 ) {
     val host = displayHost(url)
@@ -796,6 +785,7 @@ private fun ErrorShell(
             onOverflow = { overflow = true },
             onOpen = onOpen,
             sourceMark = sourceMark,
+            showOpen = showOpen,
         )
     }
     if (overflow) {

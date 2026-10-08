@@ -11,16 +11,11 @@ internal fun displayHost(url: String): String {
     return host.ifBlank { url }
 }
 
-internal fun sourceDisplayName(host: String): String = when {
-    host == "x.com" || host.endsWith(".x.com") || host.contains("twitter.com") -> "X"
-    host.contains("instagram.com") -> "Instagram"
-    host.contains("reddit.com") -> "Reddit"
-    host.contains("facebook.com") || host.contains("fb.com") -> "Facebook"
-    host.contains("youtube.com") || host.contains("youtu.be") -> "YouTube"
-    host.contains("tiktok.com") -> "TikTok"
-    host.contains("threads.net") -> "Threads"
-    else -> host.substringBefore('.').replaceFirstChar { it.uppercase() }
-}
+internal fun sourceDisplayNameRes(host: String): Int? = app.pane.android.ui.actions.sourceNameRes(host)
+
+/** Host label when the source has no string resource. Known apps use [sourceDisplayNameRes]. */
+internal fun sourceDisplayNameFallback(host: String): String =
+    host.substringBefore('.').replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
 
 internal fun threadMicroLabel(host: String): ThreadLabel = when {
     host.contains("reddit.com") -> ThreadLabel.TopComments

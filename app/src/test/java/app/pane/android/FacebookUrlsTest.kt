@@ -30,6 +30,11 @@ class FacebookUrlsTest {
             FacebookUrls.parse("https://mbasic.facebook.com/page/videos/321")?.canonicalUrl,
         )
         assertTrue(FacebookUrls.supports("http://fb.com/share/v/ClipId9"))
+        val shortShare = "https://www.facebook.com/share/19j1v6TgD9/?mibextid=wwXIfr"
+        val parsed = FacebookUrls.parse(shortShare)
+        assertEquals(FacebookUrls.Kind.ShareShort, parsed?.kind)
+        assertEquals("19j1v6TgD9", parsed?.id)
+        assertEquals(shortShare, parsed?.sourceUrl)
     }
 
     @Test

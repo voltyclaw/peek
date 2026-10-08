@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import app.pane.android.BrowserTrampoline
@@ -64,12 +65,17 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
     }
     val facebook = FacebookUrls.parse(unwrapped)
     if (facebook != null) {
-        val handoff = if (facebook.kind == FacebookUrls.Kind.Story) facebook.sourceUrl else facebook.canonicalUrl
+        val shortShare = facebook.kind == FacebookUrls.Kind.ShareShort
+        val handoff = if (facebook.kind == FacebookUrls.Kind.Story || shortShare) {
+            facebook.sourceUrl
+        } else {
+            facebook.canonicalUrl
+        }
         val story = facebook.kind == FacebookUrls.Kind.Story
         return listOf(
             OpenInAppTarget(handoff, "com.facebook.katana"),
             OpenInAppTarget(handoff, "com.facebook.lite"),
-            OpenInAppTarget(handoff, null, handoffBrowser = story),
+            OpenInAppTarget(handoff, null, handoffBrowser = story || shortShare),
         )
     }
     if (RedditUrls.supports(unwrapped)) {
@@ -105,32 +111,203 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
     return listOf(OpenInAppTarget(unwrapped, null))
 }
 
-fun openPostInApp(context: Context, url: String): Boolean {
+fun openPostInApp(context: Context, url: String): Boolean = openExternally(context, url)
+
+/**
+ * One Open path for the body button, the coral tile, and the thread hard-wall tile.
+ * The intent carries the full incoming URL. A source app is used only when
+ * resolveActivity says that app will handle it. Otherwise the handoff browser,
+ * then the system chooser, receives the same URL. A package-less VIEW is never
+ * started, so the tap cannot land back inside Pane.
+ */
+fun openExternally(context: Context, url: String): Boolean {
     if (url.isBlank()) return false
-    val targets = openInAppTargets(url)
+    val plan = externalOpen(url, context.packageName) { packageName ->
+        resolveExternalPackage(context, externalOpenUrl(url), packageName)
+    }
     if (BuildConfig.DEBUG) {
-        Log.i("PaneOpen", "open incoming=$url outgoing=${targets.firstOrNull()?.uri.orEmpty()}")
+        Log.i("PaneOpen", "open incoming=$url outgoing=${plan.url} package=${plan.packageName}")
     }
-    for (target in targets) {
-        val intent = if (target.handoffBrowser) {
-            handoffBrowserIntent(context, target.uri) ?: continue
-        } else {
-            Intent(Intent.ACTION_VIEW, Uri.parse(target.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
-                if (target.packageName != null) setPackage(target.packageName)
-            }
-        }
-        val started = try {
-            context.startActivity(intent)
-            true
-        } catch (_: ActivityNotFoundException) {
-            false
-        } catch (_: SecurityException) {
-            false
-        }
-        if (started) return true
-    }
-    return false
+    if (plan.packageName != null && startView(context, plan.url, plan.packageName)) return true
+    val browser = handoffBrowserIntent(context, plan.url)
+    if (browser != null && start(context, browser)) return true
+    val chooser = Intent.createChooser(viewIntent(plan.url, null), null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return start(context, chooser)
 }
+
+internal data class ExternalOpen(
+    val url: String,
+    val packageName: String?,
+    val opensInApp: Boolean,
+    val appNameRes: Int?,
+    val sourceKnown: Boolean,
+    val markRes: Int?,
+)
+
+internal enum class RecoveryReason { Unloadable, Offline, Timeout, Other }
+
+internal enum class RecoveryHeadline { NotPublic, CantShow, Offline, CouldntLoad }
+
+internal enum class RecoveryBody { NamedApp, Browser, CheckConnection }
+
+internal data class RecoveryPresentation(
+    val headline: RecoveryHeadline,
+    val body: RecoveryBody,
+    val retryPrimary: Boolean,
+    val opensInApp: Boolean,
+    val appNameRes: Int?,
+    val openUrl: String,
+    val markRes: Int?,
+)
+
+internal fun externalOpenUrl(url: String): String {
+    val targets = openInAppTargets(url)
+    return targets.firstOrNull()?.uri ?: LinkShims.unwrap(url)
+}
+
+internal fun externalOpen(
+    url: String,
+    ownPackage: String,
+    resolve: (packageName: String) -> String?,
+): ExternalOpen {
+    val openUrl = externalOpenUrl(url)
+    val appNameRes = sourceAppNameRes(url)
+    for (target in openInAppTargets(url)) {
+        val packageName = target.packageName ?: continue
+        if (packageName == ownPackage || isBrowserPackage(packageName)) continue
+        val resolved = resolve(packageName) ?: continue
+        if (resolved != packageName || resolved == ownPackage || isBrowserPackage(resolved)) continue
+        return ExternalOpen(
+            url = openUrl,
+            packageName = packageName,
+            opensInApp = appNameRes != null,
+            appNameRes = appNameRes,
+            sourceKnown = appNameRes != null,
+            markRes = sourceMarkFor(appNameRes),
+        )
+    }
+    return ExternalOpen(
+        url = openUrl,
+        packageName = null,
+        opensInApp = false,
+        appNameRes = appNameRes,
+        sourceKnown = appNameRes != null,
+        markRes = null,
+    )
+}
+
+internal fun recoveryPresentation(
+    url: String,
+    reason: RecoveryReason = RecoveryReason.Unloadable,
+    ownPackage: String = "",
+    resolve: (String) -> String? = { null },
+): RecoveryPresentation {
+    val open = externalOpen(url, ownPackage, resolve)
+    val network = reason == RecoveryReason.Offline || reason == RecoveryReason.Timeout
+    val headline = when (reason) {
+        RecoveryReason.Offline -> RecoveryHeadline.Offline
+        RecoveryReason.Timeout -> RecoveryHeadline.CouldntLoad
+        RecoveryReason.Unloadable, RecoveryReason.Other ->
+            if (open.sourceKnown) RecoveryHeadline.NotPublic else RecoveryHeadline.CantShow
+    }
+    val named = open.opensInApp && open.appNameRes != null
+    val body = when {
+        network -> RecoveryBody.CheckConnection
+        named -> RecoveryBody.NamedApp
+        else -> RecoveryBody.Browser
+    }
+    return RecoveryPresentation(
+        headline = headline,
+        body = body,
+        retryPrimary = network,
+        opensInApp = named,
+        appNameRes = open.appNameRes,
+        openUrl = open.url,
+        markRes = if (named) open.markRes else null,
+    )
+}
+
+internal fun resolveExternalPackage(context: Context, url: String, packageName: String): String? {
+    val resolved = context.packageManager
+        .resolveActivity(viewIntent(url, packageName), PackageManager.MATCH_DEFAULT_ONLY)
+        ?.activityInfo
+        ?.packageName
+        ?: return null
+    if (resolved != packageName || resolved == context.packageName || isBrowserPackage(resolved)) return null
+    return resolved
+}
+
+internal fun sourceAppNameRes(url: String): Int? {
+    val host = runCatching { URI(LinkShims.unwrap(url).trim()).host }
+        .getOrNull()
+        ?.lowercase(Locale.US)
+        ?.removePrefix("www.")
+        ?: return null
+    return sourceNameRes(host)
+}
+
+internal fun sourceNameRes(host: String): Int? {
+    val normalized = host.lowercase(Locale.US).removePrefix("www.")
+    return when {
+        normalized == "facebook.com" || normalized.endsWith(".facebook.com") ||
+            normalized == "fb.com" || normalized.endsWith(".fb.com") || normalized == "fb.watch" -> R.string.source_facebook
+        normalized == "instagram.com" || normalized.endsWith(".instagram.com") || normalized == "instagr.am" ->
+            R.string.source_instagram
+        normalized == "x.com" || normalized.endsWith(".x.com") ||
+            normalized == "twitter.com" || normalized.endsWith(".twitter.com") -> R.string.source_x
+        normalized == "reddit.com" || normalized.endsWith(".reddit.com") -> R.string.source_reddit
+        normalized == "youtube.com" || normalized.endsWith(".youtube.com") || normalized == "youtu.be" -> R.string.source_youtube
+        normalized == "tiktok.com" || normalized.endsWith(".tiktok.com") -> R.string.source_tiktok
+        normalized == "threads.net" || normalized.endsWith(".threads.net") -> R.string.source_threads
+        else -> null
+    }
+}
+
+internal fun sourceMarkFor(appNameRes: Int?): Int? = when (appNameRes) {
+    R.string.source_facebook -> R.drawable.ic_source_facebook
+    R.string.source_instagram -> R.drawable.ic_source_instagram
+    R.string.source_x -> R.drawable.ic_source_x
+    R.string.source_reddit -> R.drawable.ic_source_reddit
+    else -> null
+}
+
+internal fun isBrowserPackage(packageName: String): Boolean {
+    if (packageName in BROWSER_PACKAGES) return true
+    return packageName.contains(".browser") || packageName.endsWith(".chrome")
+}
+
+private fun startView(context: Context, url: String, packageName: String): Boolean =
+    start(context, viewIntent(url, packageName))
+
+private fun viewIntent(url: String, packageName: String?): Intent =
+    Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (packageName != null) setPackage(packageName)
+    }
+
+private fun start(context: Context, intent: Intent): Boolean = try {
+    context.startActivity(intent)
+    true
+} catch (_: ActivityNotFoundException) {
+    false
+} catch (_: SecurityException) {
+    false
+}
+
+private val BROWSER_PACKAGES = setOf(
+    "com.android.chrome",
+    "com.chrome.beta",
+    "com.chrome.dev",
+    "com.google.android.apps.chrome",
+    "com.sec.android.app.sbrowser",
+    "com.android.browser",
+    "com.brave.browser",
+    "org.mozilla.firefox",
+    "com.microsoft.emmx",
+    "com.opera.browser",
+    "com.opera.mini.native",
+)
 
 private fun handoffBrowserIntent(context: Context, url: String): Intent? {
     val browsers = InstalledBrowsers.list(context)

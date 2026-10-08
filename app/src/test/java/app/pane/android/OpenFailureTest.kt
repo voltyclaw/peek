@@ -50,8 +50,8 @@ class OpenFailureTest {
             url,
             UnknownHostException("Unable to resolve host \"www.reddit.com\": No address associated with hostname"),
         ) as ViewerUiState.LoadFailed
-        assertEquals(OpenFailureKind.Network.name, state.reason)
-        assertEquals(R.string.reason_network, app.pane.android.ui.viewer.failureCopyRes(state.reason))
+        assertEquals(OpenFailureKind.Offline.name, state.reason)
+        assertEquals(R.string.youre_offline, app.pane.android.ui.viewer.failureCopyRes(state.reason))
         assertTrue(app.pane.android.ui.viewer.failureOffersRetry(state))
         assertFalse(state.reason.contains("single"))
     }

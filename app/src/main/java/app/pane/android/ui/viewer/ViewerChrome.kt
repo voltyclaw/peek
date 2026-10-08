@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,9 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,8 +56,13 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import app.pane.android.R
-import app.pane.android.ui.components.PaneMark
+import app.pane.android.ui.actions.RecoveryBody
+import app.pane.android.ui.actions.RecoveryHeadline
+import app.pane.android.ui.actions.RecoveryReason
+import app.pane.android.ui.actions.recoveryPresentation
+import app.pane.android.ui.actions.resolveExternalPackage
 import app.pane.android.ui.theme.Inter
+import app.pane.android.ui.theme.PaneDisplay
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneGround
@@ -113,6 +126,7 @@ internal fun ViewerBottomBar(
     onOverflow: () -> Unit,
     onOpen: () -> Unit,
     sourceMark: Int? = null,
+    showOpen: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().background(PaneGround)) {
@@ -124,7 +138,7 @@ internal fun ViewerBottomBar(
             QuietIconButton(Icons.Rounded.Share, stringResource(R.string.share), onShare)
             QuietIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.more_options), onOverflow)
             Box(Modifier.weight(1f))
-            Box(
+            if (showOpen) Box(
                 modifier = Modifier
                     .padding(end = 8.dp)
                     .size(48.dp)
@@ -294,61 +308,133 @@ internal fun NoteEditorDialog(
 }
 
 @Composable
-internal fun UnloadableBody(
-    host: String,
-    author: String,
+internal fun OpenRecovery(
     url: String,
-    hint: String,
-    onRetry: (() -> Unit)?,
-    title: String? = null,
+    reason: OpenFailureKind?,
+    onOpen: () -> Unit,
+    onRetry: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val recoveryReason = when (reason) {
+        OpenFailureKind.Offline -> RecoveryReason.Offline
+        OpenFailureKind.Network -> RecoveryReason.Timeout
+        null -> RecoveryReason.Unloadable
+        else -> RecoveryReason.Other
+    }
+    val presentation = remember(url, recoveryReason) {
+        recoveryPresentation(url, recoveryReason, context.packageName) { packageName ->
+            resolveExternalPackage(context, url, packageName)
+        }
+    }
+    val headline = when (presentation.headline) {
+        RecoveryHeadline.NotPublic -> stringResource(R.string.link_isnt_public_post)
+        RecoveryHeadline.CantShow -> stringResource(R.string.cant_show_link_here)
+        RecoveryHeadline.Offline -> stringResource(R.string.youre_offline)
+        RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
+    }
+    val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
+    val body = when (presentation.body) {
+        RecoveryBody.NamedApp -> stringResource(R.string.open_it_in_app, appName)
+        RecoveryBody.Browser -> stringResource(R.string.open_it_in_browser_instead)
+        RecoveryBody.CheckConnection -> stringResource(R.string.check_connection)
+    }
+    val openLabel = if (presentation.opensInApp && presentation.appNameRes != null) {
+        stringResource(R.string.open_in_named_app, appName)
+    } else {
+        stringResource(R.string.open_in_browser)
+    }
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 28.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier.size(width = 160.dp, height = 120.dp).clip(RoundedCornerShape(28.dp)).background(PaneTile),
-            contentAlignment = Alignment.Center,
-        ) {
-            PaneMark(Modifier.size(72.dp))
-        }
         Text(
-            text = title ?: stringResource(R.string.couldnt_load_this),
-            modifier = Modifier.padding(top = 22.dp),
+            text = headline,
+            modifier = Modifier.fillMaxWidth(),
             color = PaneInk,
-            style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.025).em),
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = PaneDisplay, fontSize = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.025).em),
         )
         Text(
-            text = hint,
-            modifier = Modifier.padding(top = 8.dp),
+            text = body,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             color = PaneMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
         )
-        if (onRetry != null) Row(
-            modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(20.dp)).background(PaneInk).clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 18.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(Icons.Rounded.Refresh, contentDescription = null, tint = PaneGround, modifier = Modifier.size(16.dp))
-            Text(stringResource(R.string.retry), color = PaneGround, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+        if (presentation.retryPrimary) {
+            RecoveryButton(
+                label = stringResource(R.string.try_again),
+                filled = true,
+                mark = null,
+                globe = false,
+                onClick = onRetry,
+                modifier = Modifier.padding(top = 22.dp),
+            )
+            RecoveryButton(
+                label = openLabel,
+                filled = false,
+                mark = presentation.markRes,
+                globe = !presentation.opensInApp,
+                onClick = onOpen,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        } else {
+            RecoveryButton(
+                label = openLabel,
+                filled = true,
+                mark = presentation.markRes,
+                globe = !presentation.opensInApp,
+                onClick = onOpen,
+                modifier = Modifier.padding(top = 22.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecoveryButton(
+    label: String,
+    filled: Boolean,
+    mark: Int?,
+    globe: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val foreground = if (filled) PaneGround else PaneInk
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .widthIn(max = 360.dp)
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(shape)
+            .then(
+                if (filled) Modifier.background(PaneInk) else Modifier.border(1.dp, PaneBorder, shape),
+            )
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics {
+                role = Role.Button
+                contentDescription = label
+                this.onClick { onClick(); true }
+            }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        when {
+            mark != null -> {
+                Icon(painterResource(mark), contentDescription = null, tint = foreground, modifier = Modifier.size(22.dp))
+                Box(Modifier.size(10.dp))
+            }
+            globe -> {
+                Icon(Icons.Rounded.Public, contentDescription = null, tint = foreground, modifier = Modifier.size(22.dp))
+                Box(Modifier.size(10.dp))
+            }
         }
         Text(
-            text = stringResource(R.string.from_label),
-            modifier = Modifier.padding(top = 28.dp).align(Alignment.Start),
-            color = PaneMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
-        )
-        Column(
-            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile).padding(14.dp),
-        ) {
-            Text(author.ifBlank { host }, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
-            Text(url, color = PaneMuted, maxLines = 1, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
-        }
-        Text(
-            text = stringResource(R.string.nothing_else_to_load),
-            modifier = Modifier.padding(top = 28.dp),
-            color = PaneMuted.copy(alpha = 0.7f),
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            text = label,
+            color = foreground,
+            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
         )
     }
 }
