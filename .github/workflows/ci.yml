@@ -1,0 +1,280 @@
+# Pane CI: unit tests + debug APK on every pull request and on pushes to master.
+# The KVM emulator smoke job does not run on pull requests. It runs on the nightly
+# schedule (02:17 UTC) and on workflow_dispatch, and it is not a required check.
+# PROPOSAL: lives in /workspace/pane/eng/ci until Forge opens the ship/ci-workflows PR.
+#
+# Facts from voltyclaw/peek (read 2026-10-09):
+#   - default branch is `master` (not `main`); repo is public
+#   - single module `:app` (settings.gradle.kts: include(":app"))
+#   - Gradle wrapper 9.1.0, AGP 9.0.1, Kotlin 2.3.20
+#   - kotlin { jvmToolchain(17) }, Java source/target 17, foojay resolver plugin
+#   - compileSdk/targetSdk 36, minSdk 26
+#   - gradle.properties enables build cache + configuration cache, -Xmx2048m
+#
+# Artifact policy (public repo => artifacts are downloadable by anyone logged in):
+#   only fixture/sample outputs leave the runner (test reports, Roborazzi screenshots
+#   rendered from fixtures, the debug APK). Every upload goes through
+#   stage-artifacts.sh (explicit allowlist) -> artifact-guard.sh (fails on keystores,
+#   .env, local.properties, private keys, SQLite DBs) -> upload of the staged dir only,
+#   retention 7 days. No secrets are used anywhere in this workflow.
+name: CI
+
+on:
+  pull_request:
+    # No branch filter on purpose: the PR chain is stacked (#3..#6 target
+    # cursor/* branches, not master), and those PRs need checks too.
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    # Device-smoke only (see that job's if). 02:17 UTC.
+    - cron: "17 2 * * *"
+
+# Least privilege: read the repo, nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  # Event name keeps the nightly smoke from cancelling a master push run, and the reverse.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Build without the optional YouTube key in CI; the build file falls back to "".
+  YOUTUBE_API_KEY: ""
+
+jobs:
+  test-and-build:
+    name: Unit tests + assembleDebug
+    # The 02:17 UTC schedule is only for the emulator job.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17 (matches jvmToolchain(17))
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle (wrapper validation + caching)
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # Only master writes the cache; PR runs reuse it read-only.
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      # No keystore here on purpose: PR builds get an ephemeral debug key.
+      # The shared debug keystore is only exposed to release-debug.yml (environment-gated).
+
+      - name: Read version from app/build.gradle.kts
+        id: version
+        run: |
+          name=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts)
+          code=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts)
+          if [ "$(printf '%s\n' "$name" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "$code" | grep -c .)" -ne 1 ]; then
+            echo "::error file=app/build.gradle.kts::Expected exactly one versionName and one versionCode literal (got name='$name' code='$code')."
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "versionName=$name versionCode=$code"
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Test summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          t = f = e = s = 0
+          for p in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              r = ET.parse(p).getroot()
+              t += int(r.get("tests", 0)); f += int(r.get("failures", 0))
+              e += int(r.get("errors", 0)); s += int(r.get("skipped", 0))
+          print(f"### Unit tests\n\n{t} tests, {f} failures, {e} errors, {s} skipped\n")
+          PY
+
+      # ---- test reports (+ Roborazzi fixture screenshots, if the L1s PR has landed) ----
+      - name: Stage test reports (allowlist)
+        id: stage-reports
+        if: always()
+        run: |
+          bash .github/scripts/stage-artifacts.sh "$RUNNER_TEMP/upload/test-reports" \
+            'app/build/reports/tests/testDebugUnitTest' \
+            'app/build/test-results/testDebugUnitTest/*.xml' \
+            'app/build/outputs/roborazzi/**/*.png'
+
+      - name: Guard test-report upload set
+        id: guard-reports
+        if: always() && steps.stage-reports.outcome == 'success'
+        run: bash .github/scripts/artifact-guard.sh "$RUNNER_TEMP/upload/test-reports"
+
+      - name: Upload test reports
+        # Runs even when tests failed, but never unless staging AND the guard passed.
+        if: always() && steps.guard-reports.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/upload/test-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # ---- debug APK ----
+      - name: Stage debug APK (allowlist)
+        run: |
+          bash .github/scripts/stage-artifacts.sh "$RUNNER_TEMP/upload/apk" \
+            'app/build/outputs/apk/debug/*.apk'
+
+      - name: Guard APK upload set
+        run: bash .github/scripts/artifact-guard.sh "$RUNNER_TEMP/upload/apk"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: pane-debug-${{ steps.version.outputs.name }}-vc${{ steps.version.outputs.code }}-${{ github.run_number }}
+          path: ${{ runner.temp }}/upload/apk/
+          if-no-files-found: error
+          retention-days: 7
+
+  device-smoke:
+    name: Emulator smoke (@DeviceSmoke, API ${{ matrix.api-level }})
+    # Not a pull-request check. Nightly at 02:17 UTC, or a manual workflow_dispatch.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [34]
+        target: [google_apis]
+        arch: [x86_64]
+    env:
+      # Default FQN; the detect step overrides it from the annotation's actual package.
+      DEVICE_SMOKE_ANNOTATION: app.pane.android.DeviceSmoke
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Detect @DeviceSmoke tests
+        id: detect
+        run: |
+          run=true; reason=""
+          if [ -z "$(find app/src/androidTest -type f \( -name '*.kt' -o -name '*.java' \) -print -quit 2>/dev/null)" ]; then
+            run=false; reason="no androidTest sources"
+          fi
+          decl=""
+          if [ "$run" = true ]; then
+            decl=$(grep -rlE 'annotation[[:space:]]+class[[:space:]]+DeviceSmoke\b' app/src 2>/dev/null | head -n1 || true)
+            if [ -z "$decl" ]; then run=false; reason="annotation class DeviceSmoke not declared under app/src"; fi
+          fi
+          if [ "$run" = true ] && ! grep -rqE '@(([A-Za-z0-9_]+\.)+)?DeviceSmoke\b' app/src/androidTest; then
+            run=false; reason="no androidTest uses @DeviceSmoke yet"
+          fi
+          if [ "$run" = true ]; then
+            pkg=$(sed -nE 's/^[[:space:]]*package[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$decl" | head -n1)
+            fqn="${pkg:+$pkg.}DeviceSmoke"
+            echo "annotation=$fqn" >> "$GITHUB_OUTPUT"
+            echo "DEVICE_SMOKE_ANNOTATION=$fqn" >> "$GITHUB_ENV"
+            echo "Running @DeviceSmoke set: $fqn (declared in $decl)"
+          else
+            echo "::notice::Skipping emulator smoke: $reason."
+            echo "### Device smoke skipped: $reason" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: Enable KVM
+        if: steps.detect.outputs.run == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up JDK 17
+        if: steps.detect.outputs.run == 'true'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        if: steps.detect.outputs.run == 'true'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Pre-build app + test APKs (before the emulator boots)
+        if: steps.detect.outputs.run == 'true'
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+
+      - name: AVD cache
+        if: steps.detect.outputs.run == 'true'
+        uses: actions/cache@v6
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ matrix.arch }}
+
+      - name: Create AVD and snapshot for caching
+        if: steps.detect.outputs.run == 'true' && steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run @DeviceSmoke instrumented tests
+        if: steps.detect.outputs.run == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-boot-timeout: 900
+          disable-animations: true
+          script: bash .github/scripts/run-device-smoke.sh
+
+      - name: Stage device reports (allowlist)
+        id: stage-device
+        if: always() && steps.detect.outputs.run == 'true'
+        run: |
+          bash .github/scripts/stage-artifacts.sh "$RUNNER_TEMP/upload/device-reports" \
+            'app/build/reports/androidTests/connected' \
+            'app/build/outputs/androidTest-results/connected/**/*.xml'
+
+      - name: Guard device-report upload set
+        id: guard-device
+        if: always() && steps.stage-device.outcome == 'success'
+        run: bash .github/scripts/artifact-guard.sh "$RUNNER_TEMP/upload/device-reports"
+
+      - name: Upload device reports
+        if: always() && steps.guard-device.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: device-reports-api${{ matrix.api-level }}-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/upload/device-reports/
+          if-no-files-found: ignore
+          retention-days: 7
