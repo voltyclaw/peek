@@ -15,33 +15,41 @@ internal fun expiredYouTubeCookies(cookieHeader: String?): List<String> {
 }
 
 /**
- * Drops YouTube cookies and WebView site storage after consent is withdrawn.
- * Cookie expiry is limited to YouTube origins. Android's [WebStorage.deleteAllData]
- * has no per-origin method, so site storage for this app's WebView is cleared with it.
+ * YouTube and Google video origins only.
+ * Withdraw expires cookies on these origins and calls [WebStorage.deleteOrigin] for each.
+ * It does not call [WebStorage.deleteAllData], so TikTok and other WebView data stay.
  */
+object YouTubeWebOrigins {
+    const val CLEARS_ALL_WEBVIEW_STORAGE = false
+
+    val PAGES = listOf(
+        "https://www.youtube.com",
+        "https://youtube.com",
+        "https://m.youtube.com",
+        "https://music.youtube.com",
+        "https://www.youtube-nocookie.com",
+        "https://youtube-nocookie.com",
+        "https://www.googlevideo.com",
+        "https://googlevideo.com",
+        "https://redirector.googlevideo.com",
+    )
+}
+
 class AndroidYouTubeSiteData : YouTubeSiteData {
     override fun clear() {
         runCatching {
             val manager = CookieManager.getInstance()
-            ORIGINS.forEach { origin ->
+            YouTubeWebOrigins.PAGES.forEach { origin ->
                 expiredYouTubeCookies(manager.getCookie(origin)).forEach { cookie ->
                     manager.setCookie(origin, cookie)
                 }
             }
             manager.flush()
         }
-        runCatching { WebStorage.getInstance().deleteAllData() }
-    }
-
-    companion object {
-        val ORIGINS = listOf(
-            "https://www.youtube.com",
-            "https://youtube.com",
-            "https://m.youtube.com",
-            "https://www.youtube-nocookie.com",
-            "https://youtube-nocookie.com",
-            "https://www.youtube-nocookie.com/embed",
-        )
+        runCatching {
+            val storage = WebStorage.getInstance()
+            YouTubeWebOrigins.PAGES.forEach { origin -> storage.deleteOrigin(origin) }
+        }
     }
 }
 

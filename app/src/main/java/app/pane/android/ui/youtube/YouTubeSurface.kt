@@ -85,7 +85,6 @@ internal fun YouTubeConsentSurface(
     language: String = Locale.getDefault().language,
 ) {
     when {
-        frame.blocked -> YouTubeShortsBlock(frame.onOpenInYouTube, modifier)
         frame.ageRestricted -> YouTubeNotice(
             stringResource(R.string.yt_age_title),
             stringResource(R.string.yt_age_body),
@@ -209,16 +208,6 @@ internal fun consentPieces(template: String, links: List<Pair<String, Pair<Strin
         rest = rest.substring(at + match.first.length)
     }
     return pieces
-}
-
-@Composable
-private fun YouTubeShortsBlock(onOpenInYouTube: () -> Unit, modifier: Modifier = Modifier) {
-    YouTubeNotice(
-        stringResource(R.string.yt_shorts_title),
-        stringResource(R.string.yt_shorts_body),
-        onOpenInYouTube,
-        modifier,
-    )
 }
 
 @Composable

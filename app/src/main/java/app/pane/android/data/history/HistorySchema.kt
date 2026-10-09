@@ -10,7 +10,7 @@ package app.pane.android.data.history
  * Created in v1 so later phases do not rebuild the table. Nothing in the UI reads these yet.
  */
 internal object HistorySchema {
-    const val VERSION = 1
+    const val VERSION = 2
 
     val statements: List<String> = listOf(
         """
@@ -31,7 +31,8 @@ internal object HistorySchema {
           first_viewed_at INTEGER NOT NULL,
           last_viewed_at INTEGER NOT NULL,
           view_count INTEGER NOT NULL,
-          starred_at INTEGER
+          starred_at INTEGER,
+          cache_fetched_at INTEGER
         )
         """.trimIndent(),
         "CREATE INDEX IF NOT EXISTS index_history_last_viewed ON history(last_viewed_at)",

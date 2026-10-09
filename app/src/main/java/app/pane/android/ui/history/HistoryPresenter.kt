@@ -10,6 +10,7 @@ import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.domain.model.HistoryQuery
 import app.pane.android.domain.model.HistoryScope
 import app.pane.android.domain.model.SourceApp
+import app.pane.android.domain.tiktok.TikTokLinks
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
 import java.time.ZoneId
@@ -76,6 +77,11 @@ object HistoryPresenter {
         val stamp = HistoryLedger.stamp(entry, query.scope)
         val video = HistoryLedger.isVideo(entry.mediaType)
         val thumb = entry.thumbUrl?.takeIf { HistoryLedger.showsThumb(entry.mediaType) && it.isNotBlank() }
+        val tiktokId = if (entry.sourceApp == SourceApp.TikTok) {
+            TikTokLinks.parse(entry.url)?.videoId.orEmpty()
+        } else {
+            ""
+        }
         return LedgerRowUi(
             url = entry.url,
             title = entry.title.ifBlank { entry.caption }.ifBlank { entry.url },
@@ -86,6 +92,8 @@ object HistoryPresenter {
             thumb = thumb?.let(UiImage::Url),
             video = video,
             starred = entry.starredAt != null,
+            tiktokId = tiktokId,
+            tiktokThumbUrl = if (tiktokId.isBlank()) null else entry.thumbUrl,
         )
     }
 }
@@ -96,5 +104,5 @@ fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.Instagram -> R.drawable.ic_source_instagram
     SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
-    SourceApp.YouTube, SourceApp.Threads, SourceApp.Other -> null
+    SourceApp.YouTube, SourceApp.TikTok, SourceApp.Threads, SourceApp.Other -> null
 }

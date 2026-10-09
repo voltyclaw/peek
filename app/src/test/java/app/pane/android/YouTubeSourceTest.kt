@@ -10,6 +10,7 @@ import app.pane.android.data.youtube.YouTubeJson
 import app.pane.android.data.youtube.YouTubeLinkContentRepository
 import app.pane.android.data.youtube.YouTubeTransport
 import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.data.youtube.YouTubeWebOrigins
 import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.youtube.MapYouTubeConsentStore
 import app.pane.android.domain.youtube.YouTubeComments
@@ -20,7 +21,6 @@ import app.pane.android.domain.youtube.YouTubeLinks
 import app.pane.android.domain.youtube.YouTubePlayback
 import app.pane.android.domain.youtube.YouTubePlayer
 import app.pane.android.domain.youtube.YouTubeSession
-import app.pane.android.domain.youtube.YouTubeShorts
 import app.pane.android.domain.youtube.YouTubeSiteData
 import app.pane.android.domain.youtube.YouTubeSlot
 import app.pane.android.ui.actions.openInAppTargets
@@ -83,7 +83,7 @@ class YouTubeSourceTest {
         }
         assertTrue(transport.urls.isEmpty())
         assertNull(
-            YouTubePlayback.iframeHtml(VIDEO, 0, YouTubeLinkKind.Watch, consented = false, playShorts = false),
+            YouTubePlayback.iframeHtml(VIDEO, 0, YouTubeLinkKind.Watch, consented = false),
         )
 
         session.accept(VIDEO, 50L)
@@ -91,7 +91,7 @@ class YouTubeSourceTest {
         assertTrue(transport.urls.none { "oembed" in it || "iframe_api" in it })
         repository.resolve("https://www.youtube.com/watch?v=$VIDEO")
         assertTrue(transport.urls.any { "order=relevance" in it })
-        val player = YouTubePlayback.iframeHtml(VIDEO, 12, YouTubeLinkKind.Watch, consented = true, playShorts = false)
+        val player = YouTubePlayback.iframeHtml(VIDEO, 12, YouTubeLinkKind.Watch, consented = true)
         assertTrue(player!!.contains("rel: 0"))
         assertTrue(player.contains("controls: 1"))
         assertFalse(player.contains("googlevideo"))
@@ -118,32 +118,24 @@ class YouTubeSourceTest {
     }
 
     @Test
-    fun shortsSwitchPlaysOrBlocks() = runBlocking {
-        assertEquals(YouTubeShorts.Path.Block, YouTubeShorts.path())
-        assertEquals(YouTubeShorts.Path.Play, YouTubeShorts.path(playInPane = true))
-        assertEquals(
-            YouTubeSlot.Blocked,
-            YouTubePlayback.slot(YouTubeLinkKind.Short, consented = true, playShorts = false),
-        )
+    fun shortsPlayAsOneFiniteVideo() = runBlocking {
         assertEquals(
             YouTubeSlot.Player,
-            YouTubePlayback.slot(YouTubeLinkKind.Short, consented = true, playShorts = true),
+            YouTubePlayback.slot(YouTubeLinkKind.Short, consented = true),
         )
-        assertNull(YouTubePlayback.iframeHtml(VIDEO, 0, YouTubeLinkKind.Short, consented = true, playShorts = false))
-        val played = YouTubePlayback.iframeHtml(VIDEO, 0, YouTubeLinkKind.Short, consented = true, playShorts = true)
+        val played = YouTubePlayback.iframeHtml(VIDEO, 0, YouTubeLinkKind.Short, consented = true)
         assertTrue(played!!.contains("rel: 0"))
+        assertFalse(played.contains("listType"))
 
         val transport = RecordingTransport()
         val store = MapYouTubeConsentStore()
         store.write(app.pane.android.domain.youtube.YouTubeConsent("2026-10-09", 50L))
         val api = YouTubeDataApiClient("test-key", transport)
-        val blocked = YouTubeLinkContentRepository(store, api, playShorts = false)
-        blocked.resolve("https://www.youtube.com/shorts/$VIDEO")
-        assertTrue(transport.urls.isEmpty())
-
-        val playing = YouTubeLinkContentRepository(store, api, playShorts = true)
-        playing.resolve("https://www.youtube.com/shorts/$VIDEO")
+        YouTubeLinkContentRepository(store, api).resolve("https://www.youtube.com/shorts/$VIDEO")
         assertTrue(transport.urls.any { "youtube/v3/videos" in it })
+        assertFalse(YouTubeWebOrigins.CLEARS_ALL_WEBVIEW_STORAGE)
+        assertTrue(YouTubeWebOrigins.PAGES.any { "youtube.com" in it })
+        assertTrue(YouTubeWebOrigins.PAGES.any { "googlevideo.com" in it })
     }
 
     @Test

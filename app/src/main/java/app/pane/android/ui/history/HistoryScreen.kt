@@ -27,12 +27,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +58,7 @@ import app.pane.android.domain.model.HistoryEmptyKind
 import app.pane.android.domain.model.HistoryRowAction
 import app.pane.android.domain.model.HistoryRowActions
 import app.pane.android.domain.model.SourceApp
+import app.pane.android.domain.tiktok.TikTokVisibleRow
 import app.pane.android.ui.actions.sharePostIntent
 import app.pane.android.ui.components.LedgerMenuLine
 import app.pane.android.ui.components.LedgerMenuSheet
@@ -124,6 +131,7 @@ fun HistoryRoute(
             onSwipe = viewModel::swipe,
             onRemove = { viewModel.menu(it, HistoryRowAction.Remove) },
             onLongPress = { menu = it },
+            onVisibleTikTok = viewModel::noteVisibleTikTok,
             modifier = Modifier.fillMaxSize(),
         )
         menu?.let { row ->
@@ -187,7 +195,14 @@ fun HistoryView(
     onLongPress: (LedgerRowUi) -> Unit,
     modifier: Modifier = Modifier,
     appMenu: Boolean = false,
+    onVisibleTikTok: (List<TikTokVisibleRow>) -> Unit = {},
 ) {
+    val visibleTikTok = remember { androidx.compose.runtime.mutableStateMapOf<String, TikTokVisibleRow>() }
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    LaunchedEffect(onVisibleTikTok) {
+        snapshotFlow { visibleTikTok.values.toList() }.collect { onVisibleTikTok(it) }
+    }
     Column(modifier.background(PaneGround)) {
         Row(
             modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
@@ -245,15 +260,35 @@ fun HistoryView(
                         style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
                     )
                     section.rows.forEachIndexed { index, row ->
-                        LedgerSwipeRow(
-                            row = row,
-                            onOpen = { onOpen(row.url) },
-                            onSwipe = { left -> onSwipe(row.url, left) },
-                            onLongPress = { onLongPress(row) },
-                            onActionStar = { onSwipe(row.url, false) },
-                            onActionRemove = { onRemove(row.url) },
-                            showDivider = index != section.rows.lastIndex,
-                        )
+                        if (row.tiktokId.isNotBlank()) {
+                            DisposableEffect(row.url) {
+                                onDispose { visibleTikTok.remove(row.url) }
+                            }
+                        }
+                        Box(
+                            Modifier.onGloballyPositioned { coords ->
+                                if (row.tiktokId.isBlank()) return@onGloballyPositioned
+                                val top = coords.positionInWindow().y
+                                val bottom = top + coords.size.height
+                                val screen = with(density) { configuration.screenHeightDp.dp.toPx() }
+                                val shown = bottom > 0f && top < screen
+                                if (shown) {
+                                    visibleTikTok[row.url] = TikTokVisibleRow(row.tiktokId, row.url, row.tiktokThumbUrl)
+                                } else {
+                                    visibleTikTok.remove(row.url)
+                                }
+                            },
+                        ) {
+                            LedgerSwipeRow(
+                                row = row,
+                                onOpen = { onOpen(row.url) },
+                                onSwipe = { left -> onSwipe(row.url, left) },
+                                onLongPress = { onLongPress(row) },
+                                onActionStar = { onSwipe(row.url, false) },
+                                onActionRemove = { onRemove(row.url) },
+                                showDivider = index != section.rows.lastIndex,
+                            )
+                        }
                     }
                 }
             }

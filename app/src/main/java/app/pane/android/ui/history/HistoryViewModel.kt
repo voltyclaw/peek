@@ -15,6 +15,8 @@ import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.model.StarCopy
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
+import app.pane.android.domain.tiktok.TikTokScrollRefresh
+import app.pane.android.domain.tiktok.TikTokVisibleRow
 import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,11 +40,16 @@ class HistoryViewModel(
     private val persist: (HistoryQuery) -> Unit,
     private val clock: Clock = SystemClock,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val refreshTikTok: (suspend (id: String, pageUrl: String) -> Unit)? = null,
+    private val canRefreshTikTok: () -> Boolean = { false },
 ) : ViewModel() {
     private val query = MutableStateFlow(initial)
     private val notices = MutableSharedFlow<HistoryNotice>(extraBufferCapacity = 1)
     val notice: SharedFlow<HistoryNotice> = notices.asSharedFlow()
     private var latest = emptyList<HistoryEntry>()
+    private var visibleTikTok = emptyList<TikTokVisibleRow>()
+    private val refreshedTikTok = mutableSetOf<String>()
+    private var refreshingTikTok = false
 
     val uiState: StateFlow<HistoryListUi> = combine(historyRepository.observeHistory(), query) { rows, filter ->
         latest = rows
@@ -64,6 +71,31 @@ class HistoryViewModel(
     }
 
     fun clearApps() = update(query.value.copy(apps = emptySet()))
+
+    /** One expired TikTok thumbnail at a time, through the shared oEmbed bucket. */
+    fun noteVisibleTikTok(rows: List<TikTokVisibleRow>) {
+        visibleTikTok = rows
+        refreshedTikTok.retainAll(rows.map { it.id }.toSet())
+        pumpTikTok()
+    }
+
+    private fun pumpTikTok() {
+        val refresh = refreshTikTok ?: return
+        if (refreshingTikTok || !canRefreshTikTok()) return
+        val now = clock.nowEpochMillis() / 1000L
+        val pending = visibleTikTok.filter { it.id !in refreshedTikTok }
+        val next = TikTokScrollRefresh.next(pending, now) ?: return
+        refreshedTikTok.add(next.id)
+        refreshingTikTok = true
+        viewModelScope.launch {
+            try {
+                refresh(next.id, next.pageUrl)
+            } finally {
+                refreshingTikTok = false
+                pumpTikTok()
+            }
+        }
+    }
 
     /** Swipes unstar a starred row first. A second swipe removes it. */
     fun swipe(url: String, left: Boolean) {
@@ -128,9 +160,11 @@ class HistoryViewModel(
         private val persist: (HistoryQuery) -> Unit,
         private val clock: Clock = SystemClock,
         private val zone: ZoneId = ZoneId.systemDefault(),
+        private val refreshTikTok: (suspend (id: String, pageUrl: String) -> Unit)? = null,
+        private val canRefreshTikTok: () -> Boolean = { false },
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            HistoryViewModel(historyRepository, initial, persist, clock, zone) as T
+            HistoryViewModel(historyRepository, initial, persist, clock, zone, refreshTikTok, canRefreshTikTok) as T
     }
 }

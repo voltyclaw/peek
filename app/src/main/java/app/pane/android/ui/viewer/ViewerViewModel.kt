@@ -62,6 +62,42 @@ class ViewerViewModel(
         }
     }
 
+    fun onTikTokAccepted() {
+        viewModelScope.launch {
+            openLink(url).onSuccess { content ->
+                loaded = content
+                mutableUiState.value = ViewerUiState.Content(mapper.map(content), starred = isStarred(url))
+            }
+        }
+    }
+
+    fun onTikTokRemoved() {
+        viewModelScope.launch {
+            historyRepository.stripDisplayCache(url)
+            val current = loaded ?: return@launch
+            val meta = current.sourceMetadata as? app.pane.android.domain.model.TikTokMetadata ?: return@launch
+            val next = current.copy(
+                title = "",
+                thumbnail = app.pane.android.domain.model.MediaLocation.Remote(""),
+                media = current.media.copy(location = app.pane.android.domain.model.MediaLocation.Remote("")),
+                author = current.author.copy(name = "", metadata = "", avatarUrl = null),
+                sourceMetadata = meta.copy(caption = "", handle = "", authorUrl = "", removed = true),
+            )
+            loaded = next
+            mutableUiState.value = ViewerUiState.Content(mapper.map(next), starred = isStarred(url))
+        }
+    }
+
+    fun onTikTokEmbedOff() {
+        val current = loaded ?: return
+        val meta = current.sourceMetadata as? app.pane.android.domain.model.TikTokMetadata ?: return
+        val next = current.copy(sourceMetadata = meta.copy(embedBlocked = true))
+        loaded = next
+        viewModelScope.launch {
+            mutableUiState.value = ViewerUiState.Content(mapper.map(next), starred = isStarred(url))
+        }
+    }
+
     fun onRefresh() {
         mutableUiState.value = ViewerUiState.Loading()
         viewModelScope.launch { load { onProgress, onPreview -> refreshLink(url, onProgress, onPreview) } }

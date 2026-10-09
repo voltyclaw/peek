@@ -29,6 +29,7 @@ import app.pane.android.R
 import app.pane.android.domain.model.HistoryUndo
 import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
+import app.pane.android.ui.actions.openExternally
 import app.pane.android.ui.actions.sharePostIntent
 import app.pane.android.ui.components.PaneSnackbarHost
 import app.pane.android.ui.components.showForFiveSeconds
@@ -75,6 +76,10 @@ fun HomeRoute(
     onOpenSample: (String) -> Unit = {},
     youTubeConsent: Boolean = false,
     onWithdrawYouTubeConsent: () -> Unit = {},
+    tikTokConsent: Boolean = false,
+    tikTokAgreedAt: Long? = null,
+    onAllowTikTok: () -> Unit = {},
+    onWithdrawTikTok: () -> Unit = {},
 ) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
@@ -261,6 +266,11 @@ fun HomeRoute(
                 onWithdrawYouTubeConsent()
                 scope.launch { snackbarHostState.showForFiveSeconds(youTubeWithdrawnMessage) }
             },
+            tikTokConsent = tikTokConsent,
+            tikTokAgreedAt = tikTokAgreedAt,
+            onAllowTikTok = onAllowTikTok,
+            onWithdrawTikTok = onWithdrawTikTok,
+            onOpenExternal = { url -> openExternally(context, url, finishAfter = false) },
         )
         PaneSnackbarHost(
             hostState = snackbarHostState,

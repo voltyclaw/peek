@@ -89,7 +89,11 @@ internal class AndroidHistorySql(context: Context) : HistorySql {
             HistorySchema.statements.forEach { db.execSQL(it) }
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion < 2) {
+                db.execSQL("ALTER TABLE history ADD COLUMN cache_fetched_at INTEGER")
+            }
+        }
     }
 
     private companion object {

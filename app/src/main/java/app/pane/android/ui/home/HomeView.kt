@@ -68,6 +68,7 @@ import app.pane.android.ui.components.LedgerMenuLine
 import app.pane.android.ui.components.LedgerMenuSheet
 import app.pane.android.ui.components.LedgerMenuStyle
 import app.pane.android.ui.components.LedgerSwipeRow
+import app.pane.android.ui.tiktok.TikTokConsentLinks
 import app.pane.android.ui.components.PaneLockup
 import app.pane.android.ui.components.PaneMark
 import app.pane.android.ui.model.HomeUiState
@@ -133,6 +134,11 @@ fun HomeView(
     onOpenSample: (String) -> Unit = {},
     youTubeConsent: Boolean = false,
     onWithdrawYouTubeConsent: () -> Unit = {},
+    tikTokConsent: Boolean = false,
+    tikTokAgreedAt: Long? = null,
+    onAllowTikTok: () -> Unit = {},
+    onWithdrawTikTok: () -> Unit = {},
+    onOpenExternal: (String) -> Unit = {},
 ) {
     var samplePickerOpen by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -164,6 +170,11 @@ fun HomeView(
                 onOpenSamplePicker = { samplePickerOpen = true },
                 youTubeConsent = youTubeConsent,
                 onWithdrawYouTubeConsent = onWithdrawYouTubeConsent,
+                tikTokConsent = tikTokConsent,
+                tikTokAgreedAt = tikTokAgreedAt,
+                onAllowTikTok = onAllowTikTok,
+                onWithdrawTikTok = onWithdrawTikTok,
+                onOpenExternal = onOpenExternal,
             )
             Text(
                 text = stringResource(R.string.hub_tagline),
@@ -227,6 +238,11 @@ private fun HomeHeader(
     onOpenSamplePicker: () -> Unit,
     youTubeConsent: Boolean,
     onWithdrawYouTubeConsent: () -> Unit,
+    tikTokConsent: Boolean,
+    tikTokAgreedAt: Long?,
+    onAllowTikTok: () -> Unit,
+    onWithdrawTikTok: () -> Unit,
+    onOpenExternal: (String) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -275,6 +291,11 @@ private fun HomeHeader(
                 },
                 youTubeConsent = youTubeConsent,
                 onWithdrawYouTubeConsent = onWithdrawYouTubeConsent,
+                tikTokConsent = tikTokConsent,
+                tikTokAgreedAt = tikTokAgreedAt,
+                onAllowTikTok = onAllowTikTok,
+                onWithdrawTikTok = onWithdrawTikTok,
+                onOpenExternal = onOpenExternal,
             )
         }
     }
@@ -303,8 +324,15 @@ private fun OptionsMenu(
     onOpenSamplePicker: () -> Unit,
     youTubeConsent: Boolean,
     onWithdrawYouTubeConsent: () -> Unit,
+    tikTokConsent: Boolean,
+    tikTokAgreedAt: Long?,
+    onAllowTikTok: () -> Unit,
+    onWithdrawTikTok: () -> Unit,
+    onOpenExternal: (String) -> Unit,
 ) {
     var withdrawYouTube by remember { mutableStateOf(false) }
+    var withdrawTikTok by remember { mutableStateOf(false) }
+    var allowTikTok by remember { mutableStateOf(false) }
     if (!expanded) return
     Dialog(
         onDismissRequest = onDismiss,
@@ -396,6 +424,7 @@ private fun OptionsMenu(
                     )
                 }
                 SettingsHairline()
+                SettingsSection(stringResource(R.string.settings_group_third_party_players))
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 56.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -429,6 +458,51 @@ private fun OptionsMenu(
                         ),
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.consent_tiktok_row_title),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = if (tikTokConsent && tikTokAgreedAt != null) {
+                                stringResource(R.string.consent_status_agreed, agreedOn(tikTokAgreedAt))
+                            } else {
+                                stringResource(R.string.consent_tiktok_off_body)
+                            },
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                        )
+                    }
+                    Switch(
+                        checked = tikTokConsent,
+                        onCheckedChange = { enabled ->
+                            if (enabled && !tikTokConsent) allowTikTok = true
+                            if (!enabled && tikTokConsent) withdrawTikTok = true
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = PaneInk,
+                            uncheckedTrackColor = PaneBorder,
+                            checkedThumbColor = PaneGround,
+                            uncheckedThumbColor = PaneInk,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedBorderColor = Color.Transparent,
+                        ),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.tt_cookies_policy),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { onOpenExternal(TikTokConsentLinks.TIKTOK_COOKIES) }
+                        .padding(vertical = 12.dp),
+                    color = PaneInk,
+                    style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                )
                 SettingsSection(stringResource(R.string.section_opening_links))
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
@@ -596,6 +670,55 @@ private fun OptionsMenu(
             }
         }
     }
+    if (allowTikTok) {
+        AlertDialog(
+            onDismissRequest = { allowTikTok = false },
+            title = { Text(stringResource(R.string.consent_tiktok_row_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.tt_agree_line))
+                    Text(stringResource(R.string.consent_tiktok_detail_body))
+                    Text(
+                        text = stringResource(R.string.tt_terms),
+                        modifier = Modifier.clickable { onOpenExternal(TikTokConsentLinks.TIKTOK_TERMS) },
+                        color = PaneInk,
+                    )
+                    Text(
+                        text = stringResource(R.string.tt_privacy),
+                        modifier = Modifier.clickable { onOpenExternal(TikTokConsentLinks.TIKTOK_PRIVACY) },
+                        color = PaneInk,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    allowTikTok = false
+                    onAllowTikTok()
+                }) { Text(stringResource(R.string.tt_play_on_tiktok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { allowTikTok = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+    if (withdrawTikTok) {
+        AlertDialog(
+            onDismissRequest = { withdrawTikTok = false },
+            title = { Text(stringResource(R.string.tt_withdraw_confirm_title)) },
+            text = { Text(stringResource(R.string.tt_withdraw_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    withdrawTikTok = false
+                    onWithdrawTikTok()
+                }) { Text(stringResource(R.string.settings_yt_consent_confirm_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { withdrawTikTok = false }) {
+                    Text(stringResource(R.string.settings_yt_consent_confirm_cancel))
+                }
+            },
+        )
+    }
     if (withdrawYouTube) {
         AlertDialog(
             onDismissRequest = { withdrawYouTube = false },
@@ -679,6 +802,12 @@ private fun SamplePickerDialog(
             }
         }
     }
+}
+
+private fun agreedOn(epochMillis: Long): String {
+    val date = java.time.Instant.ofEpochMilli(epochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+    val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+    return "$month ${date.dayOfMonth}, ${date.year}"
 }
 
 @Composable

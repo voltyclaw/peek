@@ -115,6 +115,7 @@ internal fun ViewerTopBar(
     modifier: Modifier = Modifier,
     starred: Boolean = false,
     onStar: () -> Unit = {},
+    showRefresh: Boolean = true,
 ) {
     val controls = viewerTopChrome()
     Row(
@@ -126,7 +127,7 @@ internal fun ViewerTopBar(
         if (ViewerChromeControl.Star in controls || ViewerChromeControl.Refresh in controls) {
             StarRefreshCapsule(
                 showStar = ViewerChromeControl.Star in controls,
-                showRefresh = ViewerChromeControl.Refresh in controls,
+                showRefresh = showRefresh && ViewerChromeControl.Refresh in controls,
                 starred = starred,
                 overMedia = overMedia,
                 onStar = onStar,
@@ -195,6 +196,7 @@ internal fun ViewerBottomBar(
     sourceMark: Int? = null,
     useGlobe: Boolean = false,
     showOpen: Boolean = true,
+    openWord: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().background(PaneGround)) {
@@ -206,7 +208,20 @@ internal fun ViewerBottomBar(
             QuietIconButton(Icons.Rounded.Share, stringResource(R.string.share), onShare)
             QuietIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.more_options), onOverflow)
             Box(Modifier.weight(1f))
-            if (showOpen) Box(
+            if (showOpen && openWord != null) Row(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(PaneAccent)
+                    .clickable(role = Role.Button, onClick = onOpen)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = openLabel, tint = PaneGround, modifier = Modifier.size(18.dp))
+                Text(openWord, color = PaneGround, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+            } else if (showOpen) Box(
                 modifier = Modifier
                     .padding(end = 8.dp)
                     .size(48.dp)

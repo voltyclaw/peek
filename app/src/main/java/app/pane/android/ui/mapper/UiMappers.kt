@@ -14,6 +14,7 @@ import app.pane.android.domain.model.InstagramMetadata
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
+import app.pane.android.domain.model.TikTokMetadata
 import app.pane.android.domain.model.YouTubeCommentsState
 import app.pane.android.domain.model.YouTubeMetadata
 import app.pane.android.domain.model.LoadStage
@@ -194,12 +195,14 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         }
         val external = sourceMetadata as? ExternalPostMetadata
         val youtube = sourceMetadata as? YouTubeMetadata
+        val tiktok = sourceMetadata as? TikTokMetadata
         val author = AuthorLines.present(content.author.name, content.author.metadata)
         val primaryId = when (sourceMetadata) {
             is ExternalPostMetadata -> sourceMetadata.postId
             is RedditMetadata -> sourceMetadata.postId
             is InstagramMetadata -> sourceMetadata.postId
             is YouTubeMetadata -> null
+            is TikTokMetadata -> null
             null -> null
         }
         val comments = commentsWithoutPrimary(primaryId, content.comments)
@@ -276,6 +279,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             },
             youtubeEmbedOff = youtube?.embeddable == false,
             youtubeAgeRestricted = youtube?.ageRestricted == true,
+            tiktok = tiktok != null,
+            tiktokEmbedOff = tiktok?.embedBlocked == true,
+            tiktokRemoved = tiktok?.removed == true,
+            tiktokLive = tiktok?.live == true,
+            tiktokDetailsFailed = tiktok?.detailsFailed == true,
+            tiktokVideoId = tiktok?.videoId.orEmpty(),
+            tiktokHandle = tiktok?.handle.orEmpty(),
+            tiktokPostedAtEpochSeconds = tiktok?.postedAtEpochSeconds,
+            tiktokShortLink = tiktok?.shortLink == true,
             authorProfileUrl = youtube?.channelUrl?.takeIf { it.isNotBlank() }
                 ?: authorProfileUrl(content),
         )
@@ -300,6 +312,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             is RedditMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             is ExternalPostMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             is YouTubeMetadata -> null
+            is TikTokMetadata -> null
             null -> null
         }
 
@@ -337,6 +350,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             redditUser(name)?.let { "https://www.reddit.com/user/$it" }
         }
         LinkSource.YouTube -> (content.sourceMetadata as? YouTubeMetadata)?.channelUrl?.takeIf { it.isNotBlank() }
+        LinkSource.TikTok -> (content.sourceMetadata as? TikTokMetadata)?.authorUrl?.takeIf { it.isNotBlank() }
         else -> null
     }
 

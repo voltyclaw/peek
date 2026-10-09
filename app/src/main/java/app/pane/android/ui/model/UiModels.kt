@@ -52,6 +52,8 @@ data class LedgerRowUi(
     val thumb: UiImage?,
     val video: Boolean,
     val starred: Boolean,
+    val tiktokId: String = "",
+    val tiktokThumbUrl: String? = null,
 )
 
 fun RecentLinkUiModel.asLedgerRow(): LedgerRowUi = LedgerRowUi(
@@ -117,6 +119,15 @@ data class ViewerPostUiModel(
     val commentsNotice: ViewerCommentsNotice = ViewerCommentsNotice.None,
     val youtubeEmbedOff: Boolean = false,
     val youtubeAgeRestricted: Boolean = false,
+    val tiktok: Boolean = false,
+    val tiktokEmbedOff: Boolean = false,
+    val tiktokRemoved: Boolean = false,
+    val tiktokLive: Boolean = false,
+    val tiktokDetailsFailed: Boolean = false,
+    val tiktokVideoId: String = "",
+    val tiktokHandle: String = "",
+    val tiktokPostedAtEpochSeconds: Long? = null,
+    val tiktokShortLink: Boolean = false,
 )
 
 enum class ViewerCommentsNotice { None, Unavailable, Off, Failed }

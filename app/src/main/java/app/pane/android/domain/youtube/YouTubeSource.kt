@@ -25,30 +25,19 @@ data class YouTubeLink(
 )
 
 /**
- * Y6 is pending Ido. Both paths exist. The spec does not lock a default, so the switch is off:
- * a Short shows the block card. Flip [PLAY_IN_PANE] to play it as one finite video.
+ * A Short is one finite video in the normal viewer: rel=0, no next-Short feed, and the end card.
+ * There is no block-card path.
  */
-object YouTubeShorts {
-    const val PLAY_IN_PANE: Boolean = false
-
-    enum class Path { Play, Block }
-
-    fun path(playInPane: Boolean = PLAY_IN_PANE): Path =
-        if (playInPane) Path.Play else Path.Block
-}
-
 /** What the viewer may put in the player slot. The IFrame HTML is absent until playback is allowed. */
-enum class YouTubeSlot { Poster, Player, Blocked, EmbedOff, AgeRestricted }
+enum class YouTubeSlot { Poster, Player, EmbedOff, AgeRestricted }
 
 object YouTubePlayback {
     fun slot(
         kind: YouTubeLinkKind,
         consented: Boolean,
-        playShorts: Boolean,
         embeddable: Boolean = true,
         ageRestricted: Boolean = false,
     ): YouTubeSlot {
-        if (kind == YouTubeLinkKind.Short && !playShorts) return YouTubeSlot.Blocked
         if (!consented) return YouTubeSlot.Poster
         if (ageRestricted) return YouTubeSlot.AgeRestricted
         if (!embeddable) return YouTubeSlot.EmbedOff
@@ -61,11 +50,10 @@ object YouTubePlayback {
         startSeconds: Int,
         kind: YouTubeLinkKind,
         consented: Boolean,
-        playShorts: Boolean,
         embeddable: Boolean = true,
         ageRestricted: Boolean = false,
     ): String? {
-        if (slot(kind, consented, playShorts, embeddable, ageRestricted) != YouTubeSlot.Player) return null
+        if (slot(kind, consented, embeddable, ageRestricted) != YouTubeSlot.Player) return null
         return YouTubePlayer.iframeHtml(videoId, startSeconds)
     }
 }

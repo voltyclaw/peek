@@ -142,6 +142,22 @@ data class ExternalPostMetadata(
 enum class YouTubeCommentsState { Ready, Unavailable, Off, Failed }
 
 /** YouTube page kept in memory for the viewer session. Comments are not written to disk. */
+/** TikTok page. oEmbed fields are a display cache. The player is not a stream URL. */
+@Serializable
+data class TikTokMetadata(
+    val videoId: String,
+    val handle: String = "",
+    val authorUrl: String = "",
+    val caption: String = "",
+    val postedAtEpochSeconds: Long? = null,
+    val photo: Boolean = false,
+    val detailsFailed: Boolean = false,
+    val embedBlocked: Boolean = false,
+    val removed: Boolean = false,
+    val live: Boolean = false,
+    val shortLink: Boolean = false,
+) : SourceMetadata
+
 @Serializable
 data class YouTubeMetadata(
     val videoId: String,

@@ -62,6 +62,12 @@ object LinkSettings {
         "m.youtube.com",
         "youtu.be",
         "music.youtube.com",
+        "www.tiktok.com",
+        "tiktok.com",
+        "m.tiktok.com",
+        "vm.tiktok.com",
+        "vt.tiktok.com",
+        "live.tiktok.com",
     )
 
     enum class LinkHandlingReport {

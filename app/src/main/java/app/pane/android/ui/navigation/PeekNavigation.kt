@@ -16,6 +16,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,8 +56,10 @@ import app.pane.android.data.links.PaneEntry
 import app.pane.android.data.links.paneEntry
 import app.pane.android.data.links.profileHandoffFinishes
 import app.pane.android.ui.actions.openExternally
+import app.pane.android.domain.model.SourceApp
 import app.pane.android.ui.viewer.ViewerRoute
 import app.pane.android.ui.viewer.ViewerViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +71,7 @@ fun PeekNavigation(
     onThemeMode: (ThemeMode) -> Unit,
 ) {
     val backStack = rememberNavBackStack(HomeKey)
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val playbackOwner = context.findActivity()
     val playbackSession = playbackOwner?.let { viewModel<PlaybackSessionViewModel>(it).session }
@@ -83,6 +87,8 @@ fun PeekNavigation(
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
     var youTubeConsent by remember { mutableStateOf(container.youtube.hasConsent()) }
+    var tikTokConsent by remember { mutableStateOf(container.tiktok.hasConsent()) }
+    var tikTokAgreedAt by remember { mutableStateOf(container.tiktok.acceptedAtEpochMillis()) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
     var showSamples by remember {
         mutableStateOf(BuildConfig.DEBUG && SampleRecentsPreferences.read(context))
@@ -277,6 +283,20 @@ fun PeekNavigation(
                         container.youtube.withdraw()
                         youTubeConsent = false
                     },
+                    tikTokConsent = tikTokConsent,
+                    tikTokAgreedAt = tikTokAgreedAt,
+                    onAllowTikTok = {
+                        val now = System.currentTimeMillis()
+                        container.tiktok.allow(now)
+                        tikTokConsent = true
+                        tikTokAgreedAt = now
+                    },
+                    onWithdrawTikTok = {
+                        container.tiktok.withdraw()
+                        tikTokConsent = false
+                        tikTokAgreedAt = null
+                        scope.launch { container.historyRepository.stripSourceDisplayCache(SourceApp.TikTok) }
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
@@ -286,6 +306,8 @@ fun PeekNavigation(
                         container.historyRepository,
                         container.readHistoryFilter(),
                         container::writeHistoryFilter,
+                        refreshTikTok = { id, pageUrl -> container.refreshVisibleTikTok(id, pageUrl) },
+                        canRefreshTikTok = { container.tiktok.hasConsent() },
                     ),
                 )
                 HistoryRoute(
@@ -324,6 +346,16 @@ fun PeekNavigation(
                     },
                     onYouTubePlayerShown = { videoId ->
                         container.youtube.open(videoId, app.pane.android.domain.youtube.YouTubeEntry.View)
+                    },
+                    tikTokConsented = tikTokConsent,
+                    onAcceptTikTok = {
+                        val now = System.currentTimeMillis()
+                        container.tiktok.allow(now)
+                        tikTokConsent = true
+                        tikTokAgreedAt = now
+                    },
+                    onTikTokPlayerShown = { videoId ->
+                        container.tiktok.open(videoId, app.pane.android.domain.tiktok.TikTokEntry.View)
                     },
                     modifier = Modifier.safeDrawingPadding(),
                 )

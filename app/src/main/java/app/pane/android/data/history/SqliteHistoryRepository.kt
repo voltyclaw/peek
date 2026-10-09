@@ -20,6 +20,7 @@ import app.pane.android.domain.model.StarCopy
 import app.pane.android.domain.model.StarImageBytes
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
+import app.pane.android.domain.tiktok.TikTokCopyRetention
 import app.pane.android.domain.youtube.YouTubeCopyExpiry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -52,6 +53,8 @@ internal class SqliteHistoryRepository(
             val url = HistoryUrls.canonical(view.url)
             if (url.isBlank() || profileLink(url) != null) return@withContext
             val snapshot = view.normalized(url)
+            val app = HistoryUrls.sourceApp(url, snapshot.source)
+            val pfp = if (app == SourceApp.TikTok) null else snapshot.pfpUrl
             sql.transaction {
                 if (find(url) == null) {
                     insert(
@@ -81,13 +84,14 @@ internal class SqliteHistoryRepository(
                             snapshot.handle,
                             snapshot.caption,
                             snapshot.thumbUrl,
-                            snapshot.pfpUrl,
+                            pfp,
                             HistoryLedger.normalizeMedia(snapshot.mediaType, snapshot.thumbUrl),
                             view.viewedAtEpochMillis,
                             url,
                         ),
                     )
                 }
+                if (app == SourceApp.TikTok) stampTikTokCache(url, snapshot, view.viewedAtEpochMillis)
             }
             reload()
         }
@@ -97,8 +101,14 @@ internal class SqliteHistoryRepository(
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             if (key.isBlank() || profileLink(key) != null) return@withContext
-            val pinned = imageStore.pin(key, images.thumbnail, images.profile)
             val existing = find(key)
+            val tiktok = HistoryUrls.sourceApp(key) == SourceApp.TikTok
+            if (tiktok) imageStore.unpin(existing?.pinnedThumbPath, existing?.pinnedPfpPath)
+            val pinned = if (tiktok) {
+                PinnedStarFiles(null, null, 0)
+            } else {
+                imageStore.pin(key, images.thumbnail, images.profile)
+            }
             val starredAt = existing?.starredAt ?: clock.nowEpochMillis()
             val text = copy.normalized()
             sql.transaction {
@@ -148,6 +158,14 @@ internal class SqliteHistoryRepository(
                         ),
                     )
                 }
+            }
+            if (tiktok) {
+                val hasCache = text.title.isNotBlank() || text.authorName.isNotBlank() ||
+                    text.handle.isNotBlank() || text.caption.isNotBlank() || !text.thumbUrl.isNullOrBlank()
+                sql.exec(
+                    "UPDATE history SET pfp_url = NULL, cache_fetched_at = ? WHERE url = ?",
+                    listOf(if (hasCache) starredAt else null, key),
+                )
             }
             if (existing?.pinnedThumbPath != null && existing.pinnedThumbPath != pinned.thumbPath) {
                 imageStore.unpin(existing.pinnedThumbPath, null)
@@ -211,6 +229,9 @@ internal class SqliteHistoryRepository(
                             starredAt = null,
                         ),
                     )
+                    if (HistoryUrls.sourceApp(url) == SourceApp.TikTok && viewed != null) {
+                        stampTikTokCache(url, viewed, recent.openedAtEpochMillis)
+                    }
                 }
             }
             reload()
@@ -378,8 +399,48 @@ internal class SqliteHistoryRepository(
     private fun find(url: String): HistoryEntry? =
         sql.query("$SELECT_ROW WHERE url = ?", listOf(url)).firstOrNull()?.toEntry()
 
+    override suspend fun stripDisplayCache(url: String) = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            clearDisplayCache("url = ?", listOf(HistoryUrls.canonical(url)))
+            reload()
+        }
+    }
+
+    override suspend fun stripSourceDisplayCache(source: SourceApp) = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            clearDisplayCache("source_app = ?", listOf(source.name))
+            reload()
+        }
+    }
+
+    override suspend fun replaceDisplayCache(
+        url: String,
+        title: String,
+        authorName: String,
+        handle: String,
+        caption: String,
+        thumbUrl: String?,
+        fetchedAtEpochMillis: Long,
+    ) = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            val key = HistoryUrls.canonical(url)
+            sql.exec(
+                """
+                UPDATE history SET
+                  title = ?, author_name = ?, handle = ?, caption = ?,
+                  thumb_url = ?, pfp_url = NULL, cache_fetched_at = ?
+                WHERE url = ?
+                """.trimIndent(),
+                listOf(title, authorName, handle, caption, thumbUrl, fetchedAtEpochMillis, key),
+            )
+            reload()
+        }
+    }
+
     private fun reload() {
-        stripStaleYouTube(System.currentTimeMillis())
+        val now = clock.nowEpochMillis()
+        stripStaleYouTube(now)
+        if (TikTokCopyRetention.ENFORCED) stripStaleTikTok(now)
         entries.value = sql.query("$SELECT_ROW ORDER BY last_viewed_at DESC, url ASC").map { it.toEntry() }
     }
 
@@ -395,6 +456,37 @@ internal class SqliteHistoryRepository(
             WHERE source_app = ? AND last_viewed_at > 0 AND last_viewed_at < ?
             """.trimIndent(),
             listOf(SourceApp.YouTube.name, cutoff),
+        )
+    }
+
+    /** TikTok oEmbed cache older than 30 days without a refresh. The URL row stays. */
+    private fun stripStaleTikTok(now: Long) {
+        val cutoff = now - TikTokCopyRetention.WINDOW_MILLIS
+        clearDisplayCache(
+            "source_app = ? AND cache_fetched_at IS NOT NULL AND cache_fetched_at > 0 AND cache_fetched_at < ?",
+            listOf(SourceApp.TikTok.name, cutoff),
+        )
+    }
+
+    private fun clearDisplayCache(where: String, args: List<Any?>) {
+        sql.exec(
+            """
+            UPDATE history SET
+              title = '', author_name = '', handle = '', caption = '',
+              thumb_url = NULL, pfp_url = NULL, pinned_thumb_path = NULL, pinned_pfp_path = NULL,
+              media_type = 'none', cache_fetched_at = NULL
+            WHERE $where
+            """.trimIndent(),
+            args,
+        )
+    }
+
+    private fun stampTikTokCache(url: String, snapshot: HistoryView, viewedAt: Long) {
+        val hasCache = snapshot.title.isNotBlank() || snapshot.authorName.isNotBlank() ||
+            snapshot.handle.isNotBlank() || snapshot.caption.isNotBlank() || !snapshot.thumbUrl.isNullOrBlank()
+        sql.exec(
+            "UPDATE history SET pfp_url = NULL, cache_fetched_at = ? WHERE url = ?",
+            listOf(if (hasCache) viewedAt else null, url),
         )
     }
 

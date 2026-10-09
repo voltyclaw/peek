@@ -26,7 +26,7 @@ class HistoryMigrationTest {
             row.text("name").orEmpty() to row.text("type").orEmpty()
         }.toMap()
 
-        assertEquals(1, HistorySchema.VERSION)
+        assertEquals(2, HistorySchema.VERSION)
         assertEquals("table", names["history"])
         assertEquals("table", names["tag"])
         assertEquals("table", names["history_tag"])
@@ -47,6 +47,7 @@ class HistoryMigrationTest {
             "url", "source", "source_app", "title", "author_name", "handle", "caption",
             "thumb_url", "pfp_url", "pinned_thumb_path", "pinned_pfp_path",
             "media_type", "note", "first_viewed_at", "last_viewed_at", "view_count", "starred_at",
+            "cache_fetched_at",
         ).forEach { column -> assertTrue(column, columns.contains(column)) }
     }
 

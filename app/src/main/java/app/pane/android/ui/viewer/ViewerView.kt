@@ -114,6 +114,9 @@ import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.text.MentionNetwork
 import app.pane.android.ui.youtube.YouTubeConsentSurface
+import app.pane.android.ui.tiktok.TikTokConsentSurface
+import app.pane.android.ui.tiktok.TikTokDetails
+import app.pane.android.ui.tiktok.TikTokFrame
 import app.pane.android.ui.youtube.YouTubeFrame
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
@@ -151,6 +154,7 @@ fun ViewerView(
     onOpenOutbound: (String) -> Unit = {},
     onStar: () -> Unit = {},
     youtube: YouTubeFrame? = null,
+    tiktok: TikTokFrame? = null,
 ) {
     val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -200,6 +204,7 @@ fun ViewerView(
                     onOpenOutbound = onOpenOutbound,
                     onOpenLinked = onOpenOutbound,
                     youtube = youtube,
+                    tiktok = tiktok,
                 )
             }
         }
@@ -232,6 +237,7 @@ private fun ColumnScope.ViewerContent(
     onOpenOutbound: (String) -> Unit,
     onOpenLinked: (String) -> Unit,
     youtube: YouTubeFrame? = null,
+    tiktok: TikTokFrame? = null,
 ) {
     val host = displayHost(post.sourceUrl)
     val affordance = rememberOpenAffordance(post.sourceUrl)
@@ -263,7 +269,17 @@ private fun ColumnScope.ViewerContent(
             modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (youtube != null) {
+            if (tiktok != null) {
+                ViewerTopBar(
+                    onBack,
+                    onRefresh,
+                    overMedia = false,
+                    starred = starred,
+                    onStar = onStar,
+                    showRefresh = tiktok.embedHtml != null,
+                )
+                TikTokConsentSurface(tiktok)
+            } else if (youtube != null) {
                 ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
                 YouTubeConsentSurface(youtube)
             } else if (overMedia) {
@@ -294,7 +310,22 @@ private fun ColumnScope.ViewerContent(
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
-                if (youtube != null) {
+                if (tiktok != null) {
+                    TikTokDetails(
+                        authorName = post.authorName,
+                        handle = post.tiktokHandle.ifBlank { post.authorMetadata },
+                        caption = post.title,
+                        postedAtEpochSeconds = post.tiktokPostedAtEpochSeconds,
+                        detailsFailed = post.tiktokDetailsFailed,
+                        removed = tiktok.removed,
+                        live = tiktok.live,
+                        embedOff = tiktok.embedOff,
+                        onOpenProfile = onOpenLinked,
+                        onOpenMention = onOpenLinked,
+                        onOpenComments = { scope.launch { onOpenInApp(post.sourceUrl) } },
+                        onRetry = onRefresh,
+                    )
+                } else if (youtube != null) {
                     if (post.title.isNotBlank()) {
                         Text(
                             text = post.title,
@@ -342,7 +373,7 @@ private fun ColumnScope.ViewerContent(
                 if (overMedia && post.authorThread.size < 2 && !reddit) {
                     // caption already placed above for the image/video path
                 }
-                CommentsSection(
+                if (tiktok == null) CommentsSection(
                     post = post,
                     isLoadingMore = isLoadingMoreComments,
                     scrollOffset = scrollState.value,
@@ -362,6 +393,8 @@ private fun ColumnScope.ViewerContent(
         onOpen = { scope.launch { onOpenInApp(post.sourceUrl) } },
         sourceMark = affordance.markRes,
         useGlobe = affordance.useGlobe,
+        showOpen = tiktok == null || (!tiktok.embedOff && !tiktok.removed && !tiktok.live),
+        openWord = if (tiktok != null && affordance.opensInApp) stringResource(R.string.source_tiktok) else null,
     )
     if (overflow) {
         OverflowSheet(
