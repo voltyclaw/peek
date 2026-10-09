@@ -33,6 +33,37 @@ data class RecentLinkUiModel(
     val thumbnail: UiImage?,
     val thumbnailDescription: String,
     val isCached: Boolean,
+    val identity: String = "",
+    val pfpUrl: String? = null,
+    val sourceMark: Int? = null,
+    val thumbUrl: String? = null,
+    val video: Boolean = false,
+    val starred: Boolean = false,
+)
+
+@Immutable
+data class LedgerRowUi(
+    val url: String,
+    val title: String,
+    val identity: String,
+    val timeLabel: String,
+    val pfp: UiImage?,
+    val sourceMark: Int?,
+    val thumb: UiImage?,
+    val video: Boolean,
+    val starred: Boolean,
+)
+
+fun RecentLinkUiModel.asLedgerRow(): LedgerRowUi = LedgerRowUi(
+    url = url,
+    title = title,
+    identity = identity.ifBlank { sourceLabel },
+    timeLabel = ageLabel,
+    pfp = pfpUrl?.let(UiImage::Url),
+    sourceMark = sourceMark,
+    thumb = thumbUrl?.let(UiImage::Url) ?: thumbnail,
+    video = video,
+    starred = starred,
 )
 
 @Immutable
@@ -49,6 +80,7 @@ sealed interface ViewerUiState {
     data class Content(
         val post: ViewerPostUiModel,
         val isLoadingMoreComments: Boolean = false,
+        val starred: Boolean = false,
     ) : ViewerUiState
 }
 

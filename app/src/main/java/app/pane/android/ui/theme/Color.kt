@@ -16,8 +16,16 @@ data class PaneColors(
     val chip: Color,
     val fill: Color,
     val onFill: Color,
+    val handle: Color,
+    val handlePressed: Color,
     val night: Boolean,
-)
+) {
+    /** L1 slate at 16% over the surface. Inline pressed wash. */
+    val handleWash: Color get() = handle.copy(alpha = 0.16f)
+
+    /** Ink at 6% over the surface. Header and reply row press. */
+    val rowWash: Color get() = ink.copy(alpha = 0.06f)
+}
 
 /** M2w Warm Coral. This pass is dark-only, so light and dark share the night palette. */
 private val M2w = PaneColors(
@@ -31,6 +39,8 @@ private val M2w = PaneColors(
     chip = Color(0xFF191412),
     fill = Color(0xFFD4886A),
     onFill = Color(0xFF0E0B0A),
+    handle = Color(0xFF9DB4CC),
+    handlePressed = Color(0xFFC3D2E1),
     night = true,
 )
 
@@ -92,3 +102,24 @@ val PaneOnFill: Color
     @Composable
     @ReadOnlyComposable
     get() = LocalPaneColors.current.onFill
+
+/** L1 slate. Account handles only. History and hub rows stay mute. */
+val PaneHandle: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalPaneColors.current.handle
+
+val PaneHandlePressed: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalPaneColors.current.handlePressed
+
+val PaneHandleWash: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalPaneColors.current.handleWash
+
+val PaneRowWash: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalPaneColors.current.rowWash

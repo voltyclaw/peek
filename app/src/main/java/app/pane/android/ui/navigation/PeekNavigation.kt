@@ -37,6 +37,8 @@ import app.pane.android.app.AppContainer
 import app.pane.android.data.sample.SamplePosts
 import app.pane.android.data.sample.SampleRecentsPreferences
 import app.pane.android.ui.home.HandoffBrowserOption
+import app.pane.android.ui.history.HistoryRoute
+import app.pane.android.ui.history.HistoryViewModel
 import app.pane.android.ui.home.HomeRoute
 import app.pane.android.ui.home.SamplePickerGroup
 import app.pane.android.ui.home.SamplePickerRow
@@ -141,6 +143,7 @@ fun PeekNavigation(
             container.observeRecentContent,
             container.homeUiMapper,
             container.recentLinksRepository,
+            container.historyRepository,
         ),
     )
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
@@ -255,6 +258,11 @@ fun PeekNavigation(
                     },
                     onRemoveRecent = homeViewModel::removeRecent,
                     onClearRecents = homeViewModel::clearRecents,
+                    onOpenHistory = { backStack.add(HistoryKey) },
+                    onSwipeRecent = homeViewModel::swipe,
+                    notices = homeViewModel.notice,
+                    onUndoRecent = homeViewModel::undoRecent,
+                    onUndoHistory = homeViewModel::undoHistory,
                     showDeveloperTools = BuildConfig.DEBUG,
                     sampleGroups = sampleGroups,
                     showSamplesInRecents = showSamples,
@@ -266,9 +274,31 @@ fun PeekNavigation(
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
+            entry<HistoryKey> {
+                val historyViewModel: HistoryViewModel = viewModel(
+                    factory = HistoryViewModel.Factory(
+                        container.historyRepository,
+                        container.readHistoryFilter(),
+                        container::writeHistoryFilter,
+                    ),
+                )
+                HistoryRoute(
+                    viewModel = historyViewModel,
+                    onBack = ::handleBack,
+                    onOpen = { url -> openFromHub(url) },
+                    modifier = Modifier.safeDrawingPadding(),
+                )
+            }
             entry<ViewerKey> { key ->
                 val viewerViewModel: ViewerViewModel = viewModel(
-                    factory = ViewerViewModel.Factory(key.url, container.openLink, container.refreshLink, container.loadMoreComments, container.viewerUiMapper),
+                    factory = ViewerViewModel.Factory(
+                        key.url,
+                        container.openLink,
+                        container.refreshLink,
+                        container.loadMoreComments,
+                        container.viewerUiMapper,
+                        container.historyRepository,
+                    ),
                 )
                 ViewerRoute(
                     viewModel = viewerViewModel,

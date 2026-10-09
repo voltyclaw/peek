@@ -10,7 +10,10 @@ class ViewerChromeTest {
     @Test
     fun postViewerChromeIsDoneAndRefreshWithoutTheHost() {
         val chrome = viewerTopChrome()
-        assertEquals(listOf(ViewerChromeControl.Done, ViewerChromeControl.Refresh), chrome)
+        assertEquals(
+            listOf(ViewerChromeControl.Done, ViewerChromeControl.Star, ViewerChromeControl.Refresh),
+            chrome,
+        )
         listOf(
             "m.facebook.com",
             "facebook.com",

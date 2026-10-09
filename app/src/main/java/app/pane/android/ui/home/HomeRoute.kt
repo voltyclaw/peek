@@ -2,11 +2,13 @@ package app.pane.android.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import android.content.ClipData
+import android.content.Intent
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -23,8 +26,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.content.pm.PackageInfoCompat
 import app.pane.android.R
+import app.pane.android.domain.model.HistoryUndo
+import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
+import app.pane.android.ui.actions.sharePostIntent
+import app.pane.android.ui.components.PaneSnackbarHost
+import app.pane.android.ui.components.showForFiveSeconds
 import app.pane.android.ui.model.HomeUiState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
 import app.pane.android.ui.navigation.SoundMode
@@ -52,6 +62,11 @@ fun HomeRoute(
     onSetDefaultBrowser: () -> Unit = {},
     onRemoveRecent: (String) -> Unit = {},
     onClearRecents: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onSwipeRecent: (String, Boolean) -> Unit = { url, left -> if (left) onRemoveRecent(url) },
+    notices: Flow<HubNotice> = emptyFlow(),
+    onUndoRecent: (RecentLink) -> Unit = {},
+    onUndoHistory: (HistoryUndo) -> Unit = {},
     extractUrlFromText: ExtractUrlFromTextUseCase = ExtractUrlFromTextUseCase(),
     showDeveloperTools: Boolean = false,
     sampleGroups: List<SamplePickerGroup> = emptyList(),
@@ -63,6 +78,10 @@ fun HomeRoute(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val starredMessage = stringResource(R.string.starred_snack)
+    val unstarredMessage = stringResource(R.string.unstarred_snack)
+    val removedRecentsMessage = stringResource(R.string.recents_removed_snack)
+    val undoLabel = stringResource(R.string.undo)
     val invalidClipboardMessage = stringResource(R.string.link_invalid)
     val nothingToPasteMessage = stringResource(R.string.nothing_to_paste)
     val usingFirstLink = stringResource(R.string.using_first_link)
@@ -133,6 +152,20 @@ fun HomeRoute(
         openUrl(url)
     }
 
+    LaunchedEffect(notices) {
+        notices.collect { notice ->
+            when (notice) {
+                is HubNotice.Removed -> snackbarHostState.showForFiveSeconds(removedRecentsMessage, undoLabel) {
+                    onUndoRecent(notice.link)
+                }
+                HubNotice.Starred -> snackbarHostState.showForFiveSeconds(starredMessage)
+                is HubNotice.Unstarred -> snackbarHostState.showForFiveSeconds(unstarredMessage, undoLabel) {
+                    onUndoHistory(notice.undo)
+                }
+            }
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -183,6 +216,14 @@ fun HomeRoute(
             onRecentLink = ::openUrl,
             onRemoveRecent = onRemoveRecent,
             onClearRecents = onClearRecents,
+            onOpenHistory = onOpenHistory,
+            onSwipeRecent = onSwipeRecent,
+            onShareRecent = { url, title ->
+                context.startActivity(Intent.createChooser(sharePostIntent(url, title), null))
+            },
+            onCopyRecent = { url ->
+                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Link", url))) }
+            },
             versionLabel = versionLabel,
             onOpenLinkSettings = {
                 openedLinkSettings = true
@@ -213,7 +254,7 @@ fun HomeRoute(
             onShowSamplesInRecents = onShowSamplesInRecents,
             onOpenSample = onOpenSample,
         )
-        SnackbarHost(
+        PaneSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         )

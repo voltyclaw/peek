@@ -1,11 +1,17 @@
 package app.pane.android.app
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import app.pane.android.data.cache.LinkContentCacheDocument
 import app.pane.android.data.cache.LinkContentCacheSerializer
 import app.pane.android.data.cache.LinkContentCacheStore
+import app.pane.android.data.history.AndroidHistoryPreferences
+import app.pane.android.data.history.AndroidHistorySql
+import app.pane.android.data.history.AndroidStarImageCompressor
+import app.pane.android.data.history.FileStarImageStore
+import app.pane.android.data.history.SqliteHistoryRepository
 import app.pane.android.data.facebook.AndroidFacebookPageLoader
 import app.pane.android.data.facebook.FacebookDirectPageLoader
 import app.pane.android.data.facebook.FacebookLinkContentRepository
@@ -25,7 +31,10 @@ import app.pane.android.data.sample.SampleMedia
 import app.pane.android.data.x.XDirectPageLoader
 import app.pane.android.data.x.XLinkContentRepository
 import app.pane.android.domain.model.Clock
+import app.pane.android.domain.model.HistoryQuery
+import app.pane.android.domain.model.RecentContent
 import app.pane.android.domain.model.SystemClock
+import app.pane.android.domain.repository.HistoryRepository
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.RecentLinksRepository
 import app.pane.android.BuildConfig
@@ -42,6 +51,8 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 interface AppContainer {
     val observeRecentContent: ObserveRecentContentUseCase
@@ -53,12 +64,16 @@ interface AppContainer {
     val homeUiMapper: HomeUiMapper
     val viewerUiMapper: ViewerUiMapper
     val recentLinksRepository: RecentLinksRepository
+    val historyRepository: HistoryRepository
+    fun readHistoryFilter(): HistoryQuery
+    fun writeHistoryFilter(query: HistoryQuery)
 }
 
 class DefaultAppContainer(
     context: Context,
     clock: Clock = SystemClock,
 ) : AppContainer {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val seedCacheDocument = LinkContentCacheDocument(entries = emptyList())
     private val linkContentCacheDataStore = DataStoreFactory.create(
         serializer = LinkContentCacheSerializer(seedCacheDocument),
@@ -119,6 +134,15 @@ class DefaultAppContainer(
     )
     private val mediaRepository = AndroidMediaRepository(context)
     private val imageMapper = UiImageMapper()
+    private val historyPreferences = AndroidHistoryPreferences(context)
+    override val historyRepository: HistoryRepository = SqliteHistoryRepository(
+        sql = AndroidHistorySql(context),
+        imageStore = FileStarImageStore(
+            root = File(context.filesDir, "stars"),
+            compressor = AndroidStarImageCompressor(),
+        ),
+        clock = clock,
+    )
 
     override val observeRecentContent = ObserveRecentContentUseCase(
         contentRepository = contentRepository,
@@ -127,10 +151,14 @@ class DefaultAppContainer(
     override val openLink = OpenLinkUseCase(
         contentRepository = contentRepository,
         recentLinksRepository = recentLinksStore,
+        historyRepository = historyRepository,
+        clock = clock,
     )
     override val refreshLink = RefreshLinkUseCase(
         contentRepository = contentRepository,
         recentLinksRepository = recentLinksStore,
+        historyRepository = historyRepository,
+        clock = clock,
     )
     override val loadMoreComments = LoadMoreCommentsUseCase(contentRepository)
     override val prepareMediaForSharing = PrepareMediaForSharingUseCase(mediaRepository)
@@ -139,4 +167,23 @@ class DefaultAppContainer(
     override val viewerUiMapper = ViewerUiMapper(imageMapper)
     override val recentLinksRepository = recentLinksStore
 
+    override fun readHistoryFilter(): HistoryQuery = historyPreferences.readFilter()
+
+    override fun writeHistoryFilter(query: HistoryQuery) {
+        historyPreferences.writeFilter(query)
+    }
+
+    init {
+        historyPreferences.readSwipeAction()
+        appScope.launch {
+            runCatching {
+                val recents = recentLinksStore.observeRecents().first()
+                historyRepository.seedFromCached(
+                    recents.map { recent -> RecentContent(recent, contentRepository.peekCached(recent.url)) },
+                )
+            }.onFailure { error ->
+                Log.w("PaneHistory", "History seed failed", error)
+            }
+        }
+    }
 }

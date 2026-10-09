@@ -3,8 +3,15 @@ package app.pane.android.ui.viewer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import app.pane.android.ui.components.PaneSnackbarHost
+import app.pane.android.ui.components.showForFiveSeconds
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +52,20 @@ fun ViewerRoute(
     onOpenLinked: ((String) -> Unit)? = null,
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val starredMessage = stringResource(R.string.starred_snack)
+    val unstarredMessage = stringResource(R.string.unstarred_snack)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(viewModel) {
+        viewModel.notice.collect { notice ->
+            when (notice) {
+                ViewerNotice.Starred -> snackbar.showForFiveSeconds(starredMessage)
+                is ViewerNotice.Unstarred -> snackbar.showForFiveSeconds(unstarredMessage, undoLabel) {
+                    viewModel.undoStar(notice.undo)
+                }
+            }
+        }
+    }
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
     val context = LocalContext.current
     val noteUrl = (viewerUiState as? ViewerUiState.Content)?.post?.sourceUrl.orEmpty()
@@ -81,6 +102,7 @@ fun ViewerRoute(
         return
     }
 
+    Box(modifier.fillMaxSize()) {
     ViewerView(
         uiState = viewerUiState,
         onBack = onBack,
@@ -106,6 +128,7 @@ fun ViewerRoute(
             note = saved
             if (noteUrl.isNotBlank()) PostNotes.write(context, noteUrl, saved)
         },
+        onStar = viewModel::onToggleStar,
         onOpenOutbound = { target ->
             val openInPane = onOpenLinked
             if (openInPane != null) {
@@ -123,6 +146,8 @@ fun ViewerRoute(
                 measuredHeight = height
             }
         },
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     )
+        PaneSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp))
+    }
 }

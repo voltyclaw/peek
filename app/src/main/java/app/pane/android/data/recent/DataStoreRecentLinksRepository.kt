@@ -28,6 +28,16 @@ class DataStoreRecentLinksRepository(
         }
     }
 
+    override suspend fun restore(link: app.pane.android.domain.model.RecentLink) {
+        dataStore.updateData { current ->
+            val record = RecentLinkRecord(link.url, link.openedAtEpochMillis)
+            current.copy(
+                links = (listOf(record) + current.links.filterNot { it.url == link.url })
+                    .take(maximumEntries),
+            )
+        }
+    }
+
     override suspend fun remove(url: String) {
         dataStore.updateData { current ->
             current.copy(links = current.links.filterNot { it.url == url })

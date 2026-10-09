@@ -74,6 +74,12 @@ class XDirectPageLoader(
                 val text = XRichText.expandShortLinks(
                     XConversation.longerCaption(parsed.text, page.note),
                     page.note.orEmpty(),
+                    stripMedia = parsed.imageUrls.isNotEmpty() || !parsed.videoUrl.isNullOrBlank(),
+                    rendered = buildSet {
+                        parsed.article?.url?.let(::add)
+                        parsed.quote?.url?.let(::add)
+                        parsed.linkCards.forEach { add(it.url) }
+                    },
                 )
                 log(
                     "x ready ${elapsed(started)}ms thread=${page.authorThread.size} " +
@@ -84,7 +90,7 @@ class XDirectPageLoader(
                     text = text,
                     replies = page.replies,
                     authorThread = page.authorThread.map { item ->
-                        if (item.id == parsed.id) item.copy(text = richest(item.text, text)) else item
+                        if (item.id == parsed.id) item.copy(text = text.ifBlank { item.text }) else item
                     },
                     authorThreadPartial = page.authorThreadPartial,
                     repliesCursor = page.cursor,

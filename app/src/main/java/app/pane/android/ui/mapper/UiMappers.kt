@@ -1,7 +1,11 @@
 package app.pane.android.ui.mapper
 
 import app.pane.android.R
+import app.pane.android.data.history.HistoryUrls
 import app.pane.android.domain.model.BundledImageKey
+import app.pane.android.domain.model.HistoryEntry
+import app.pane.android.domain.model.HistoryLedger
+import app.pane.android.domain.model.toHistoryView
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.AuthorLines
 import app.pane.android.domain.model.Comment
@@ -16,6 +20,7 @@ import app.pane.android.domain.model.RecentContent
 import app.pane.android.domain.model.RedditMetadata
 import app.pane.android.domain.model.SourceMetadata
 import app.pane.android.domain.model.XReplyContinuation
+import app.pane.android.ui.history.sourceMark
 import app.pane.android.ui.model.AuthorThreadPostUiModel
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
@@ -27,14 +32,11 @@ import app.pane.android.ui.model.ViewerLinkCardUiModel
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerQuoteUiModel
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.TextStyle
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
-import kotlin.math.max
 
 fun loadStageMessage(stage: LoadStage): String = when (stage) {
     LoadStage.Connecting -> "Connecting to the source"
@@ -61,11 +63,15 @@ class HomeUiMapper(
     private val clock: Clock,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) {
-    fun map(recents: List<RecentContent>): HomeUiState {
+    fun map(recents: List<RecentContent>, history: List<HistoryEntry> = emptyList()): HomeUiState {
         if (recents.isEmpty()) return HomeUiState.Empty
+        val starred = history.mapNotNull { row -> row.url.takeIf { row.starredAt != null } }.toSet()
         return HomeUiState.Content(
             recentLinks = recents.map { recent ->
                 val content = recent.content
+                val canonical = HistoryUrls.canonical(recent.recentLink.url)
+                val viewed = content?.toHistoryView(canonical, recent.recentLink.openedAtEpochMillis)
+                val app = HistoryUrls.sourceApp(canonical, viewed?.source.orEmpty())
                 if (content == null) {
                     RecentLinkUiModel(
                         url = recent.recentLink.url,
@@ -75,6 +81,8 @@ class HomeUiMapper(
                         thumbnail = null,
                         thumbnailDescription = recent.recentLink.url,
                         isCached = false,
+                        sourceMark = sourceMark(app),
+                        starred = canonical in starred,
                     )
                 } else {
                     RecentLinkUiModel(
@@ -87,6 +95,12 @@ class HomeUiMapper(
                         },
                         thumbnailDescription = content.title,
                         isCached = true,
+                        identity = HistoryLedger.identity(app, viewed?.handle.orEmpty(), viewed?.authorName.orEmpty()),
+                        pfpUrl = viewed?.pfpUrl,
+                        sourceMark = sourceMark(app),
+                        thumbUrl = viewed?.thumbUrl?.takeIf { HistoryLedger.showsThumb(viewed.mediaType) },
+                        video = viewed?.let { HistoryLedger.isVideo(it.mediaType) } == true,
+                        starred = canonical in starred,
                     )
                 }
             },
@@ -102,19 +116,8 @@ class HomeUiMapper(
         LinkSource.X -> if (content.kind == LinkKind.Video) "X · VIDEO" else "X · POST"
     }
 
-    private fun ageLabel(openedAtEpochMillis: Long): String {
-        val ageMillis = max(0L, clock.nowEpochMillis() - openedAtEpochMillis)
-        val minutes = ageMillis / 60_000
-        return when {
-            minutes < 60 -> "${max(1L, minutes)}m"
-            minutes < 1_440 -> "${minutes / 60}h"
-            else -> Instant.ofEpochMilli(openedAtEpochMillis)
-                .atZone(zoneId)
-                .dayOfWeek
-                .getDisplayName(TextStyle.SHORT, Locale.US)
-                .uppercase(Locale.US)
-        }
-    }
+    private fun ageLabel(openedAtEpochMillis: Long): String =
+        HistoryLedger.relTime(openedAtEpochMillis, clock.nowEpochMillis(), zoneId, Locale.US)
 }
 
 class ViewerUiMapper(private val imageMapper: UiImageMapper) {

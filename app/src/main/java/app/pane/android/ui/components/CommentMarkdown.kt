@@ -27,7 +27,11 @@ internal fun autolinkedCaption(
     linkColor: Color,
     network: MentionNetwork = MentionNetwork.Other,
     onOpen: (String) -> Unit = {},
-): AnnotatedString = buildAnnotatedString { appendWithAutolinks(source, linkColor, network, onOpen) }
+    mentionColor: Color? = null,
+    mentionPressed: Color? = null,
+): AnnotatedString = buildAnnotatedString {
+    appendWithAutolinks(source, linkColor, network, onOpen, mentionColor, mentionPressed)
+}
 
 internal fun commentNestingStepDp(depth: Int): Int =
     if (depth in 1..MAX_COMMENT_DEPTH) 12 else 0
@@ -43,6 +47,8 @@ internal fun redditCommentAnnotated(
     codeFont: FontFamily,
     network: MentionNetwork = MentionNetwork.Reddit,
     onOpen: (String) -> Unit = {},
+    mentionColor: Color? = null,
+    mentionPressed: Color? = null,
 ): AnnotatedString = buildAnnotatedString {
     val lines = source.split('\n')
     lines.forEachIndexed { index, line ->
@@ -51,10 +57,10 @@ internal fun redditCommentAnnotated(
         val quote = trimmed.startsWith(">") && !trimmed.startsWith(">!")
         if (quote) {
             withStyle(SpanStyle(color = quoteColor, fontStyle = FontStyle.Italic)) {
-                appendMarkdown(trimmed.removePrefix(">").trimStart(), linkColor, codeFont, network, onOpen)
+                appendMarkdown(trimmed.removePrefix(">").trimStart(), linkColor, codeFont, network, onOpen, mentionColor, mentionPressed)
             }
         } else {
-            appendMarkdown(line, linkColor, codeFont, network, onOpen)
+            appendMarkdown(line, linkColor, codeFont, network, onOpen, mentionColor, mentionPressed)
         }
     }
 }
@@ -65,6 +71,8 @@ private fun AnnotatedString.Builder.appendMarkdown(
     codeFont: FontFamily,
     network: MentionNetwork,
     onOpen: (String) -> Unit,
+    mentionColor: Color?,
+    mentionPressed: Color?,
 ) {
     var index = 0
     while (index < text.length) {
@@ -75,7 +83,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
         }
         val mention = mentionAt(text, index, network)
         if (mention != null) {
-            withLink(openLink(mention.url, linkColor, onOpen)) {
+            withLink(openLink(mention.url, linkColor, onOpen, mention.kind != app.pane.android.ui.text.MentionKind.Url, mentionColor, mentionPressed)) {
                 append(text.substring(mention.start, mention.end))
             }
             index = mention.end
@@ -85,7 +93,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
             val end = text.indexOf("!<", index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(fontStyle = FontStyle.Italic, background = quoteTint(linkColor))) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen, mentionColor, mentionPressed)
                 }
                 index = end + 2
                 continue
@@ -120,7 +128,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
             val end = text.indexOf("~~", index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen, mentionColor, mentionPressed)
                 }
                 index = end + 2
                 continue
@@ -135,7 +143,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
             val end = text.indexOf(boldMarker, index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen, mentionColor, mentionPressed)
                 }
                 index = end + 2
                 continue
@@ -189,12 +197,30 @@ private fun AnnotatedString.Builder.appendWithAutolinks(
     linkColor: Color,
     network: MentionNetwork,
     onOpen: (String) -> Unit,
+    mentionColor: Color?,
+    mentionPressed: Color?,
 ) {
     var index = 0
     while (index < text.length) {
+        if (text[index] == '[') {
+            val labelEnd = text.indexOf("](", index + 1)
+            val urlEnd = if (labelEnd > index) text.indexOf(')', labelEnd + 2) else -1
+            if (labelEnd > index + 1 && urlEnd > labelEnd + 2) {
+                val label = text.substring(index + 1, labelEnd)
+                val url = text.substring(labelEnd + 2, urlEnd)
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    withLink(openLink(url, linkColor, onOpen)) {
+                        append(label)
+                    }
+                    index = urlEnd + 1
+                    continue
+                }
+            }
+        }
         val mention = mentionAt(text, index, network)
         if (mention != null) {
-            withLink(openLink(mention.url, linkColor, onOpen)) {
+            val account = mention.kind != app.pane.android.ui.text.MentionKind.Url
+            withLink(openLink(mention.url, linkColor, onOpen, account, mentionColor, mentionPressed)) {
                 append(text.substring(mention.start, mention.end))
             }
             index = mention.end
@@ -205,18 +231,44 @@ private fun AnnotatedString.Builder.appendWithAutolinks(
     }
 }
 
-private fun openLink(url: String, ink: Color, onOpen: (String) -> Unit): LinkAnnotation.Clickable =
-    LinkAnnotation.Clickable(
+private fun openLink(
+    url: String,
+    ink: Color,
+    onOpen: (String) -> Unit,
+    account: Boolean = false,
+    mentionColor: Color? = null,
+    mentionPressed: Color? = null,
+): LinkAnnotation.Clickable {
+    val handle = if (account) mentionColor else null
+    val pressed = if (account) mentionPressed ?: mentionColor else null
+    return LinkAnnotation.Clickable(
         tag = url,
-        styles = TextLinkStyles(
-            style = SpanStyle(fontWeight = FontWeight.Medium),
-            pressedStyle = SpanStyle(
-                fontWeight = FontWeight.Medium,
-                textDecoration = TextDecoration.Underline,
-                background = ink.copy(alpha = 0.08f),
-            ),
-        ),
+        styles = if (handle != null && pressed != null) {
+            TextLinkStyles(
+                style = SpanStyle(color = handle, fontWeight = FontWeight.Medium),
+                pressedStyle = SpanStyle(
+                    color = pressed,
+                    fontWeight = FontWeight.Medium,
+                    background = handle.copy(alpha = 0.16f),
+                ),
+                focusedStyle = SpanStyle(
+                    color = pressed,
+                    fontWeight = FontWeight.Medium,
+                    background = handle.copy(alpha = 0.16f),
+                ),
+            )
+        } else {
+            TextLinkStyles(
+                style = SpanStyle(fontWeight = FontWeight.Medium),
+                pressedStyle = SpanStyle(
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                    background = ink.copy(alpha = 0.08f),
+                ),
+            )
+        },
         linkInteractionListener = { onOpen(url) },
     )
+}
 
 private fun quoteTint(color: Color): Color = color.copy(alpha = 0.12f)

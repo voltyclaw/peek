@@ -115,6 +115,8 @@ import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.text.MentionNetwork
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
+import app.pane.android.ui.theme.PaneHandle
+import app.pane.android.ui.theme.PaneHandlePressed
 import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneMuted
 import app.pane.android.ui.theme.PaneSecondary
@@ -145,6 +147,7 @@ fun ViewerView(
     note: String = "",
     onSaveNote: (String) -> Unit = {},
     onOpenOutbound: (String) -> Unit = {},
+    onStar: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -171,6 +174,8 @@ fun ViewerView(
                 )
                 is ViewerUiState.Content -> ViewerContent(
                     post = uiState.post,
+                    starred = uiState.starred,
+                    onStar = onStar,
                     isLoadingMoreComments = uiState.isLoadingMoreComments,
                     onBack = onBack,
                     onRefresh = onRefresh,
@@ -200,6 +205,8 @@ fun ViewerView(
 @Composable
 private fun ColumnScope.ViewerContent(
     post: ViewerPostUiModel,
+    starred: Boolean,
+    onStar: () -> Unit,
     isLoadingMoreComments: Boolean,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
@@ -272,10 +279,10 @@ private fun ColumnScope.ViewerContent(
                             Brush.verticalGradient(listOf(Color.Transparent, PaneGround)),
                         ),
                     )
-                    ViewerTopBar(onBack, onRefresh, overMedia = true)
+                    ViewerTopBar(onBack, onRefresh, overMedia = true, starred = starred, onStar = onStar)
                 }
             } else {
-                ViewerTopBar(onBack, onRefresh, overMedia = false)
+                ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
@@ -868,11 +875,21 @@ private fun AuthorCaption(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
     ) {
         ProfileAvatar(image = post.authorAvatar, label = name, size = 40.dp)
         Column {
-            Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
+            val redditAccount = profile?.contains("reddit.com") == true
+            Text(
+                name,
+                color = if (redditAccount && profile != null) PaneHandle else PaneInk,
+                style = TextStyle(
+                    fontFamily = Inter,
+                    fontSize = 15.sp,
+                    fontWeight = if (redditAccount && profile != null) FontWeight.Medium else FontWeight.SemiBold,
+                ),
+            )
             if (detail != null) {
+                val handleLine = detail.trim().startsWith("@")
                 Text(
                     detail,
-                    color = PaneMuted,
+                    color = if (handleLine) PaneHandle else PaneMuted,
                     style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
                 )
             }
@@ -887,13 +904,13 @@ private fun RedditBody(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
     }
     if (post.authorMetadata.isNotBlank()) {
         Text(
-            text = autolinkedCaption(post.authorMetadata, PaneMuted, MentionNetwork.Reddit, onOpen),
+            text = autolinkedCaption(post.authorMetadata, PaneMuted, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
             color = PaneMuted,
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
         )
     }
     Text(
-        text = autolinkedCaption(post.title, PaneInk, MentionNetwork.Reddit, onOpen),
+        text = autolinkedCaption(post.title, PaneInk, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
         color = PaneInk,
         style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp),
     )

@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,12 +31,9 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -66,11 +62,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.pane.android.R
-import app.pane.android.ui.components.PeekImage
+import app.pane.android.ui.components.LedgerMenuLine
+import app.pane.android.ui.components.LedgerMenuSheet
+import app.pane.android.ui.components.LedgerMenuStyle
+import app.pane.android.ui.components.LedgerSwipeRow
 import app.pane.android.ui.components.PaneLockup
 import app.pane.android.ui.components.PaneMark
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
+import app.pane.android.ui.model.asLedgerRow
 import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
@@ -115,6 +115,10 @@ fun HomeView(
     onDismissFirstLaunchHint: () -> Unit = {},
     onRemoveRecent: (String) -> Unit = {},
     onClearRecents: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onSwipeRecent: (String, Boolean) -> Unit = { url, left -> if (left) onRemoveRecent(url) },
+    onShareRecent: (String, String) -> Unit = { _, _ -> },
+    onCopyRecent: (String) -> Unit = {},
     linkDraft: String = "",
     onLinkDraft: (String) -> Unit = {},
     linkIsValid: Boolean = false,
@@ -171,9 +175,16 @@ fun HomeView(
             )
             Spacer(Modifier.height(22.dp))
             when (uiState) {
-                HomeUiState.Loading -> LoadingRecents()
-                HomeUiState.Empty -> EmptyRecents()
-                is HomeUiState.Content -> RecentLinks(uiState.recentLinks, onRecentLink, onRemoveRecent)
+                HomeUiState.Loading -> LoadingRecents(onOpenHistory)
+                HomeUiState.Empty -> EmptyRecents(onOpenHistory)
+                is HomeUiState.Content -> RecentLinks(
+                    links = uiState.recentLinks,
+                    onRecentLink = onRecentLink,
+                    onOpenHistory = onOpenHistory,
+                    onSwipeRecent = onSwipeRecent,
+                    onShareRecent = onShareRecent,
+                    onCopyRecent = onCopyRecent,
+                )
             }
         }
         if (samplePickerOpen) {
@@ -775,14 +786,25 @@ private fun PasteField(
 private fun RecentLinks(
     links: List<RecentLinkUiModel>,
     onRecentLink: (String) -> Unit,
-    onRemoveRecent: (String) -> Unit,
+    onOpenHistory: () -> Unit,
+    onSwipeRecent: (String, Boolean) -> Unit,
+    onShareRecent: (String, String) -> Unit,
+    onCopyRecent: (String) -> Unit,
 ) {
+    var menu by remember { mutableStateOf<RecentLinkUiModel?>(null) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.recent_section), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
-            Text(stringResource(R.string.recent_of, links.size, 8), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
+        RecentHeader(count = links.size, onOpenHistory = onOpenHistory)
+        links.forEach { link ->
+            LedgerSwipeRow(
+                row = link.asLedgerRow(),
+                onOpen = { onRecentLink(link.url) },
+                onSwipe = { left -> onSwipeRecent(link.url, left) },
+                onLongPress = { menu = link },
+                onActionStar = { onSwipeRecent(link.url, false) },
+                onActionRemove = { onSwipeRecent(link.url, true) },
+                recents = true,
+            )
         }
-        links.forEach { link -> RecentLinkRow(link, onRecentLink, onRemoveRecent) }
         Box(Modifier.padding(top = 18.dp).width(48.dp).height(1.dp).background(PaneBorder))
         Text(
             text = stringResource(R.string.thats_everything),
@@ -791,81 +813,73 @@ private fun RecentLinks(
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
         )
     }
+    menu?.let { link ->
+        val row = link.asLedgerRow()
+        LedgerMenuSheet(
+            row = row,
+            lines = listOf(
+                LedgerMenuLine(
+                    label = if (row.starred) stringResource(R.string.remove_star) else stringResource(R.string.star),
+                    style = if (row.starred) LedgerMenuStyle.StarFilled else LedgerMenuStyle.StarOutline,
+                    onClick = { menu = null; onSwipeRecent(link.url, false) },
+                ),
+                LedgerMenuLine(
+                    label = stringResource(R.string.remove_from_recents),
+                    style = LedgerMenuStyle.Remove,
+                    onClick = { menu = null; onSwipeRecent(link.url, true) },
+                ),
+                LedgerMenuLine(
+                    label = stringResource(R.string.share),
+                    style = LedgerMenuStyle.Share,
+                    onClick = { menu = null; onShareRecent(link.url, link.title) },
+                ),
+                LedgerMenuLine(
+                    label = stringResource(R.string.copy_link),
+                    style = LedgerMenuStyle.Copy,
+                    onClick = { menu = null; onCopyRecent(link.url) },
+                ),
+            ),
+            onDismiss = { menu = null },
+        )
+    }
 }
 
 @Composable
-private fun RecentLinkRow(
-    link: RecentLinkUiModel,
-    onRecentLink: (String) -> Unit,
-    onRemoveRecent: (String) -> Unit,
-) {
-    var menuOpen by remember { mutableStateOf(false) }
-    val openLinkDescription = stringResource(R.string.open_link, link.title)
-    val removeDescription = stringResource(R.string.remove_recent)
+private fun RecentHeader(count: Int?, onOpenHistory: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(role = Role.Button) { onRecentLink(link.url) }
-                .semantics { contentDescription = openLinkDescription },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val host = app.pane.android.ui.viewer.displayHost(link.url)
-            val mark = host.firstOrNull()?.uppercase() ?: "·"
-            Box(Modifier.size(40.dp).clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
-                Text(mark, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(link.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium))
-                Text(
-                    text = stringResource(R.string.recent_meta, host, link.ageLabel),
-                    color = PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
-                )
-            }
+        val countLabel = if (count == null) {
+            stringResource(R.string.recent_section)
+        } else {
+            stringResource(R.string.recent_section) + " · " + stringResource(R.string.recent_of, count, 8)
         }
-        Box {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(role = Role.Button) { menuOpen = true }
-                    .semantics { contentDescription = removeDescription },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(18.dp))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.remove_recent)) },
-                    onClick = {
-                        menuOpen = false
-                        onRemoveRecent(link.url)
-                    },
-                )
-            }
+        Text(countLabel, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
+        Text(
+            text = stringResource(R.string.history_door),
+            modifier = Modifier.clickable(role = Role.Button, onClick = onOpenHistory),
+            color = PaneInk.copy(alpha = 0.75f),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+        )
+    }
+}
+
+@Composable
+private fun LoadingRecents(onOpenHistory: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        RecentHeader(count = null, onOpenHistory = onOpenHistory)
+        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = PaneMuted, modifier = Modifier.size(28.dp))
         }
     }
 }
 
 @Composable
-private fun LoadingRecents() {
-    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = PaneMuted, modifier = Modifier.size(28.dp))
-    }
-}
-
-@Composable
-private fun EmptyRecents() {
+private fun EmptyRecents(onOpenHistory: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(stringResource(R.string.recent_section), modifier = Modifier.align(Alignment.Start).padding(bottom = 28.dp), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
+        RecentHeader(count = 0, onOpenHistory = onOpenHistory)
         PaneMark(Modifier.size(96.dp))
         Text(
             text = stringResource(R.string.nothing_recent_yet),

@@ -7,6 +7,9 @@ import kotlinx.serialization.Serializable
 data object HomeKey : NavKey
 
 @Serializable
+data object HistoryKey : NavKey
+
+@Serializable
 data class ViewerKey(val url: String) : NavKey
 
 @Serializable

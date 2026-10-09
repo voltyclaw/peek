@@ -29,7 +29,7 @@ object XUrls {
         return Status(id = id, canonicalUrl = "https://x.com/i/status/$id")
     }
 
-    private val ID = Regex("[0-9]{2,}")
+    private val ID = Regex("[0-9]+")
     private val HOSTS = setOf(
         "x.com",
         "mobile.x.com",

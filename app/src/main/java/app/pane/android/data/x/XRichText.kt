@@ -41,8 +41,11 @@ data class XRichPost(
 
 /**
  * Turns a public status into text Pane can show.
- * A raw https://t.co/… string is never left in the text: entities expand it,
- * and a card URL (article, quote, or photo) is removed instead of printed.
+ * A t.co is removed only when its target is actually on screen: attached media,
+ * the quote card, or a link card. Every other t.co is replaced in place with its
+ * display text, linked to the expanded URL. A removed link does not leave a
+ * dangling colon or period. An unknown t.co stays, so a missing entity cannot
+ * turn "Full disclosures: …" into "Full disclosures: ."
  */
 internal object XRichText {
     fun present(root: JsonObject): XRichPost {
@@ -56,56 +59,129 @@ internal object XRichText {
             preview.isNotBlank() -> preview
             else -> note.orEmpty()
         }
+        val media = entities.filter { isMedia(it.expanded) }
+        val quoteLinks = if (quote != null) entities.filter { sameStatus(it.expanded, quote.url) } else emptyList()
+        val articleLinks = if (article != null) {
+            entities.filter { isArticle(it.expanded) || sameTarget(it.expanded, article.url) }
+        } else {
+            emptyList()
+        }
+        val cards = if (linkOnly(base, entities)) {
+            entities.filter { entity ->
+                entity !in media && entity !in quoteLinks && entity !in articleLinks &&
+                    entity.expanded.startsWith("http") && !isMedia(entity.expanded)
+            }
+        } else {
+            emptyList()
+        }
         val drop = buildSet {
             article?.url?.let(::add)
             quote?.url?.let(::add)
-            entities.filter { isMedia(it.expanded) }.forEach { add(it.expanded) }
+            (media + quoteLinks + articleLinks + cards).forEach { add(it.expanded) }
         }
-        val text = expand(base, entities, drop)
-        val links = entities.mapNotNull { entity ->
-            val expanded = entity.expanded
-            if (!expanded.startsWith("http")) return@mapNotNull null
-            if (expanded in drop || isMedia(expanded) || isArticle(expanded) || isStatus(expanded, quote)) {
-                return@mapNotNull null
-            }
-            val label = entity.display.ifBlank { hostPath(expanded) }
-            if (label.contains("t.co")) return@mapNotNull null
-            XLinkPreview(url = expanded, label = label)
+        val text = expand(base, entities, drop, stripMedia = media.isNotEmpty())
+        val links = cards.mapNotNull { entity ->
+            val label = linkLabel(entity)
+            if (label.isBlank() || label.contains("t.co")) return@mapNotNull null
+            XLinkPreview(url = entity.expanded, label = label)
         }.distinctBy { it.url }
-        val visible = if (text.isBlank() || links.any { text == it.label }) "" else text
         return XRichPost(
-            text = visible,
+            text = if (visible(text).isBlank()) "" else text,
             article = article,
-            quote = quote?.copy(text = expand(quote.text, entities, drop)),
+            quote = quote?.copy(text = expand(quote.text, entities, drop, stripMedia = false)),
             links = links,
         )
     }
 
-    /** Replies and thread posts: same t.co rule, using entities embedded beside the text. */
-    fun expandShortLinks(text: String, nearby: String = ""): String {
+    /**
+     * Root, thread, and reply text. [stripMedia] is true only when this row shows the
+     * attached photo or video. [rendered] holds quote, article, and link-card URLs
+     * that are on screen for this row.
+     */
+    fun expandShortLinks(
+        text: String,
+        nearby: String = "",
+        stripMedia: Boolean = false,
+        rendered: Set<String> = emptySet(),
+    ): String {
         val entities = entitiesIn("$text\n$nearby")
-        return expand(text, entities, emptySet()).ifBlank {
-            expand(text, entities, emptySet())
-        }
+        return expand(text, entities, rendered, stripMedia)
     }
 
-    fun expand(text: String, entities: List<XUrlEntity>, drop: Set<String>): String {
+    fun expand(
+        text: String,
+        entities: List<XUrlEntity>,
+        drop: Set<String>,
+        stripMedia: Boolean = false,
+    ): String {
         var result = text
         entities.filter { it.url.contains("://t.co/") }.forEach { entity ->
-            val replacement = when {
-                entity.expanded in drop || isMedia(entity.expanded) || isArticle(entity.expanded) -> ""
-                entity.display.isNotBlank() && !entity.display.contains("t.co") -> entity.display
-                entity.expanded.startsWith("http") && !entity.expanded.contains("://t.co/") -> hostPath(entity.expanded)
-                else -> ""
+            val rendered = shouldStrip(entity, drop, stripMedia)
+            result = if (rendered) {
+                stripShortLink(result, entity.url)
+            } else {
+                result.replace(entity.url, inlineLink(entity))
             }
-            result = result.replace(entity.url, replacement)
         }
-        result = TCO.replace(result, "")
-        return result
-            .replace(Regex("[ \\t]{2,}"), " ")
-            .replace(Regex(" *\\n *"), "\n")
-            .trim()
+        return tidy(result)
     }
+
+    /** Label text, without the markdown target. Tests and blank checks use this. */
+    fun visible(text: String): String =
+        MARKDOWN_LINK.replace(text) { match -> match.groupValues[1] }
+
+    private fun shouldStrip(entity: XUrlEntity, drop: Set<String>, stripMedia: Boolean): Boolean {
+        if (stripMedia && isMedia(entity.expanded)) return true
+        if (entity.expanded in drop || entity.url in drop) return true
+        val id = statusId(entity.expanded) ?: return false
+        return drop.any { statusId(it) == id && id.isNotBlank() }
+    }
+
+    private fun inlineLink(entity: XUrlEntity): String {
+        val target = entity.expanded
+        if (!target.startsWith("http") || target.contains("://t.co/")) return entity.url
+        val label = linkLabel(entity).ifBlank { return entity.url }
+        return "[${label.replace("]", "")}]($target)"
+    }
+
+    private fun linkLabel(entity: XUrlEntity): String {
+        val display = entity.display.trim()
+        if (display.isNotBlank() && !display.contains("t.co")) return display
+        return hostPath(entity.expanded)
+    }
+
+    /**
+     * Removes one short link. A trailing link-only tail also drops the colon or
+     * period that existed only to introduce that link. A link in the middle of a
+     * sentence leaves the surrounding words and their punctuation alone.
+     */
+    private fun stripShortLink(text: String, token: String): String {
+        val start = text.indexOf(token)
+        if (start < 0) return text
+        val end = start + token.length
+        val after = text.substring(end)
+        val trailingTail = after.isBlank() || after.trim().all { it == '.' || it == '…' || it.isWhitespace() }
+        val cutEnd = if (trailingTail) text.length else end
+        var cutStart = start
+        if (trailingTail) {
+            var index = start
+            while (index > 0 && text[index - 1].isWhitespace()) index -= 1
+            if (index > 0 && text[index - 1] == ':') cutStart = index - 1
+        }
+        return text.removeRange(cutStart, cutEnd).replace(token, "")
+    }
+
+    private fun linkOnly(text: String, entities: List<XUrlEntity>): Boolean {
+        var rest = text
+        entities.forEach { rest = rest.replace(it.url, " ") }
+        rest = TCO.replace(rest, " ")
+        return rest.all { it.isWhitespace() || it == '.' || it == ':' || it == '…' }
+    }
+
+    private fun tidy(text: String): String = text
+        .replace(Regex("[ \\t]{2,}"), " ")
+        .replace(Regex(" *\\n *"), "\n")
+        .trim()
 
     private fun article(root: JsonObject): XArticle? {
         val node = root.obj("article")
@@ -206,18 +282,38 @@ internal object XRichText {
 
     private fun isMedia(url: String): Boolean {
         val lower = url.lowercase()
-        return "pic.twitter.com" in lower ||
+        if (
+            "pic.twitter.com" in lower ||
+            "pic.x.com" in lower ||
             "pbs.twimg.com" in lower ||
-            "video.twimg.com" in lower ||
-            "/photo/" in lower ||
-            "/video/" in lower
+            "video.twimg.com" in lower
+        ) {
+            return true
+        }
+        val host = runCatching { java.net.URI(url).host }.getOrNull()
+            ?.lowercase()
+            ?.removePrefix("www.")
+            ?: return false
+        if (host !in MEDIA_HOSTS) return false
+        return "/photo/" in lower || "/video/" in lower
     }
 
     private fun isArticle(url: String): Boolean = "/i/article/" in url
 
-    private fun isStatus(url: String, quote: XQuote?): Boolean {
-        if (quote != null && (url == quote.url || url.contains("/status/"))) return url.contains(quote.url.substringAfterLast('/'))
-        return false
+    private fun sameStatus(url: String, quoteUrl: String): Boolean {
+        if (url == quoteUrl) return true
+        val id = statusId(quoteUrl) ?: return false
+        return statusId(url) == id
+    }
+
+    private fun sameTarget(url: String, other: String): Boolean =
+        url.substringBefore('?').trimEnd('/') == other.substringBefore('?').trimEnd('/')
+
+    private fun statusId(url: String): String? {
+        val segments = url.substringBefore('?').split('/').filter { it.isNotEmpty() }
+        val index = segments.indexOf("status")
+        if (index < 0 || index + 1 >= segments.size) return null
+        return segments[index + 1].takeIf { it.all(Char::isDigit) }
     }
 
     private fun hostPath(url: String): String =
@@ -229,6 +325,13 @@ internal object XRichText {
     private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
 
     private val TCO = Regex("""https?://t\.co/[A-Za-z0-9]+""", RegexOption.IGNORE_CASE)
+    private val MARKDOWN_LINK = Regex("""\[([^\[\]]+)\]\((https?://[^)\s]+)\)""")
+    private val MEDIA_HOSTS = setOf(
+        "x.com",
+        "mobile.x.com",
+        "twitter.com",
+        "mobile.twitter.com",
+    )
     private val ENTITY_PATTERNS = listOf(
         Regex(
             """"url"\s*:\s*"(https://t\.co/[^"\\]+)".{0,240}?"expanded_url"\s*:\s*"([^"\\]+)".{0,240}?"display_url"\s*:\s*"([^"\\]+)"""",

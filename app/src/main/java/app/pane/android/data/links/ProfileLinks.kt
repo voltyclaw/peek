@@ -25,6 +25,12 @@ internal fun paneEntry(url: String): PaneEntry =
 /** A profile handoff never writes Recents. The viewer is the only path that does. */
 internal fun profileHandoffRecordsRecent(): Boolean = false
 
+/** A profile or page handoff never writes History. Only a successful viewer load does. */
+internal fun profileHandoffRecordsHistory(): Boolean = false
+
+/** The mention tap itself does not write History. A later successful post view still can. */
+internal fun mentionTapRecordsHistory(): Boolean = false
+
 /** Share-in finishes back to the sender. A hub paste stays on the hub. */
 internal fun profileHandoffFinishes(fromExternal: Boolean, started: Boolean): Boolean =
     fromExternal && started

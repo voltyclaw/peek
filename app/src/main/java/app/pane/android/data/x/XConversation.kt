@@ -68,8 +68,12 @@ object XConversation {
             val subjectId = REST_ID.find(slice)?.groupValues?.get(1)
             if (subjectId == focalId || (subjectId != null && subjectId != tweetId)) continue
             val rawText = firstJsString(slice, "full_text")?.trim().orEmpty()
-            val text = XRichText.expandShortLinks(rawText, slice)
             val card = articleSnippet(slice)
+            val text = XRichText.expandShortLinks(
+                rawText,
+                slice,
+                rendered = if (card != null) articleTargets(slice) else emptySet(),
+            )
             if (text.isBlank() && card == null) continue
             val author = firstJsString(slice, "name")
                 ?: firstJsString(slice, "screen_name")
@@ -336,6 +340,12 @@ object XConversation {
     }
 
     private data class ArticleSnippet(val title: String, val body: String, val url: String?)
+
+    private fun articleTargets(slice: String): Set<String> =
+        XRichText.entitiesIn(slice)
+            .map { it.expanded }
+            .filter { "/i/article/" in it }
+            .toSet()
 
     private fun articleSnippet(slice: String): ArticleSnippet? {
         if (!slice.contains("preview_text") && !slice.contains("article")) return null

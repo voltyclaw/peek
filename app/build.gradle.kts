@@ -14,8 +14,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 43
-        versionName = "1.0.41"
+        versionCode = 44
+        versionName = "1.0.42"
     }
 
     buildTypes {
@@ -84,6 +84,7 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.sqlite.jdbc)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

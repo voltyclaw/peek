@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -101,6 +102,8 @@ import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneGround
+import app.pane.android.ui.theme.PaneHandle
+import app.pane.android.ui.theme.PaneHandlePressed
 import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneMuted
 import app.pane.android.ui.theme.PaneSecondary
@@ -303,7 +306,7 @@ fun CaptionText(
     val caption = post.title
     if (caption.isBlank() || caption == post.article?.title) return
     Text(
-        text = autolinkedCaption(caption, PaneInk, mentionNetwork(post.sourceUrl), onOpen),
+        text = autolinkedCaption(caption, PaneInk, mentionNetwork(post.sourceUrl), onOpen, PaneHandle, PaneHandlePressed),
         modifier = Modifier.fillMaxWidth(),
         color = PaneInk,
         style = TextStyle(
@@ -350,7 +353,7 @@ fun AuthorThreadSection(
                     )
                     Row(verticalAlignment = Alignment.Top) {
                         Text(
-                            text = autolinkedCaption(item.text, PaneInk, mentionNetwork(post.sourceUrl), onOpen),
+                            text = autolinkedCaption(item.text, PaneInk, mentionNetwork(post.sourceUrl), onOpen, PaneHandle, PaneHandlePressed),
                             modifier = Modifier.weight(1f).padding(top = 4.dp),
                             color = PaneInk,
                             style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, lineHeight = 21.sp),
@@ -665,7 +668,11 @@ fun CommentRow(
                 Box(Modifier.size(28.dp).clip(CircleShape).background(PaneBorder), contentAlignment = Alignment.Center) {
                     Text(comment.initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
                 }
-                Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                Text(
+                    comment.author,
+                    color = replyNameColor(comment),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = if (replyUsesHandle(comment)) FontWeight.Medium else FontWeight.SemiBold),
+                )
             }
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
             if (folded && onToggleFold != null) {
@@ -685,6 +692,8 @@ fun CommentRow(
                 codeFont = Inter,
                 network = MentionNetwork.Reddit,
                 onOpen = onOpen,
+                mentionColor = PaneHandle,
+                mentionPressed = PaneHandlePressed,
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -722,9 +731,17 @@ private fun XReplyRow(
                     size = 32.dp,
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+                    Text(
+                        comment.author,
+                        color = if (handle != null) PaneInk else replyNameColor(comment),
+                        style = TextStyle(
+                            fontFamily = Inter,
+                            fontSize = 14.sp,
+                            fontWeight = if (handle != null) FontWeight.SemiBold else FontWeight.Medium,
+                        ),
+                    )
                     if (handle != null) {
-                        Text("@$handle", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+                        Text("@$handle", color = PaneHandle, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
                     }
                 }
                 if (comment.age.isNotBlank()) {
@@ -747,6 +764,8 @@ private fun XReplyRow(
                     codeFont = Inter,
                     network = MentionNetwork.X,
                     onOpen = onOpen,
+                    mentionColor = PaneHandle,
+                    mentionPressed = PaneHandlePressed,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -872,10 +891,14 @@ fun QuoteCard(quote: ViewerQuoteUiModel, onOpen: (String) -> Unit) {
         val name = quote.authorName.ifBlank { quote.handle }
         Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
         if (quote.handle.isNotBlank()) {
-            Text("@${quote.handle}", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+            Text("@${quote.handle}", color = PaneHandle, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
         }
         if (quote.text.isNotBlank()) {
-            Text(quote.text, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp))
+            Text(
+                text = autolinkedCaption(quote.text, PaneInk, MentionNetwork.X, onOpen, PaneHandle, PaneHandlePressed),
+                color = PaneInk,
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+            )
         }
     }
 }
@@ -897,6 +920,18 @@ fun ExternalLinkCard(card: ViewerLinkCardUiModel, onOpen: (String) -> Unit) {
         }
     }
 }
+
+@Composable
+private fun replyNameColor(comment: CommentUiModel): Color {
+    val deleted = comment.author.equals("[deleted]", true) || comment.author.equals("[removed]", true)
+    if (deleted || comment.profileUrl.isNullOrBlank()) return if (deleted) PaneMuted else PaneInk
+    return PaneHandle
+}
+
+private fun replyUsesHandle(comment: CommentUiModel): Boolean =
+    !comment.profileUrl.isNullOrBlank() &&
+        !comment.author.equals("[deleted]", true) &&
+        !comment.author.equals("[removed]", true)
 
 /** Real profile photo. A letter shows only when the URL is missing or the image fails. */
 @Composable

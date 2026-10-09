@@ -169,11 +169,19 @@ class XLinkContentRepository(
         val primaryImage = images.firstOrNull().orEmpty()
         val isVideo = !video.isNullOrBlank()
         val replies = post.replies.filter { it.id != post.id }
-        val expanded = XRichText.expandShortLinks(post.text)
-        val withoutCard = listOfNotNull(post.article?.url, post.quote?.url)
-            .fold(expanded) { body, url -> body.replace(url, "") }
-            .trim()
-        val caption = withoutCard.ifBlank { post.article?.title ?: post.quote?.text ?: "X" }
+        val expanded = XRichText.expandShortLinks(
+            post.text,
+            stripMedia = images.isNotEmpty() || isVideo,
+            rendered = buildSet {
+                post.article?.url?.let(::add)
+                post.quote?.url?.let(::add)
+                post.linkCards.forEach { add(it.url) }
+            },
+        )
+        val caption = expanded.takeIf { XRichText.visible(it).isNotBlank() }
+            ?: post.article?.title
+            ?: post.quote?.text
+            ?: "X"
         return LinkContent(
             url = requestedUrl,
             title = caption,

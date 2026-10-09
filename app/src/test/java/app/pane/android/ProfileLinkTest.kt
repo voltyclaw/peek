@@ -3,6 +3,8 @@ package app.pane.android
 import app.pane.android.data.links.PaneEntry
 import app.pane.android.data.links.paneEntry
 import app.pane.android.data.links.profileHandoffFinishes
+import app.pane.android.data.links.mentionTapRecordsHistory
+import app.pane.android.data.links.profileHandoffRecordsHistory
 import app.pane.android.data.links.profileHandoffRecordsRecent
 import app.pane.android.data.links.profileLink
 import app.pane.android.ui.actions.ExternalStart
@@ -64,6 +66,8 @@ class ProfileLinkTest {
     fun aProfileHandoffDoesNotWriteRecentsAndFinishesOnlyForShareIn() {
         assertEquals(PaneEntry.ProfileHandoff, paneEntry("https://x.com/jack"))
         assertFalse(profileHandoffRecordsRecent())
+        assertFalse(profileHandoffRecordsHistory())
+        assertFalse(mentionTapRecordsHistory())
         assertTrue(profileHandoffFinishes(fromExternal = true, started = true))
         assertFalse(profileHandoffFinishes(fromExternal = false, started = true))
         assertFalse(profileHandoffFinishes(fromExternal = true, started = false))

@@ -20,6 +20,17 @@ class CommentMarkdownTest {
     private val linkColor = Color(0xFF3A8F6A)
 
     @Test
+    fun anExpandedShortLinkShowsTheDisplayTextAndOpensTheTarget() {
+        val text = autolinkedCaption(
+            "Full disclosures: [example.com/notes](https://example.com/notes).",
+            linkColor,
+        )
+        assertEquals("Full disclosures: example.com/notes.", text.text)
+        val link = text.getLinkAnnotations(0, text.length).map { it.item }.filterIsInstance<LinkAnnotation.Clickable>().single()
+        assertEquals("https://example.com/notes", link.tag)
+    }
+
+    @Test
     fun plainTextIsUnchanged() {
         val text = redditCommentAnnotated("Just a sentence.", linkColor, bodyColor, FontFamily.Monospace)
         assertEquals("Just a sentence.", text.text)
