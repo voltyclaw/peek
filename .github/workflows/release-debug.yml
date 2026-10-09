@@ -1,0 +1,296 @@
+# Pane debug sideload release: tag push -> tests -> debug APK -> GitHub release.
+# PROPOSAL: lives in /workspace/pane/eng/ci until Forge opens the ship/ci-workflows PR.
+#
+# Trigger: `git push origin sideload-pane-debug-<semver>` (e.g. sideload-pane-debug-1.3.3).
+# A tag-push workflow runs from the workflow file *in the tagged commit*, so the
+# tagged commit must already contain this file (see CI_PLAN.md, "PR chain").
+#
+# The APK is DEBUG-SIGNED. Android only upgrades in place when the signing cert
+# matches, so:
+#   - REQUIRED repo variable EXPECTED_DEBUG_CERT_SHA256 pins the signer; the run fails
+#     before publishing if it is unset, malformed, or does not match the built APK.
+#   - OPTIONAL secret DEBUG_KEYSTORE_BASE64 (stored on the `sideload-release`
+#     environment, gated to sideload tags) supplies the keystore that produces that
+#     cert. Without it the runner's ephemeral key won't match the pin, so the run fails
+#     safely instead of shipping an APK that can't upgrade over earlier sideloads.
+#
+# Artifact policy: only allowlisted files (APK, .sha256, notes, test reports) are
+# staged, guarded (no keystores/.env/local.properties/private keys/SQLite DBs), and
+# uploaded with 7-day retention.
+name: Release debug sideload
+
+on:
+  push:
+    tags:
+      - "sideload-pane-debug-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-debug-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build and publish pane-debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Environment scopes the optional keystore secret to this job. Configure it
+    # (deployment tag rule `sideload-pane-debug-*`, optional Lead reviewer) BEFORE the
+    # first run; GitHub auto-creates an unprotected one otherwise.
+    environment: sideload-release
+    permissions:
+      contents: write # gh release create / upload
+    env:
+      TAG_PREFIX: sideload-pane-debug-
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }} # optional; build falls back to ""
+    steps:
+      - name: Checkout tagged commit (with tags, for the versionCode check)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require pinned signer (EXPECTED_DEBUG_CERT_SHA256)
+        id: pin
+        env:
+          EXPECTED_CERT: ${{ vars.EXPECTED_DEBUG_CERT_SHA256 }}
+        run: |
+          want=$(printf '%s' "${EXPECTED_CERT}" | tr -d ': \t\r\n' | tr 'A-F' 'a-f')
+          if [ -z "$want" ]; then
+            echo "::error::Repo variable EXPECTED_DEBUG_CERT_SHA256 is not set. It is required: pin the SHA-256 of the debug cert that signed earlier sideloads (apksigner verify --print-certs pane-debug-<prev>.apk)."
+            exit 1
+          fi
+          if ! [[ "$want" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::EXPECTED_DEBUG_CERT_SHA256 must be 64 hex chars (colons allowed); got ${#want} chars after normalising."
+            exit 1
+          fi
+          echo "cert=$want" >> "$GITHUB_OUTPUT"
+
+      - name: Parse tag and verify it matches versionName
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ver="${tag#"${TAG_PREFIX}"}"
+          if ! [[ "$ver" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Tag '$tag' is not ${TAG_PREFIX}<MAJOR.MINOR.PATCH>."
+            exit 1
+          fi
+          name=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts)
+          code=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts)
+          if [ "$(printf '%s\n' "$name" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "$code" | grep -c .)" -ne 1 ]; then
+            echo "::error file=app/build.gradle.kts::Expected exactly one versionName and one versionCode literal (got name='$name' code='$code')."
+            exit 1
+          fi
+          if [ "$name" != "$ver" ]; then
+            echo "::error file=app/build.gradle.kts::Tag version $ver does not match versionName $name. Bump versionName (and versionCode) or fix the tag."
+            exit 1
+          fi
+          {
+            echo "ver=$ver"
+            echo "code=$code"
+            echo "apk=pane-debug-$ver.apk"
+          } >> "$GITHUB_OUTPUT"
+          echo "Tag $tag matches versionName $name (versionCode $code)."
+
+      - name: Verify versionCode increased since the previous sideload tag
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          prev=$(git tag --list "${TAG_PREFIX}*" \
+            | sed "s/^${TAG_PREFIX}//" \
+            | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | { cat; echo "$VER"; } | sort -uV \
+            | awk -v cur="$VER" '$0==cur{print last; exit} {last=$0}')
+          if [ -z "$prev" ]; then
+            echo "No earlier ${TAG_PREFIX}* tag; skipping versionCode check."
+            exit 0
+          fi
+          prev_code=$(git show "${TAG_PREFIX}${prev}:app/build.gradle.kts" 2>/dev/null \
+            | sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' | head -n1) || true
+          if [ -z "$prev_code" ]; then
+            echo "::warning::Could not read versionCode at ${TAG_PREFIX}${prev}; skipping check."
+            exit 0
+          fi
+          if [ "$CODE" -le "$prev_code" ]; then
+            echo "::error file=app/build.gradle.kts::versionCode $CODE must be greater than $prev_code (from ${TAG_PREFIX}${prev})."
+            exit 1
+          fi
+          echo "versionCode $CODE > $prev_code (${TAG_PREFIX}${prev})."
+
+      - name: Fail early if the release already exists
+        # Manual `gh release create` also creates the tag and fires this workflow.
+        # Never overwrite a release someone already published by hand.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${GITHUB_REF_NAME} already exists (published manually?). Not overwriting it."
+            exit 1
+          fi
+
+      - name: Set up JDK 17 (matches jvmToolchain(17))
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+
+      - name: Restore shared debug keystore (optional secret)
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${DEBUG_KEYSTORE_BASE64}" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "${DEBUG_KEYSTORE_BASE64}" | base64 --decode > "$HOME/.android/debug.keystore"
+            echo "Using shared debug keystore from DEBUG_KEYSTORE_BASE64."
+          else
+            echo "::warning::DEBUG_KEYSTORE_BASE64 is not set on the sideload-release environment. The APK gets an ephemeral debug key, so the pinned-signer check below will fail and nothing is published."
+          fi
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -f "$HOME/.android/debug.keystore"
+
+      - name: Rename APK and write sha256
+        id: dist
+        env:
+          APK: ${{ steps.version.outputs.apk }}
+        run: |
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one debug APK, found ${#apks[@]}: ${apks[*]}"
+            exit 1
+          fi
+          mkdir -p dist
+          cp "${apks[0]}" "dist/$APK"
+          (cd dist && sha256sum "$APK" > "$APK.sha256" && sha256sum -c "$APK.sha256")
+          sha=$(cut -d' ' -f1 "dist/$APK.sha256")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Verify APK signer against pinned cert (required)
+        id: signer
+        env:
+          APK: ${{ steps.version.outputs.apk }}
+          WANT: ${{ steps.pin.outputs.cert }}
+        run: |
+          bt=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)
+          if ! out=$("$bt/apksigner" verify --print-certs "dist/$APK"); then
+            echo "::error::apksigner verify failed for dist/$APK"
+            exit 1
+          fi
+          printf '%s\n' "$out"
+          signers=$(printf '%s\n' "$out" | grep -cE '^Signer #[0-9]+ certificate SHA-256 digest:' || true)
+          if [ "$signers" -ne 1 ]; then
+            echo "::error::Expected exactly one signer, found $signers."
+            exit 1
+          fi
+          cert=$(printf '%s\n' "$out" | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})$/\1/p')
+          if [ "$cert" != "$WANT" ]; then
+            echo "::error::Signer cert ${cert:-<none>} != pinned EXPECTED_DEBUG_CERT_SHA256 $WANT. Not publishing: this APK would not upgrade over earlier sideloads. Is the sideload-release DEBUG_KEYSTORE_BASE64 secret set to the right keystore?"
+            exit 1
+          fi
+          echo "cert=$cert" >> "$GITHUB_OUTPUT"
+          echo "Signer matches pinned cert: $cert"
+
+      - name: Count unit tests
+        id: tests
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import glob, xml.etree.ElementTree as ET
+          t = f = 0
+          for p in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              r = ET.parse(p).getroot()
+              t += int(r.get("tests", 0))
+              f += int(r.get("failures", 0)) + int(r.get("errors", 0))
+          print(f"total={t}")
+          print(f"failed={f}")
+          PY
+
+      - name: Write release notes
+        env:
+          VER: ${{ steps.version.outputs.ver }}
+          CODE: ${{ steps.version.outputs.code }}
+          APK: ${{ steps.version.outputs.apk }}
+          SHA: ${{ steps.dist.outputs.sha }}
+          CERT: ${{ steps.signer.outputs.cert }}
+          TESTS: ${{ steps.tests.outputs.total }}
+          FAILED: ${{ steps.tests.outputs.failed }}
+        run: |
+          {
+            echo "Pane ${VER} (versionCode ${CODE}) debug sideload."
+            echo
+            # If the tag is annotated, its message becomes the changelog.
+            # (Re-fetch the tag: checkout can leave a lightweight copy of it.)
+            git fetch --quiet --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" || true
+            msg=""
+            if [ "$(git cat-file -t "${GITHUB_REF_NAME}")" = "tag" ]; then
+              msg=$(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" | sed '/^-----BEGIN PGP/,$d')
+            fi
+            if [ -n "$msg" ]; then printf '%s\n\n' "$msg"; fi
+            echo "File: \`${APK}\`"
+            echo "sha256: \`${SHA}\`"
+            echo "Signing cert SHA-256 (debug key): \`${CERT}\`"
+            echo "Unit tests: ${TESTS}, ${FAILED} failures."
+            echo "Commit: ${GITHUB_SHA}"
+            echo
+            echo "Debug-signed build for sideload testing only. Verify with: \`sha256sum -c ${APK}.sha256\`"
+          } > dist/notes.md
+          cat dist/notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.version.outputs.ver }}
+          APK: ${{ steps.version.outputs.apk }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/${APK}" "dist/${APK}.sha256" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "Pane ${VER} debug" \
+            --notes-file dist/notes.md
+
+      - name: Stage release outputs (allowlist)
+        id: stage-release
+        if: always()
+        env:
+          APK: ${{ steps.version.outputs.apk }}
+        run: |
+          bash .github/scripts/stage-artifacts.sh "$RUNNER_TEMP/upload/release" \
+            "dist/${APK:-pane-debug-unknown.apk}" \
+            "dist/${APK:-pane-debug-unknown.apk}.sha256" \
+            'dist/notes.md' \
+            'app/build/reports/tests/testDebugUnitTest' \
+            'app/build/test-results/testDebugUnitTest/*.xml'
+
+      - name: Guard release upload set
+        id: guard-release
+        if: always() && steps.stage-release.outcome == 'success'
+        run: bash .github/scripts/artifact-guard.sh "$RUNNER_TEMP/upload/release"
+
+      - name: Keep build outputs on the run
+        if: always() && steps.guard-release.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ github.ref_name }}
+          path: ${{ runner.temp }}/upload/release/
+          if-no-files-found: ignore
+          retention-days: 7
