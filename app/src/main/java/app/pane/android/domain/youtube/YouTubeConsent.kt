@@ -198,6 +198,9 @@ class YouTubeSession(
         siteData.clear()
     }
 
+    /** Actual result of the last [withdraw]. Snackbar copy follows this, not the sheet's prediction. */
+    fun clearedAllSiteData(): Boolean = siteData.withdrawClearsAllSiteData
+
     private fun matchesPolicy(consent: YouTubeConsent?): Boolean =
         consent != null && consent.policyVersion == YouTubeConsentPolicy.VERSION && consent.acceptedAtEpochMillis > 0L
 }

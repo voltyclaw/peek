@@ -102,7 +102,9 @@ class DefaultAppContainer(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         produceFile = { File(context.filesDir, "link_content_cache.json") },
     )
-    private val linkContentCacheStore = LinkContentCacheStore(linkContentCacheDataStore)
+    private val linkContentCacheStore = LinkContentCacheStore(linkContentCacheDataStore).also { store ->
+        appScope.launch { store.repairStoredText() }
+    }
     private val instagramRepository = InstagramLinkContentRepository(
         pageLoaders = listOf(
             InstagramDirectPageLoader(),

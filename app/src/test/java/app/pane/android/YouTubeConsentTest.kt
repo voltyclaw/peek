@@ -161,7 +161,7 @@ class YouTubeConsentTest {
         )
         assertEquals(paneTerms, english.first { it.url == "" }.label)
         assertEquals(terms, english.first { it.url == "https://www.youtube.com/t/terms" }.label)
-        assertEquals(google, english.first { it.url == "https://www.google.com/policies/privacy" }.label)
+        assertEquals(google, english.first { it.url == "https://policies.google.com/privacy" }.label)
         assertTrue(english.any { it.label.contains("also apply") })
 
         val hePaneTerms = "תנאי השימוש של Pane"
@@ -186,7 +186,7 @@ class YouTubeConsentTest {
         "\u0001" to (paneTerms to ""),
         "\u0002" to (panePrivacy to "https://pane.example/privacy"),
         "\u0003" to (terms to "https://www.youtube.com/t/terms"),
-        "\u0004" to (google to "https://www.google.com/policies/privacy"),
+        "\u0004" to (google to "https://policies.google.com/privacy"),
     )
 
     private fun session(

@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -78,8 +79,11 @@ import app.pane.android.domain.model.HistoryGesture
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
+import app.pane.android.domain.text.firstGrapheme
+import app.pane.android.domain.text.UnicodeEscapes
 import app.pane.android.ui.text.BidiText
-import app.pane.android.ui.text.userContent
+import app.pane.android.ui.text.ledgerBidi
+import app.pane.android.ui.text.ledgerRow
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.domain.model.RowTitles
@@ -145,6 +149,7 @@ fun LedgerSwipeRow(
         Box(
             Modifier
                 .fillMaxWidth()
+                .clipToBounds()
                 .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
                 .pointerInput(row.url, row.starred) {
                     val slop = viewConfiguration.touchSlop
@@ -195,8 +200,14 @@ fun LedgerSwipeRow(
                     }
                 },
         ) {
-            SwipeBackground(kind = kind, past = past, left = left, color = background)
-            Box(Modifier.offset { IntOffset(offsetPx.roundToInt(), 0) }) {
+            SwipeBackground(
+                kind = kind,
+                past = past,
+                left = left,
+                color = background,
+                modifier = Modifier.matchParentSize(),
+            )
+            Box(Modifier.fillMaxWidth().offset { IntOffset(offsetPx.roundToInt(), 0) }) {
                 LedgerBody(
                     row = row,
                     held = held,
@@ -221,7 +232,13 @@ fun LedgerSwipeRow(
 }
 
 @Composable
-private fun SwipeBackground(kind: HistoryGesture, past: Boolean, left: Boolean, color: Color) {
+private fun SwipeBackground(
+    kind: HistoryGesture,
+    past: Boolean,
+    left: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
     val label = when (kind) {
         HistoryGesture.Remove -> stringResource(R.string.swipe_remove)
         HistoryGesture.Star -> stringResource(R.string.star)
@@ -235,7 +252,7 @@ private fun SwipeBackground(kind: HistoryGesture, past: Boolean, left: Boolean, 
     val iconSize = if (past) 26.dp else 18.dp
     val inset = if (past) 46.dp else 40.dp
     val tint = if (past) PaneInk else PaneMuted
-    Box(Modifier.fillMaxSize().background(color)) {
+    Box(modifier.background(color)) {
         Row(
             modifier = Modifier
                 .align(if (left) Alignment.CenterEnd else Alignment.CenterStart)
@@ -336,20 +353,20 @@ private fun LedgerBody(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = title,
+                text = ledgerBidi(title),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold).userContent(),
+                style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold).ledgerRow(),
             )
             val meta = BidiText.join(listOf(row.identity, row.timeLabel))
             if (meta.isNotBlank()) {
                 Text(
-                    text = meta,
+                    text = ledgerBidi(meta),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp).userContent(),
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp).ledgerRow(),
                 )
             }
         }
@@ -370,7 +387,7 @@ private fun LedgerBody(
 @Composable
 private fun ledgerTitle(row: LedgerRowUi): String {
     if (row.title.isBlank() && row.identity == "bsky.app") return stringResource(R.string.bs_gone_title)
-    return RowTitles.display(row.title, "", row.url)
+    return RowTitles.display(UnicodeEscapes.decode(row.title), "", row.url)
 }
 
 @Composable
@@ -382,7 +399,7 @@ private fun Poster(
     globe: Boolean,
     markAsAvatar: Boolean,
 ) {
-    val letter = identity.trim().removePrefix("@").removePrefix("r/").firstOrNull { it.isLetterOrDigit() }?.uppercase()
+    val letter = firstGrapheme(identity).takeIf { it.isNotEmpty() }
     var failed by remember(pfp) { mutableStateOf(false) }
     val showPhoto = pfp != null && !failed
     val showGlobe = globe && !showPhoto
@@ -393,7 +410,7 @@ private fun Poster(
                 pfp,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
-                onError = { if (globe) failed = true },
+                onError = { failed = true },
             )
         } else if (showGlobe) {
             Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {

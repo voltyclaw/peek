@@ -130,17 +130,18 @@ fun LinkContent.toHistoryView(recordUrl: String, viewedAtEpochMillis: Long): His
     )
 }
 
-private fun LinkContent.historyTitle(recordUrl: String): String = when (source) {
-    LinkSource.YouTube -> YouTubeRowCopy.title(title, (sourceMetadata as? YouTubeMetadata)?.videoId.orEmpty())
-    LinkSource.Bluesky -> title
-    else -> {
-        val named = (sourceMetadata as? ExternalPostMetadata)?.let { meta ->
-            meta.articleTitle?.takeIf { it.isNotBlank() }
-                ?: meta.linkCards.firstOrNull { it.title.isNotBlank() }?.title
-                ?: meta.linkCards.firstOrNull { it.label.isNotBlank() }?.label
-        }.orEmpty()
-        RowTitles.display(title, title, recordUrl, named)
+private fun LinkContent.historyTitle(recordUrl: String): String {
+    if (source == LinkSource.YouTube) {
+        return YouTubeRowCopy.title(title, (sourceMetadata as? YouTubeMetadata)?.videoId.orEmpty())
     }
+    if (source == LinkSource.Bluesky) return title
+    val named = (sourceMetadata as? ExternalPostMetadata)?.let { meta ->
+        meta.articleTitle?.takeIf { it.isNotBlank() }
+            ?: meta.linkCards.firstOrNull { it.title.isNotBlank() }?.title
+            ?: meta.linkCards.firstOrNull { it.label.isNotBlank() }?.label
+    }.orEmpty()
+    if (source == LinkSource.X) return RowTitles.xTitle(title, title, recordUrl, named, historyHandle())
+    return RowTitles.display(title, title, recordUrl, named)
 }
 
 private fun LinkContent.historyHandle(): String {

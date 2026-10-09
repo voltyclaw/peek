@@ -34,6 +34,30 @@ object RowTitles {
         if (fallback.isNotBlank() && !looksLikeUrl(fallback)) return fallback
         return app.pane.android.domain.text.LinkLabels.domain(pageUrl) ?: "Link"
     }
+
+    /** A stored host, such as `x.com`, is not the post. */
+    fun isDomainOnly(text: String, pageUrl: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return false
+        val domain = app.pane.android.domain.text.LinkLabels.domain(pageUrl) ?: return false
+        return trimmed.equals(domain, ignoreCase = true) || trimmed.equals("www.$domain", ignoreCase = true)
+    }
+
+    /**
+     * X row title. Post text, then the article or card, then `Post by @handle`.
+     * The domain is only the last resort.
+     */
+    fun xTitle(title: String, caption: String, pageUrl: String, named: String = "", handle: String = ""): String {
+        val cleaned = sequenceOf(title, caption)
+            .map(::withoutShortLinks)
+            .firstOrNull { it.isNotBlank() && !looksLikeUrl(it) && !isDomainOnly(it, pageUrl) }
+        if (cleaned != null) return cleaned
+        val card = withoutShortLinks(named)
+        if (card.isNotBlank() && !looksLikeUrl(card) && !isDomainOnly(card, pageUrl)) return card
+        val user = handle.trim().removePrefix("@")
+        if (user.isNotBlank() && !looksLikeUrl(user)) return "Post by @$user"
+        return app.pane.android.domain.text.LinkLabels.domain(pageUrl) ?: "Link"
+    }
 }
 
 object YouTubeRowCopy {

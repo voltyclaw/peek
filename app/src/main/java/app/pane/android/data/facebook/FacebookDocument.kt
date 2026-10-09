@@ -1,6 +1,7 @@
 package app.pane.android.data.facebook
 
 import app.pane.android.domain.model.AuthorLines
+import app.pane.android.domain.text.UnicodeEscapes
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -65,7 +66,7 @@ object FacebookDocument {
             text = caption,
             imageUrls = images,
             videoUrl = video,
-            authorAvatarUrl = actor?.avatarUrl,
+            authorAvatarUrl = actor?.avatarUrl ?: pageAvatar(html, actor?.name.orEmpty(), images),
             videos = videos,
             videoHint = video != null || type.contains("video", ignoreCase = true),
         )
@@ -352,14 +353,53 @@ object FacebookDocument {
             val char = source[index]
             if (char == '"') break
             if (char == '\\' && index + 1 < source.length) {
-                out.append(source[index + 1])
-                index += 2
+                when (val next = source[index + 1]) {
+                    'u', 'U' -> {
+                        val hex = if (index + 6 <= source.length) source.substring(index + 2, index + 6) else ""
+                        val point = hex.toIntOrNull(16)
+                        if (point != null && hex.length == 4) {
+                            out.appendCodePoint(point)
+                            index += 6
+                        } else {
+                            out.append(next)
+                            index += 2
+                        }
+                    }
+                    '"', '\\', '/' -> {
+                        out.append(next)
+                        index += 2
+                    }
+                    'n' -> {
+                        out.append('\n')
+                        index += 2
+                    }
+                    'r' -> {
+                        out.append('\r')
+                        index += 2
+                    }
+                    't' -> {
+                        out.append('\t')
+                        index += 2
+                    }
+                    'b' -> {
+                        out.append('\b')
+                        index += 2
+                    }
+                    'f' -> {
+                        out.append('\u000C')
+                        index += 2
+                    }
+                    else -> {
+                        out.append(next)
+                        index += 2
+                    }
+                }
                 continue
             }
             out.append(char)
             index += 1
         }
-        return out.toString()
+        return UnicodeEscapes.decode(out.toString())
     }
 
     private fun isGeneric(value: String): Boolean {
@@ -482,11 +522,39 @@ object FacebookDocument {
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .replace("&nbsp;", " ")
-        return named
+        val entities = named
             .replace(Regex("&#(\\d+);")) { match -> match.groupValues[1].toIntOrNull()?.toChar()?.toString() ?: match.value }
             .replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
                 match.groupValues[1].toIntOrNull(16)?.toChar()?.toString() ?: match.value
             }
+        return UnicodeEscapes.decode(entities)
+    }
+
+    /** Page or profile photo when the actor object has none. A post og:image is not a face. */
+    private fun pageAvatar(html: String, author: String, postImages: List<String>): String? {
+        val keys = listOf("profile_picture", "profile_pic_url", "profile_pic")
+        for (key in keys) {
+            val raw = firstJsonString(html, key) ?: continue
+            val url = cleanUrl(raw)
+            if (isAvatar(url, postImages)) return url
+        }
+        if (author.isNotBlank()) {
+            val fromAlt = Regex("""<img\b[^>]*>""", RegexOption.IGNORE_CASE).findAll(html).firstNotNullOfOrNull { match ->
+                val tag = match.value
+                val alt = attr(tag, "alt")?.let(::unescape)?.trim()
+                val src = attr(tag, "src")?.let(::cleanUrl)
+                if (alt == author && src != null && isAvatar(src, postImages)) src else null
+            }
+            if (fromAlt != null) return fromAlt
+        }
+        val og = metas(html)["og:image"]?.let(::cleanUrl) ?: return null
+        if (!looksLikeProfilePic(og) || !isRemote(og)) return null
+        return og
+    }
+
+    private fun looksLikeProfilePic(url: String): Boolean {
+        val lower = url.lowercase()
+        return "profile" in lower || "p50x50" in lower || "s50x50" in lower
     }
 
     private val META_TAG = Regex("""<meta\b[^>]*>""", RegexOption.IGNORE_CASE)

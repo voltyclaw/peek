@@ -1,6 +1,7 @@
 package app.pane.android.ui.media
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.os.SystemClock
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -55,18 +56,49 @@ internal fun controlsAutoHide(
     touchExplorationEnabled: Boolean,
 ): Boolean = playing && !scrubbing && !touchExplorationEnabled
 
-internal enum class FullscreenOrientationLock { SensorLandscape, Portrait }
+/** What fullscreen asks the activity for. Never sensor or sensor-landscape. */
+internal enum class FullscreenOrientationRequest { FullUser, Portrait, UserLandscape }
+
+/** A tap on the rotate control. None follows the user sensor only while fullscreen is open. */
+internal enum class ManualOrientationLock { None, Portrait, UserLandscape }
+
+internal enum class RotateControlLabel { ToLandscape, ToPortrait }
 
 /**
- * Landscape video follows the sensor but stays landscape.
- * Portrait, tall, square, and unknown frames stay portrait.
+ * Entering fullscreen keeps the orientation the phone is already in.
+ * [FullscreenOrientationRequest.FullUser] turns only when the phone turns and system auto-rotate is on.
  */
-internal fun fullscreenOrientation(contentWidthPx: Float, contentHeightPx: Float): FullscreenOrientationLock {
-    if (contentWidthPx > 1f && contentHeightPx > 1f && contentWidthPx > contentHeightPx) {
-        return FullscreenOrientationLock.SensorLandscape
-    }
-    return FullscreenOrientationLock.Portrait
+internal fun fullscreenEnterRequest(): FullscreenOrientationRequest = FullscreenOrientationRequest.FullUser
+
+internal fun orientationRequest(lock: ManualOrientationLock): FullscreenOrientationRequest = when (lock) {
+    ManualOrientationLock.None -> FullscreenOrientationRequest.FullUser
+    ManualOrientationLock.Portrait -> FullscreenOrientationRequest.Portrait
+    ManualOrientationLock.UserLandscape -> FullscreenOrientationRequest.UserLandscape
 }
+
+/** First tap locks to the other side of the current configuration. Later taps swap portrait and landscape. */
+internal fun nextManualLock(current: ManualOrientationLock, deviceLandscape: Boolean): ManualOrientationLock =
+    when (current) {
+        ManualOrientationLock.None ->
+            if (deviceLandscape) ManualOrientationLock.Portrait else ManualOrientationLock.UserLandscape
+        ManualOrientationLock.Portrait -> ManualOrientationLock.UserLandscape
+        ManualOrientationLock.UserLandscape -> ManualOrientationLock.Portrait
+    }
+
+internal fun rotateControlLabel(current: ManualOrientationLock, deviceLandscape: Boolean): RotateControlLabel =
+    when (nextManualLock(current, deviceLandscape)) {
+        ManualOrientationLock.Portrait -> RotateControlLabel.ToPortrait
+        ManualOrientationLock.UserLandscape, ManualOrientationLock.None -> RotateControlLabel.ToLandscape
+    }
+
+internal fun activityOrientation(request: FullscreenOrientationRequest): Int = when (request) {
+    FullscreenOrientationRequest.FullUser -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+    FullscreenOrientationRequest.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    FullscreenOrientationRequest.UserLandscape -> ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+}
+
+/** Leaving fullscreen drops a manual lock and puts back the request saved on the way in. */
+internal fun orientationAfterExit(savedRequest: Int): Int = savedRequest
 
 @Composable
 internal fun rememberTouchExplorationEnabled(): Boolean {

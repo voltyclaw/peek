@@ -3,6 +3,7 @@ package app.pane.android.ui.tiktok
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material3.Icon
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -31,11 +33,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +84,16 @@ import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneMuted
 import app.pane.android.ui.theme.PaneOnFill
 import app.pane.android.ui.theme.PaneTile
+import app.pane.android.ui.media.FullscreenOrientationRequest
+import app.pane.android.ui.media.ManualOrientationLock
+import app.pane.android.ui.media.RotateControlLabel
+import app.pane.android.ui.media.activityOrientation
+import app.pane.android.ui.media.nextManualLock
+import app.pane.android.ui.media.orientationRequest
+import app.pane.android.ui.media.rotateControlLabel
+import app.pane.android.ui.youtube.YouTubeConsentLinks
+import app.pane.android.ui.youtube.consentPieces
+import java.util.Locale
 
 /**
  * TODO: counsel review — TikTok agreement copy is a draft. Guard owns the final wording and Hebrew.
@@ -163,8 +178,7 @@ private fun TikTokPoster(hostLine: String, onPlay: () -> Unit, onOpenLink: (Stri
                 style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
             )
         }
-        val line = stringResource(R.string.tt_agree_line)
-        Agreement(line, onOpenLink)
+        Agreement(onOpenLink)
         if (hostLine.isNotBlank()) {
             Text(hostLine, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp), textAlign = TextAlign.Center)
         }
@@ -173,51 +187,64 @@ private fun TikTokPoster(hostLine: String, onPlay: () -> Unit, onOpenLink: (Stri
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Agreement(line: String, onOpenLink: (String) -> Unit) {
-    val paneTerms = line.indexOf("Pane's Terms")
-    val firstPrivacy = line.indexOf("Privacy Policy")
-    val tiktokTerms = line.indexOf("TikTok's Terms")
-    val secondPrivacy = line.indexOf("Privacy Policy", (firstPrivacy + 1).coerceAtLeast(0))
-    val pieces = listOf(
-        paneTerms to (paneTerms + "Pane's Terms".length) to TikTokConsentLinks.PANE_TERMS,
-        firstPrivacy to (firstPrivacy + "Privacy Policy".length) to TikTokConsentLinks.PANE_PRIVACY,
-        tiktokTerms to (tiktokTerms + "TikTok's Terms".length) to TikTokConsentLinks.TIKTOK_TERMS,
-        secondPrivacy to (secondPrivacy + "Privacy Policy".length) to TikTokConsentLinks.TIKTOK_PRIVACY,
-    ).filter { (range, _) -> range.first >= 0 }
+private fun Agreement(onOpenLink: (String) -> Unit) {
+    val paneTerms = stringResource(R.string.tt_agree_link_pane_terms)
+    val panePrivacy = stringResource(R.string.tt_agree_link_pane_privacy)
+    val tiktokTerms = stringResource(R.string.tt_agree_link_tiktok_terms)
+    val tiktokPrivacy = stringResource(R.string.tt_agree_link_tiktok_privacy)
+    val line = stringResource(R.string.tt_agree_line, "\u0001", "\u0002", "\u0003", "\u0004")
+    val links = listOf(
+        "\u0001" to (paneTerms to TikTokConsentLinks.PANE_TERMS),
+        "\u0002" to (panePrivacy to YouTubeConsentLinks.panePrivacy(Locale.getDefault().language)),
+        "\u0003" to (tiktokTerms to TikTokConsentLinks.TIKTOK_TERMS),
+        "\u0004" to (tiktokPrivacy to TikTokConsentLinks.TIKTOK_PRIVACY),
+    )
+    val annotated = tikTokAgreementAnnotated(line, links)
     FlowRow(horizontalArrangement = Arrangement.Center) {
         Text(
-            buildAnnotatedString {
-                var cursor = 0
-                pieces.sortedBy { it.first.first }.forEach { (range, url) ->
-                    if (range.first > cursor) append(line.substring(cursor, range.first))
-                    if (url.isNotBlank()) {
-                        pushStringAnnotation("url", url)
-                        withStyle(SpanStyle(color = PaneInk)) { append(line.substring(range.first, range.second)) }
-                        pop()
-                    } else {
-                        append(line.substring(range.first, range.second))
-                    }
-                    cursor = range.second
-                }
-                if (cursor < line.length) append(line.substring(cursor))
-            },
+            annotated,
             color = PaneMuted,
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center),
-            modifier = Modifier.clickable {
-                // Link taps are handled below by the annotation walk in the poster button's sibling.
-            },
         )
     }
-    pieces.filter { it.second.isNotBlank() }.forEach { (range, url) ->
+    consentPieces(line, links).filter { it.url != null }.forEach { piece ->
+        val url = piece.url.orEmpty()
         Text(
-            text = line.substring(range.first, range.second),
+            text = piece.label,
             modifier = Modifier
                 .heightIn(min = 48.dp)
-                .clickable(role = Role.Button) { onOpenLink(url) }
+                .clickable(role = Role.Button, enabled = url.isNotBlank()) {
+                    if (url.isNotBlank()) onOpenLink(url)
+                }
                 .padding(horizontal = 4.dp),
             color = PaneInk,
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
         )
+    }
+}
+
+/** Four link slots. Hebrew prefixes stay outside the annotations. */
+internal fun tikTokAgreementAnnotated(
+    template: String,
+    links: List<Pair<String, Pair<String, String>>>,
+): AnnotatedString = buildAnnotatedString {
+    consentPieces(template, links).forEach { piece ->
+        val url = piece.url
+        if (url == null) {
+            append(piece.label)
+        } else {
+            pushStringAnnotation(tag = "url", annotation = url)
+            pushLink(
+                LinkAnnotation.Clickable(
+                    tag = url.ifBlank { "pane" },
+                    styles = null,
+                    linkInteractionListener = null,
+                ),
+            )
+            append(piece.label)
+            pop()
+            pop()
+        }
     }
 }
 
@@ -251,11 +278,22 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
     var customView by remember { mutableStateOf<View?>(null) }
     var customCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
     var playing by remember { mutableStateOf(false) }
+    var manualLock by remember { mutableStateOf(ManualOrientationLock.None) }
+    var restoreOrientation by remember { mutableStateOf<Int?>(null) }
     val activity = context as? Activity
-    BackHandler(enabled = customView != null) {
+    val deviceLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    fun leaveCustomView() {
         customCallback?.onCustomViewHidden()
         customView = null
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        customCallback = null
+        manualLock = ManualOrientationLock.None
+        activity?.requestedOrientation = restoreOrientation ?: ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        restoreOrientation = null
+    }
+    BackHandler(enabled = customView != null) { leaveCustomView() }
+    LaunchedEffect(manualLock, customView) {
+        if (customView == null) return@LaunchedEffect
+        activity?.requestedOrientation = activityOrientation(orientationRequest(manualLock))
     }
     Box(Modifier.fillMaxWidth().onGloballyPositioned { coords ->
         val view = webView ?: return@onGloballyPositioned
@@ -291,15 +329,22 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                            if (restoreOrientation == null) {
+                                restoreOrientation = activity?.requestedOrientation
+                            }
                             customView = view
                             customCallback = callback
-                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                            manualLock = ManualOrientationLock.None
+                            activity?.requestedOrientation = activityOrientation(FullscreenOrientationRequest.FullUser)
                         }
 
                         override fun onHideCustomView() {
                             customView = null
                             customCallback?.onCustomViewHidden()
-                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            customCallback = null
+                            manualLock = ManualOrientationLock.None
+                            activity?.requestedOrientation = restoreOrientation ?: ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            restoreOrientation = null
                         }
                     }
                     addJavascriptInterface(object {
@@ -318,7 +363,35 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
             modifier = Modifier.fillMaxWidth(),
         )
         customView?.let { shown ->
-            AndroidView(factory = { shown }, modifier = Modifier.fillMaxWidth())
+            val rotateLabel = stringResource(
+                when (rotateControlLabel(manualLock, deviceLandscape)) {
+                    RotateControlLabel.ToLandscape -> R.string.rotate_to_landscape
+                    RotateControlLabel.ToPortrait -> R.string.rotate_to_portrait
+                },
+            )
+            Box(Modifier.fillMaxWidth()) {
+                AndroidView(factory = { shown }, modifier = Modifier.fillMaxWidth())
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp)
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(role = Role.Button) {
+                            manualLock = nextManualLock(manualLock, deviceLandscape)
+                        }
+                        .semantics { contentDescription = rotateLabel },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.ScreenRotation,
+                        contentDescription = rotateLabel,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
         }
     }
     DisposableEffect(lifecycle, webView) {
