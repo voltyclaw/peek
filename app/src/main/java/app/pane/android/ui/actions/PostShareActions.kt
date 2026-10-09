@@ -13,16 +13,39 @@ fun mediaClipData(context: Context, media: PreparedMedia): ClipData? =
         ClipData.newUri(context.contentResolver, "Media", uri)
     }
 
-/** Text placed on the system share sheet for the post itself, not its media file. */
-internal fun sharePostText(url: String, title: String?): String {
-    val headline = title?.trim()?.takeIf { it.isNotEmpty() && !it.equals(url, ignoreCase = true) }
-    return if (headline == null) url else "$headline\n$url"
+/**
+ * Pref hook for a "via Pane" footer. Default off. Nothing in Settings writes this yet.
+ * Callers pass [includeViaPane] from this default.
+ */
+object ShareViaPane {
+    const val PREF_KEY = "share_include_via_pane"
+    const val DEFAULT = false
 }
 
-fun sharePostIntent(url: String, title: String?): Intent =
+/**
+ * Text placed on the system share sheet for the post itself, not its media file.
+ * When [shareMessage] is set, the sheet is that line, a newline, then the post URL.
+ */
+internal fun sharePostText(
+    url: String,
+    title: String?,
+    shareMessage: String? = null,
+    includeViaPane: Boolean = ShareViaPane.DEFAULT,
+): String {
+    val line = shareMessage?.trim()?.takeIf { it.isNotEmpty() }
+    val core = if (line != null) {
+        "$line\n$url"
+    } else {
+        val headline = title?.trim()?.takeIf { it.isNotEmpty() && !it.equals(url, ignoreCase = true) }
+        if (headline == null) url else "$headline\n$url"
+    }
+    return if (includeViaPane) "$core\nvia Pane" else core
+}
+
+fun sharePostIntent(url: String, title: String?, shareMessage: String? = null): Intent =
     Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, sharePostText(url, title))
+        putExtra(Intent.EXTRA_TEXT, sharePostText(url, title, shareMessage))
     }
 
 fun shareMediaIntent(context: Context, media: List<PreparedMedia>): Intent? {

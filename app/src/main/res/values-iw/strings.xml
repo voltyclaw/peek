@@ -62,4 +62,5 @@
     <string name="rotate_to_portrait">סיבוב לאורך</string>
     <string name="tiktok_post_fallback">פוסט ב-TikTok</string>
     <string name="short_link_label">קישור מקוצר</string>
+    <string name="share_message_line">שלחו לך פוסט, לא ערב שלם.</string>
 </resources>

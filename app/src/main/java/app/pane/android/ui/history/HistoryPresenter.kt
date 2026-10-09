@@ -3,9 +3,11 @@ package app.pane.android.ui.history
 import androidx.annotation.DrawableRes
 import app.pane.android.R
 import app.pane.android.data.history.HistoryQueries
+import app.pane.android.domain.model.HistoryAppCount
 import app.pane.android.domain.model.HistoryBucket
 import app.pane.android.domain.model.HistoryEmptyKind
 import app.pane.android.domain.model.HistoryEntry
+import app.pane.android.domain.model.HistoryFilterCatalog
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.domain.model.HistoryQuery
 import app.pane.android.domain.model.HistoryScope
@@ -29,6 +31,10 @@ data class HistoryListUi(
     val scopeStarred: Boolean,
     val apps: List<SourceApp>,
     val selectedApps: Set<SourceApp>,
+    val selectedApp: SourceApp?,
+    val appCounts: List<HistoryAppCount>,
+    val scopeCount: Int,
+    val hairline: Boolean,
     val sections: List<HistorySectionUi>,
     val empty: HistoryEmptyKind,
 )
@@ -48,10 +54,15 @@ object HistoryPresenter {
                 rows = section.rows.map { entry -> row(entry, query, now, zone, locale) },
             )
         }
+        val selected = HistoryFilterCatalog.selectedApp(query.apps)
         return HistoryListUi(
             scopeStarred = query.scope == HistoryScope.Starred,
             apps = HistoryQueries.distinctApps(rows),
-            selectedApps = query.apps,
+            selectedApps = selected?.let { setOf(it) } ?: emptySet(),
+            selectedApp = selected,
+            appCounts = HistoryFilterCatalog.counts(rows, query.scope),
+            scopeCount = HistoryFilterCatalog.scopeCount(rows, query.scope),
+            hairline = query.scope == HistoryScope.Starred || selected != null,
             sections = sections,
             empty = HistoryLedger.emptyKind(
                 totalRows = rows.size,

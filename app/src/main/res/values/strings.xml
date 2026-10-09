@@ -53,6 +53,7 @@
     <string name="source_youtube">YouTube</string>
     <string name="source_tiktok">TikTok</string>
     <string name="source_bluesky">Bluesky</string>
+    <string name="source_other">Other</string>
     <string name="bs_more_replies">More replies live on Bluesky</string>
     <string name="bs_replying_to">Replying to %1$s</string>
     <string name="bs_gone_title">This one isn\'t on Bluesky anymore</string>
@@ -264,6 +265,19 @@
     <string name="history_starred">Starred</string>
     <string name="history_app">App</string>
     <string name="history_filter_app_all">All</string>
+    <!-- TODO: Quill 1.4.1 replaces these Option C placeholders. -->
+    <string name="history_filters_chip">Filters</string>
+    <string name="history_filters_chip_count">Filters · %d</string>
+    <string name="history_filters_sheet_title">Filter History</string>
+    <string name="history_filters_clear">Clear</string>
+    <string name="history_filters_section_apps">APPS</string>
+    <plurals name="history_filters_show_posts">
+        <item quantity="one">Show %d post</item>
+        <item quantity="other">Show %d posts</item>
+    </plurals>
+    <string name="a11y_filter_chip_remove">%1$s filter, remove</string>
+    <string name="a11y_filter_app_none">%1$s, no posts in History</string>
+    <string name="share_message_line">You were sent a post, not an afternoon.</string>
     <plurals name="media_saved_count">
         <item quantity="one">Saved to Downloads</item>
         <item quantity="other">Saved %1$d items</item>
