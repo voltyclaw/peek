@@ -3,9 +3,7 @@ package app.pane.android.ui.history
 import android.content.ClipData
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,9 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -92,7 +87,7 @@ fun HistoryRoute(
     val removedMessage = stringResource(R.string.history_removed_snack)
     val undo = stringResource(R.string.undo)
     var menu by remember { mutableStateOf<LedgerRowUi?>(null) }
-    var appMenu by remember { mutableStateOf(false) }
+    var filtersOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.notice.collect { notice ->
@@ -108,8 +103,9 @@ fun HistoryRoute(
         }
     }
 
+    val shareMessage = stringResource(R.string.share_message_line)
     fun share(row: LedgerRowUi) {
-        context.startActivity(Intent.createChooser(sharePostIntent(row.url, row.title), null))
+        context.startActivity(Intent.createChooser(sharePostIntent(row.url, row.title, shareMessage), null))
     }
 
     fun copy(url: String) {
@@ -119,15 +115,18 @@ fun HistoryRoute(
     Box(modifier.fillMaxSize().background(PaneGround)) {
         HistoryView(
             ui = ui,
-            appMenu = appMenu,
+            filtersOpen = filtersOpen,
             onBack = onBack,
             onOpen = onOpen,
             onShowAll = viewModel::showAll,
-            onShowStarred = viewModel::showStarred,
-            onToggleAppMenu = { appMenu = !appMenu },
-            onDismissAppMenu = { appMenu = false },
-            onToggleApp = viewModel::toggleApp,
-            onClearApps = viewModel::clearApps,
+            onToggleStarred = viewModel::toggleStarred,
+            onOpenFilters = { filtersOpen = true },
+            onDismissFilters = { filtersOpen = false },
+            onApplyApp = {
+                viewModel.selectApp(it)
+                filtersOpen = false
+            },
+            onClearApp = { viewModel.selectApp(null) },
             onSwipe = viewModel::swipe,
             onRemove = { viewModel.menu(it, HistoryRowAction.Remove) },
             onLongPress = { menu = it },
@@ -185,16 +184,16 @@ fun HistoryView(
     onBack: () -> Unit,
     onOpen: (String) -> Unit,
     onShowAll: () -> Unit,
-    onShowStarred: () -> Unit,
-    onToggleAppMenu: () -> Unit,
-    onDismissAppMenu: () -> Unit,
-    onToggleApp: (SourceApp) -> Unit,
-    onClearApps: () -> Unit,
+    onToggleStarred: () -> Unit,
+    onOpenFilters: () -> Unit,
+    onDismissFilters: () -> Unit,
+    onApplyApp: (SourceApp?) -> Unit,
+    onClearApp: () -> Unit,
     onSwipe: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onLongPress: (LedgerRowUi) -> Unit,
     modifier: Modifier = Modifier,
-    appMenu: Boolean = false,
+    filtersOpen: Boolean = false,
     onVisibleTikTok: (List<TikTokVisibleRow>) -> Unit = {},
 ) {
     val visibleTikTok = remember { androidx.compose.runtime.mutableStateMapOf<String, TikTokVisibleRow>() }
@@ -220,43 +219,26 @@ fun HistoryView(
                 style = TextStyle(fontFamily = PaneDisplay, fontSize = 22.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.025).em),
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HistoryChip(stringResource(R.string.history_all), selected = !ui.scopeStarred, onClick = onShowAll)
-            HistoryChip(stringResource(R.string.history_starred), selected = ui.scopeStarred, onClick = onShowStarred)
-            Box {
-                HistoryChip(
-                    label = stringResource(R.string.history_app),
-                    selected = ui.selectedApps.isNotEmpty(),
-                    trailing = true,
-                    onClick = onToggleAppMenu,
-                )
-                DropdownMenu(expanded = appMenu, onDismissRequest = onDismissAppMenu) {
-                    val allApps = ui.selectedApps.isEmpty()
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (allApps) {
-                                    "✓  ${stringResource(R.string.history_filter_app_all)}"
-                                } else {
-                                    stringResource(R.string.history_filter_app_all)
-                                },
-                            )
-                        },
-                        onClick = { onClearApps(); onDismissAppMenu() },
-                    )
-                    ui.apps.forEach { app ->
-                        val selected = app in ui.selectedApps
-                        DropdownMenuItem(
-                            text = { Text(if (selected) "✓  ${app.name}" else app.name) },
-                            onClick = { onToggleApp(app) },
-                        )
-                    }
-                }
-            }
+        HistoryFilterBar(
+            allSelected = !ui.scopeStarred && ui.selectedApp == null,
+            starred = ui.scopeStarred,
+            app = ui.selectedApp,
+            onAll = onShowAll,
+            onToggleStarred = onToggleStarred,
+            onOpenFilters = onOpenFilters,
+            onClearApp = onClearApp,
+        )
+        if (ui.hairline) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(PaneBorder))
+        }
+        if (filtersOpen) {
+            HistoryFilterSheet(
+                counts = ui.appCounts,
+                scopeCount = ui.scopeCount,
+                selected = ui.selectedApp,
+                onApply = onApplyApp,
+                onDismiss = onDismissFilters,
+            )
         }
         if (ui.empty != HistoryEmptyKind.None) {
             HistoryEmpty(ui.empty, Modifier.weight(1f))
@@ -337,28 +319,6 @@ fun HistoryEmpty(kind: HistoryEmptyKind, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = 8.dp),
             color = PaneMuted,
             style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp),
-        )
-    }
-}
-
-@Composable
-private fun HistoryChip(label: String, selected: Boolean, onClick: () -> Unit, trailing: Boolean = false) {
-    val shape = RoundedCornerShape(20.dp)
-    Row(
-        modifier = Modifier
-            .height(36.dp)
-            .clip(shape)
-            .then(if (selected) Modifier.background(PaneInk) else Modifier.border(1.dp, PaneBorder, shape))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = PaneGround, modifier = Modifier.size(14.dp))
-        Text(
-            text = if (trailing) "$label ▾" else label,
-            color = if (selected) PaneGround else PaneInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium),
         )
     }
 }

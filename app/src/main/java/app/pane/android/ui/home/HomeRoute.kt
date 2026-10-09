@@ -223,7 +223,9 @@ fun HomeRoute(
             onOpenHistory = onOpenHistory,
             onSwipeRecent = onSwipeRecent,
             onShareRecent = { url, title ->
-                context.startActivity(Intent.createChooser(sharePostIntent(url, title), null))
+                context.startActivity(
+                    Intent.createChooser(sharePostIntent(url, title, context.getString(R.string.share_message_line)), null),
+                )
             },
             onCopyRecent = { url ->
                 scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Link", url))) }

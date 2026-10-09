@@ -134,7 +134,12 @@ fun rememberPostActionCallbacks(
         },
         onSharePost = { url, title ->
             val launched = url.isNotBlank() && runCatching {
-                context.startActivity(Intent.createChooser(sharePostIntent(url, title), null))
+                context.startActivity(
+                    Intent.createChooser(
+                        sharePostIntent(url, title, context.getString(R.string.share_message_line)),
+                        null,
+                    ),
+                )
             }.isSuccess
             if (!launched) toast(actionFailed)
         },

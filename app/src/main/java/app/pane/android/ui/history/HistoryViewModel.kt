@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.pane.android.data.history.HistoryUrls
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.HistoryEntry
+import app.pane.android.domain.model.HistoryFilterCatalog
 import app.pane.android.domain.model.HistoryGesture
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.domain.model.HistoryQuery
@@ -65,17 +66,26 @@ class HistoryViewModel(
         initialValue = HistoryPresenter.present(emptyList(), initial, clock.nowEpochMillis(), zone),
     )
 
-    fun showAll() = update(query.value.copy(scope = HistoryScope.All))
-
-    fun showStarred() = update(query.value.copy(scope = HistoryScope.Starred))
-
-    fun toggleApp(app: SourceApp) {
-        val apps = query.value.apps.toMutableSet()
-        if (!apps.add(app)) apps.remove(app)
-        update(query.value.copy(apps = apps))
+    /** All clears Starred and the app. Tapping All when it is already the only selection does nothing. */
+    fun showAll() {
+        val current = query.value
+        if (current.scope == HistoryScope.All && current.apps.isEmpty()) return
+        update(HistoryQuery())
     }
 
-    fun clearApps() = update(query.value.copy(apps = emptySet()))
+    /** Tapping Starred again turns it off. An app filter stays. */
+    fun toggleStarred() {
+        val current = query.value
+        val scope = if (current.scope == HistoryScope.Starred) HistoryScope.All else HistoryScope.Starred
+        update(current.copy(scope = scope))
+    }
+
+    /** One app at a time. Null clears the app chip. */
+    fun selectApp(app: SourceApp?) {
+        val apps = app?.takeIf { it in HistoryFilterCatalog.order }?.let { setOf(it) } ?: emptySet()
+        if (query.value.apps == apps) return
+        update(query.value.copy(apps = apps))
+    }
 
     /** One expired TikTok thumbnail at a time, through the shared oEmbed bucket. */
     fun noteVisibleTikTok(rows: List<TikTokVisibleRow>) {
