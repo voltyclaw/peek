@@ -57,6 +57,10 @@ object LinkSettings {
         "twitter.com",
         "www.twitter.com",
         "mobile.twitter.com",
+        "www.youtube.com",
+        "youtube.com",
+        "m.youtube.com",
+        "youtu.be",
     )
 
     enum class LinkHandlingReport {

@@ -14,8 +14,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 44
-        versionName = "1.0.42"
+        versionCode = 46
+        versionName = "1.0.44"
     }
 
     buildTypes {

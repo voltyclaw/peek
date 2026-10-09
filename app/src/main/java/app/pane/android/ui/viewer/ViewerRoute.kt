@@ -36,6 +36,9 @@ import app.pane.android.ui.actions.rememberPostActionCallbacks
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.mediaItemsOrPrimary
+import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.domain.youtube.YouTubePlayer
+import app.pane.android.ui.youtube.YouTubeFrame
 
 @Composable
 fun ViewerRoute(
@@ -50,6 +53,9 @@ fun ViewerRoute(
     startMuted: () -> Boolean = { true },
     onMutedChange: (Boolean) -> Unit = {},
     onOpenLinked: ((String) -> Unit)? = null,
+    youTubeConsented: Boolean = false,
+    onAcceptYouTube: (String) -> Unit = {},
+    onYouTubePlayerShown: (String) -> Unit = {},
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -78,12 +84,34 @@ fun ViewerRoute(
     val viewportWidth = configuration.screenWidthDp * density.density
     val viewportHeight = configuration.screenHeightDp * density.density
     val content = viewerUiState as? ViewerUiState.Content
+    val sourceUrl = content?.post?.sourceUrl.orEmpty()
+    val youtubeId = remember(sourceUrl) { YouTubeUrls.videoId(sourceUrl) }
+    var acceptedYouTube by remember(sourceUrl) { mutableStateOf(false) }
+    val playingYouTube = youtubeId != null && (youTubeConsented || acceptedYouTube)
+    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube) {
+        if (youtubeId != null && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
+    }
+    val youtubeFrame = youtubeId?.let { id ->
+        YouTubeFrame(
+            embedUrl = if (playingYouTube) YouTubePlayer.embedUrl(id) else null,
+            onPlay = {
+                acceptedYouTube = true
+                onAcceptYouTube(id)
+            },
+            onOpenLink = { link ->
+                val started = openExternally(context, link, finishAfter = false)
+                if (!started) {
+                    Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+                }
+            },
+        )
+    }
     val items = content?.post?.mediaItemsOrPrimary().orEmpty()
     val mediaIndex = content?.post?.initialMediaIndex?.coerceIn(0, items.lastIndex.coerceAtLeast(0)) ?: 0
     val item = items.getOrNull(mediaIndex)
     val contentWidth = item?.width?.takeIf { it > 1 }?.toFloat() ?: measuredWidth
     val contentHeight = item?.height?.takeIf { it > 1 }?.toFloat() ?: measuredHeight
-    val openImmersive = VideoAutoplay.shouldOpen(
+    val openImmersive = youtubeId == null && VideoAutoplay.shouldOpen(
         alreadyOpened = handedToImmersive,
         contentWidthPx = contentWidth,
         contentHeightPx = contentHeight,
@@ -146,6 +174,7 @@ fun ViewerRoute(
                 measuredHeight = height
             }
         },
+        youtube = youtubeFrame,
         modifier = Modifier.fillMaxSize(),
     )
         PaneSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp))

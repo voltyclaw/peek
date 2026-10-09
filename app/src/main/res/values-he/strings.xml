@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO: counsel review — draft consent copy, not legal advice. -->
+    <string name="yt_consent_button">הפעלה ב-YouTube</string>
+    <string name="yt_consent_line">הקשה תפעיל את הסרטון בנגן של YouTube, ומשמעותה הסכמה ל%1$s, ל%2$s ול%3$s.</string>
+    <string name="yt_consent_link_yt_terms">תנאי השימוש של YouTube</string>
+    <string name="yt_consent_link_google_privacy">מדיניות הפרטיות של Google</string>
+    <string name="yt_consent_link_pane_privacy">מדיניות הפרטיות של Pane</string>
+    <string name="a11y_yt_consent_button">הפעלה ב-YouTube. הסכמה לתנאי השימוש של YouTube, למדיניות הפרטיות של Google ולמדיניות הפרטיות של Pane</string>
+    <string name="settings_yt_consent_title">הפעלת YouTube ב-Pane</string>
+    <string name="settings_yt_consent_summary_on">הנגן של YouTube פועל ב-Pane ומעביר מידע ל-Google.</string>
+    <string name="settings_yt_consent_summary_off">קישורי YouTube נפתחים באפליקציית YouTube.</string>
+    <string name="settings_yt_consent_confirm_title">לבטל את ההסכמה?</string>
+    <string name="settings_yt_consent_confirm_body">Pane תפסיק להפעיל סרטוני YouTube ותמחק את העוגיות של YouTube שנשמרו ב-Pane. קישורי YouTube ייפתחו באפליקציית YouTube.</string>
+    <string name="settings_yt_consent_confirm_ok">ביטול הסכמה</string>
+    <string name="settings_yt_consent_confirm_cancel">השארה</string>
+    <string name="settings_yt_consent_done">ההסכמה בוטלה. העוגיות של YouTube נמחקו.</string>
+</resources>

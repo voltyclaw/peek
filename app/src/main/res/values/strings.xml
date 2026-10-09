@@ -91,7 +91,7 @@
     <string name="loading">Loading</string>
     <string name="content_unavailable">Content unavailable</string>
     <string name="unsupported_link_title">This link isn\'t one Pane opens</string>
-    <string name="unsupported_link_description">Pane opens public Instagram, Reddit, Facebook, and X posts.</string>
+    <string name="unsupported_link_description">Pane opens public Instagram, Reddit, Facebook, X, and YouTube posts.</string>
     <string name="unsupported_link_label">LINK NOT SUPPORTED</string>
     <string name="load_failed_label">COULDN&#8217;T LOAD</string>
     <string name="load_failed_title">This link didn\'t open</string>
@@ -239,4 +239,19 @@
         <item quantity="one">Saved to Downloads</item>
         <item quantity="other">Saved %1$d items</item>
     </plurals>
+    <!-- TODO: counsel review — draft consent copy, not legal advice. -->
+    <string name="yt_consent_button">Play on YouTube</string>
+    <string name="yt_consent_line">Tapping plays this video with YouTube\'s player and means you agree to %1$s, %2$s and %3$s.</string>
+    <string name="yt_consent_link_yt_terms">YouTube\'s Terms</string>
+    <string name="yt_consent_link_google_privacy">Google\'s Privacy Policy</string>
+    <string name="yt_consent_link_pane_privacy">Pane\'s Privacy Policy</string>
+    <string name="a11y_yt_consent_button">Play on YouTube. Agrees to YouTube\'s Terms, Google\'s Privacy Policy and Pane\'s Privacy Policy</string>
+    <string name="settings_yt_consent_title">Play YouTube in Pane</string>
+    <string name="settings_yt_consent_summary_on">YouTube\'s player runs in Pane and shares data with Google.</string>
+    <string name="settings_yt_consent_summary_off">YouTube links open in the YouTube app.</string>
+    <string name="settings_yt_consent_confirm_title">Withdraw consent?</string>
+    <string name="settings_yt_consent_confirm_body">Pane will stop playing YouTube videos and will clear YouTube\'s cookies saved in Pane. YouTube links will open in the YouTube app.</string>
+    <string name="settings_yt_consent_confirm_ok">Withdraw</string>
+    <string name="settings_yt_consent_confirm_cancel">Keep</string>
+    <string name="settings_yt_consent_done">Consent withdrawn. YouTube cookies cleared.</string>
 </resources>

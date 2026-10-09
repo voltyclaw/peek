@@ -82,6 +82,7 @@ fun PeekNavigation(
     val activity = context as? Activity
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
+    var youTubeConsent by remember { mutableStateOf(container.youtube.hasConsent()) }
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
     var showSamples by remember {
         mutableStateOf(BuildConfig.DEBUG && SampleRecentsPreferences.read(context))
@@ -271,6 +272,11 @@ fun PeekNavigation(
                         if (BuildConfig.DEBUG) SampleRecentsPreferences.write(context, enabled)
                     },
                     onOpenSample = { url -> openFromHub(url) },
+                    youTubeConsent = youTubeConsent,
+                    onWithdrawYouTubeConsent = {
+                        container.youtube.withdraw()
+                        youTubeConsent = false
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
@@ -311,6 +317,14 @@ fun PeekNavigation(
                     onLeave = { while (backStack.size > 1) backStack.removeLastOrNull() },
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
                     onOpenLinked = { url -> openLinked(url) },
+                    youTubeConsented = youTubeConsent,
+                    onAcceptYouTube = { videoId ->
+                        container.youtube.accept(videoId, System.currentTimeMillis())
+                        youTubeConsent = true
+                    },
+                    onYouTubePlayerShown = { videoId ->
+                        container.youtube.open(videoId, app.pane.android.domain.youtube.YouTubeEntry.View)
+                    },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
