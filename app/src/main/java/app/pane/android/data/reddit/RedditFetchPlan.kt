@@ -15,7 +15,7 @@ package app.pane.android.data.reddit
  * The last request is the HTML comments page, used only when every JSON document fails.
  */
 object RedditFetchPlan {
-    const val CLIENT_USER_AGENT = "Pane/1.4.0 (public post viewer)"
+    const val CLIENT_USER_AGENT = "Pane/1.4.1 (public post viewer)"
     const val DESKTOP_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
