@@ -3,6 +3,7 @@ package app.pane.android.ui.home
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import app.pane.android.R
+import app.pane.android.data.webview.EmbedWebProfiles
 import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.source.ConsentLine
 import app.pane.android.domain.source.EmbedNote
@@ -61,7 +62,9 @@ fun rememberSourceRows(
                 links = linksFor(line.note),
                 canWithdraw = line.status == ConsentLine.Agreed || line.status == ConsentLine.Allowed,
                 withdrawTitle = stringResource(R.string.consent_withdraw_title, name),
-                withdrawBody = stringResource(withdrawRes(line.note)),
+                withdrawBody = stringResource(
+                    withdrawBodyRes(line.note, EmbedWebProfiles.expectsFullProfileClear(profileName(line.note))),
+                ),
             )
         } else {
             null
@@ -114,11 +117,22 @@ private fun detailRes(note: EmbedNote): Int = when (note) {
     EmbedNote.Threads -> R.string.consent_threads_detail_body
 }
 
-private fun withdrawRes(note: EmbedNote): Int = when (note) {
-    EmbedNote.YouTube -> R.string.consent_youtube_withdraw_body
-    EmbedNote.TikTok -> R.string.consent_tiktok_withdraw_body
-    EmbedNote.Instagram -> R.string.consent_instagram_withdraw_body
-    EmbedNote.Threads -> R.string.consent_threads_withdraw_body
+internal fun withdrawBodyRes(note: EmbedNote, fullClear: Boolean): Int = when (note) {
+    EmbedNote.YouTube -> if (fullClear) R.string.consent_youtube_withdraw_body_full else R.string.consent_youtube_withdraw_body_partial
+    EmbedNote.TikTok -> if (fullClear) R.string.consent_tiktok_withdraw_body_full else R.string.consent_tiktok_withdraw_body_partial
+    EmbedNote.Instagram -> if (fullClear) R.string.consent_instagram_withdraw_body_full else R.string.consent_instagram_withdraw_body_partial
+    EmbedNote.Threads -> if (fullClear) R.string.consent_threads_withdraw_body_full else R.string.consent_threads_withdraw_body_partial
+}
+
+/** Snackbar follows the clear that just ran, which can be partial even when the sheet promised a full clear. */
+internal fun withdrawnSnackbarRes(clearedAllSiteData: Boolean): Int =
+    if (clearedAllSiteData) R.string.consent_withdrawn_snackbar_full else R.string.consent_withdrawn_snackbar_partial
+
+private fun profileName(note: EmbedNote): String = when (note) {
+    EmbedNote.YouTube -> EmbedWebProfiles.YOUTUBE
+    EmbedNote.TikTok -> EmbedWebProfiles.TIKTOK
+    EmbedNote.Instagram -> EmbedWebProfiles.INSTAGRAM
+    EmbedNote.Threads -> EmbedWebProfiles.THREADS
 }
 
 @Composable

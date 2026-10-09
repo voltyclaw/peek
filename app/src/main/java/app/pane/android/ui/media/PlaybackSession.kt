@@ -3,6 +3,7 @@ package app.pane.android.ui.media
 /**
  * One playback owner for a post. Inline and fullscreen acquire the same player,
  * so position, volume, and play/pause survive the handoff. A new post replaces it.
+ * Manual rotation acquires the same post and media key again and keeps this player.
  */
 internal class PlaybackSession<T : ContinuablePlayer>(
     private val factory: (url: String) -> T,

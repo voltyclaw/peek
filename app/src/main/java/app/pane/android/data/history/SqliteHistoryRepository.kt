@@ -19,6 +19,7 @@ import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.model.toHistoryView
 import app.pane.android.domain.model.keepText
 import app.pane.android.domain.model.StarImageBytes
+import app.pane.android.domain.model.StoredTextRepair
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
 import app.pane.android.domain.tiktok.TikTokCopyRetention
@@ -36,6 +37,7 @@ internal class SqliteHistoryRepository(
 ) : HistoryRepository {
     private val lock = Any()
     private val entries = MutableStateFlow<List<HistoryEntry>>(emptyList())
+    private var textRepaired = false
 
     init {
         synchronized(lock) { reload() }
@@ -449,7 +451,28 @@ internal class SqliteHistoryRepository(
         val now = clock.nowEpochMillis()
         stripStaleYouTube(now)
         if (TikTokCopyRetention.ENFORCED) stripStaleTikTok(now)
+        repairStoredTextOnce()
         entries.value = sql.query("$SELECT_ROW ORDER BY last_viewed_at DESC, url ASC").map { it.toEntry() }
+    }
+
+    /** Rewrites escaped text and domain-only X titles already on disk. A second pass is a no-op. */
+    private fun repairStoredTextOnce() {
+        if (textRepaired) return
+        textRepaired = true
+        sql.query(SELECT_ROW).map { it.toEntry() }.forEach { row ->
+            val repaired = StoredTextRepair.history(
+                source = row.sourceApp,
+                url = row.url,
+                fields = StoredTextRepair.HistoryFields(row.title, row.authorName, row.handle, row.caption),
+            ) ?: return@forEach
+            sql.exec(
+                """
+                UPDATE history SET title = ?, author_name = ?, handle = ?, caption = ?
+                WHERE url = ?
+                """.trimIndent(),
+                listOf(repaired.title, repaired.authorName, repaired.handle, repaired.caption, row.url),
+            )
+        }
     }
 
     /** YouTube API fields older than 30 days are cleared. Pane-owned star, note, and view time stay. */

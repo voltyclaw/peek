@@ -21,8 +21,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 50
-        versionName = "1.3.1"
+        versionCode = 51
+        versionName = "1.3.2"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 

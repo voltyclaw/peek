@@ -173,6 +173,24 @@ class PlaybackHandoffTest {
     }
 
     @Test
+    fun manualRotationReusesThePlayerAndKeepsPosition() {
+        val session = session()
+        val before = session.acquire(POST, MEDIA, URL, freshMuted = true).player
+        before.positionMs = 22_000L
+        before.volume = 0.6f
+        before.playWhenReady = true
+
+        val after = session.acquire(POST, MEDIA, URL, freshMuted = true)
+
+        assertTrue(after.reused)
+        assertSame(before, after.player)
+        assertEquals(22_000L, after.player.positionMs)
+        assertEquals(0.6f, after.player.volume, 0.001f)
+        assertTrue(after.player.playWhenReady)
+        assertFalse(after.player.events.contains("release"))
+    }
+
+    @Test
     fun leavingThePostDropsThePlayer() {
         val session = session()
         val player = session.acquire(POST, MEDIA, URL, freshMuted = true).player

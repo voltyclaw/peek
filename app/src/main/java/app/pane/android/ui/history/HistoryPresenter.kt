@@ -13,6 +13,7 @@ import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.RowTitles
 import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.model.YouTubeRowCopy
+import app.pane.android.domain.text.UnicodeEscapes
 import app.pane.android.domain.tiktok.TikTokLinks
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
@@ -110,19 +111,26 @@ object HistoryPresenter {
     }
 
     private fun rowTitle(entry: HistoryEntry): String {
+        val title = UnicodeEscapes.decode(entry.title)
+        val caption = UnicodeEscapes.decode(entry.caption)
         if (entry.sourceApp == SourceApp.YouTube) {
             return YouTubeRowCopy.title(
-                entry.title.ifBlank { entry.caption },
+                title.ifBlank { caption },
                 YouTubeUrls.videoId(entry.url).orEmpty(),
             )
         }
-        if (entry.sourceApp == SourceApp.Bluesky && entry.title.isBlank() && entry.caption.isBlank()) return ""
-        return RowTitles.display(entry.title, entry.caption, entry.url)
+        if (entry.sourceApp == SourceApp.Bluesky && title.isBlank() && caption.isBlank()) return ""
+        if (entry.sourceApp == SourceApp.X) {
+            return RowTitles.xTitle(title, caption, entry.url, handle = UnicodeEscapes.decode(entry.handle))
+        }
+        return RowTitles.display(title, caption, entry.url)
     }
 
     private fun rowIdentity(entry: HistoryEntry): String {
-        if (entry.sourceApp == SourceApp.YouTube) return YouTubeRowCopy.identity(entry.authorName, entry.handle)
-        return HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName)
+        val author = UnicodeEscapes.decode(entry.authorName)
+        val handle = UnicodeEscapes.decode(entry.handle)
+        if (entry.sourceApp == SourceApp.YouTube) return YouTubeRowCopy.identity(author, handle)
+        return HistoryLedger.identity(entry.sourceApp, handle, author)
             .ifBlank { if (entry.sourceApp == SourceApp.Bluesky) "bsky.app" else "" }
     }
 }

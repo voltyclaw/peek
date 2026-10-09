@@ -133,6 +133,9 @@ class TikTokSession(
         siteData.clear()
     }
 
+    /** Actual result of the last [withdraw]. Snackbar copy follows this, not the sheet's prediction. */
+    fun clearedAllSiteData(): Boolean = siteData.withdrawClearsAllSiteData
+
     private fun matches(consent: TikTokConsent?): Boolean =
         consent != null && consent.policyVersion == TikTokConsentPolicy.VERSION && consent.acceptedAtEpochMillis > 0L
 

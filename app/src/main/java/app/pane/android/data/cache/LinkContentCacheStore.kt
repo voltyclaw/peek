@@ -2,6 +2,7 @@ package app.pane.android.data.cache
 
 import androidx.datastore.core.DataStore
 import app.pane.android.domain.model.LinkContent
+import app.pane.android.domain.model.StoredTextRepair
 import kotlinx.coroutines.flow.first
 
 /** A cached [content], tagged with the id of the resolver that produced it, if known. */
@@ -27,6 +28,20 @@ class LinkContentCacheStore(
     suspend fun remove(key: String) {
         dataStore.updateData { current ->
             current.copy(entries = current.entries.filterNot { it.key == key })
+        }
+    }
+
+    /** Rewrites escaped author and title text already in the cache. Unchanged documents stay put. */
+    suspend fun repairStoredText() {
+        dataStore.updateData { current ->
+            var changed = false
+            val next = current.entries.map { entry ->
+                val repaired = StoredTextRepair.linkContent(entry.content)
+                    ?: return@map entry
+                changed = true
+                entry.copy(content = repaired)
+            }
+            if (changed) current.copy(entries = next) else current
         }
     }
 }

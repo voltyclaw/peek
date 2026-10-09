@@ -304,13 +304,16 @@ fun PeekNavigation(
                                 youTubeConsent = false
                                 youTubeAgreedAt = null
                                 scope.launch { container.historyRepository.stripSourceDisplayCache(app.pane.android.domain.model.SourceApp.YouTube) }
+                                container.youtube.clearedAllSiteData()
                             }
                             "TikTok" -> {
                                 container.tiktok.withdraw()
                                 tikTokConsent = false
                                 tikTokAgreedAt = null
                                 scope.launch { container.historyRepository.stripSourceDisplayCache(app.pane.android.domain.model.SourceApp.TikTok) }
+                                container.tiktok.clearedAllSiteData()
                             }
+                            else -> false
                         }
                     },
                     modifier = Modifier.safeDrawingPadding(),

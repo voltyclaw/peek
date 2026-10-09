@@ -7,6 +7,16 @@
     <string name="yt_consent_link_google_privacy">מדיניות הפרטיות של Google</string>
     <string name="yt_consent_link_pane_privacy">מדיניות הפרטיות של Pane</string>
     <string name="a11y_yt_consent_button">הפעלה ב-YouTube. הסכמה לתנאי השימוש ולמדיניות הפרטיות של Pane</string>
+    <string name="tt_agree_line">ההפעלה משמעותה הסכמה ל%1$s ול%2$s של Pane. חלים גם %3$s ו%4$s של TikTok.</string>
+    <string name="tt_agree_link_pane_terms">תנאי השימוש</string>
+    <string name="tt_agree_link_pane_privacy">מדיניות הפרטיות</string>
+    <string name="tt_agree_link_tiktok_terms">תנאי השירות</string>
+    <string name="tt_agree_link_tiktok_privacy">מדיניות הפרטיות</string>
+    <string name="th_consent_button">הצגה דרך Threads</string>
+    <string name="th_consent_line">הקשה תטען את התצוגה המוטמעת של Threads מ-Meta. \u200FMeta מקבלת מידע על המכשיר שלך ועשויה להשתמש בעוגיות. פרטים ב%1$s, ב%2$s, ב%3$s וב%4$s.</string>
+    <string name="th_consent_decline">פתיחה באפליקציית Threads במקום</string>
+    <string name="a11y_th_consent_button">הצגה דרך Threads. טוען את התצוגה המוטמעת של Threads מ-Meta, שעשויה להשתמש בעוגיות</string>
+    <string name="th_post_short_link">פוסט</string>
     <string name="private_group_title">הפוסט הזה נמצא בקבוצה סגורה</string>
     <string name="private_group_body">Pane רואה רק פוסטים ציבוריים. אם יש לך גישה לקבוצה, %1$s יראה לך אותו.</string>
     <string name="settings_group_sources">מקורות</string>
@@ -29,11 +39,16 @@
     <string name="consent_withdraw">ביטול הסכמה</string>
     <string name="consent_withdraw_keep">השארה</string>
     <string name="consent_withdraw_title">לבטל את ההסכמה ל-%1$s?</string>
-    <string name="consent_youtube_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי הסרטונים השמורים של YouTube. מידע שכבר נמצא אצל Google לא מושפע. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור YouTube, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_tiktok_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי TikTok השמורים. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור TikTok, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_instagram_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Instagram. הכוכבים, ההערות והתגיות שלך נשארים. בפעם הבאה שיהיה צורך בתצוגה המוטמעת של Instagram, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_threads_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Threads. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור Threads, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_withdrawn_snackbar">ההסכמה בוטלה. העוגיות ורוב נתוני האתר של %1$s נמחקו.</string>
+    <string name="consent_youtube_withdraw_body_full">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר ופרטי הסרטונים השמורים של YouTube. מידע שכבר נמצא אצל Google לא מושפע. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור YouTube, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_youtube_withdraw_body_partial">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי הסרטונים השמורים של YouTube. מידע שכבר נמצא אצל Google לא מושפע. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור YouTube, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_tiktok_withdraw_body_full">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר ופרטי TikTok השמורים. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור TikTok, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_tiktok_withdraw_body_partial">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי TikTok השמורים. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור TikTok, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_instagram_withdraw_body_full">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר של Instagram. הכוכבים, ההערות והתגיות שלך נשארים. בפעם הבאה שיהיה צורך בתצוגה המוטמעת של Instagram, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_instagram_withdraw_body_partial">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Instagram. הכוכבים, ההערות והתגיות שלך נשארים. בפעם הבאה שיהיה צורך בתצוגה המוטמעת של Instagram, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_threads_withdraw_body_full">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר של Threads. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור Threads, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_threads_withdraw_body_partial">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Threads. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור Threads, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_withdrawn_snackbar_full">ההסכמה בוטלה. העוגיות ונתוני האתר של %1$s נמחקו.</string>
+    <string name="consent_withdrawn_snackbar_partial">ההסכמה בוטלה. העוגיות ורוב נתוני האתר של %1$s נמחקו.</string>
     <string name="consent_link_google_security">הגדרות האבטחה של Google</string>
     <string name="consent_link_pane_terms">תנאי השימוש של Pane</string>
     <string name="consent_link_tiktok_terms">תנאי השירות של TikTok</string>
@@ -43,6 +58,8 @@
     <string name="consent_link_meta_cookies">מדיניות קובצי Cookie של Meta</string>
     <string name="consent_link_threads_supp_privacy">מדיניות הפרטיות המשלימה של Threads</string>
     <string name="consent_link_instagram_terms">תנאי השימוש של Instagram</string>
+    <string name="rotate_to_landscape">סיבוב לרוחב</string>
+    <string name="rotate_to_portrait">סיבוב לאורך</string>
     <string name="tiktok_post_fallback">פוסט ב-TikTok</string>
     <string name="short_link_label">קישור מקוצר</string>
 </resources>

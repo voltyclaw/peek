@@ -50,7 +50,7 @@ import java.util.Locale
  */
 internal object YouTubeConsentLinks {
     const val YOUTUBE_TERMS = "https://www.youtube.com/t/terms"
-    const val GOOGLE_PRIVACY = "https://www.google.com/policies/privacy"
+    const val GOOGLE_PRIVACY = "https://policies.google.com/privacy"
     const val PANE_TERMS = ""
     const val PANE_PRIVACY = ""
     const val PANE_PRIVACY_HEBREW = ""

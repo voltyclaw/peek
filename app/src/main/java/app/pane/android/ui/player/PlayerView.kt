@@ -1,7 +1,7 @@
 package app.pane.android.ui.player
 
 import android.app.Activity
-import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -80,14 +82,18 @@ import app.pane.android.ui.media.VideoSurface
 import app.pane.android.ui.media.contentAspectRatio
 import app.pane.android.ui.media.displayVideoSize
 import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
-import app.pane.android.ui.media.FullscreenOrientationLock
+import app.pane.android.ui.media.ManualOrientationLock
+import app.pane.android.ui.media.RotateControlLabel
 import app.pane.android.ui.media.SurfaceGesture
 import app.pane.android.ui.media.SurfaceGestureAction
 import app.pane.android.ui.media.VideoSurfaceKind
+import app.pane.android.ui.media.activityOrientation
 import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
-import app.pane.android.ui.media.fullscreenOrientation
+import app.pane.android.ui.media.nextManualLock
+import app.pane.android.ui.media.orientationRequest
 import app.pane.android.ui.media.rememberPlaybackSession
+import app.pane.android.ui.media.rotateControlLabel
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.media.surfaceGestureAction
 import app.pane.android.ui.viewer.failureCopyRes
@@ -324,16 +330,19 @@ private fun MediaContent(
         }
     }
     val hostView = LocalView.current
-    val contentWidth = playbackSize?.first ?: currentItem.width?.toFloat() ?: 0f
-    val contentHeight = playbackSize?.second ?: currentItem.height?.toFloat() ?: 0f
-    val orientationLock = fullscreenOrientation(contentWidth, contentHeight)
-    LaunchedEffect(orientationLock) {
+    val deviceLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var manualLock by remember { mutableStateOf(ManualOrientationLock.None) }
+    val orientation = orientationRequest(manualLock)
+    LaunchedEffect(orientation) {
         val activity = hostView.context as? Activity ?: return@LaunchedEffect
-        activity.requestedOrientation = when (orientationLock) {
-            FullscreenOrientationLock.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            FullscreenOrientationLock.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
+        activity.requestedOrientation = activityOrientation(orientation)
     }
+    val rotateLabel = stringResource(
+        when (rotateControlLabel(manualLock, deviceLandscape)) {
+            RotateControlLabel.ToLandscape -> R.string.rotate_to_landscape
+            RotateControlLabel.ToPortrait -> R.string.rotate_to_portrait
+        },
+    )
     LaunchedEffect(touchExploration) {
         if (touchExploration) chromeVisible = true
     }
@@ -527,6 +536,8 @@ private fun MediaContent(
                     player.seekTo(target)
                 },
                 onSeekFinished = { scrubbing = false },
+                onRotate = { manualLock = nextManualLock(manualLock, deviceLandscape) },
+                rotateLabel = rotateLabel,
                 onExit = onBack,
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
             )
@@ -590,6 +601,8 @@ private fun FullscreenChrome(
     onToggleMute: () -> Unit,
     onSeek: (Float) -> Unit,
     onSeekFinished: () -> Unit,
+    onRotate: () -> Unit,
+    rotateLabel: String,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -670,12 +683,18 @@ private fun FullscreenChrome(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Box(
+            Row(
                 modifier = Modifier
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
                     .background(Color.Black.copy(alpha = 0.55f))
                     .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                ChromeButton(
+                    icon = Icons.Rounded.ScreenRotation,
+                    description = rotateLabel,
+                    onClick = onRotate,
+                )
                 ChromeButton(
                     icon = Icons.Rounded.FullscreenExit,
                     description = stringResource(R.string.exit_fullscreen),

@@ -76,7 +76,7 @@ fun HomeRoute(
     onOpenSample: (String) -> Unit = {},
     sourceRows: List<SourceRowUi> = emptyList(),
     onSourceShown: (String, Boolean) -> Unit = { _, _ -> },
-    onWithdrawSource: (String) -> Unit = {},
+    onWithdrawSource: (String) -> Boolean = { false },
 ) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
@@ -260,16 +260,18 @@ fun HomeRoute(
             sourceRows = sourceRows,
             onSourceShown = onSourceShown,
             onWithdrawSource = { id ->
-                onWithdrawSource(id)
+                val clearedAll = onWithdrawSource(id)
                 val name = when (id) {
                     "YouTube" -> context.getString(R.string.source_youtube)
                     "TikTok" -> context.getString(R.string.source_tiktok)
+                    "Instagram" -> context.getString(R.string.source_instagram)
+                    "Threads" -> context.getString(R.string.source_threads)
                     else -> null
                 }
                 if (name != null) {
                     scope.launch {
                         snackbarHostState.showForFiveSeconds(
-                            context.getString(R.string.consent_withdrawn_snackbar, name),
+                            context.getString(withdrawnSnackbarRes(clearedAll), name),
                         )
                     }
                 }

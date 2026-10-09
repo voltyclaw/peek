@@ -1,15 +1,24 @@
 package app.pane.android
 
+import android.content.pm.ActivityInfo
 import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
-import app.pane.android.ui.media.FullscreenOrientationLock
+import app.pane.android.ui.media.FullscreenOrientationRequest
+import app.pane.android.ui.media.ManualOrientationLock
+import app.pane.android.ui.media.RotateControlLabel
 import app.pane.android.ui.media.SurfaceGesture
 import app.pane.android.ui.media.SurfaceGestureAction
 import app.pane.android.ui.media.VideoSurfaceKind
+import app.pane.android.ui.media.activityOrientation
 import app.pane.android.ui.media.controlsAutoHide
-import app.pane.android.ui.media.fullscreenOrientation
+import app.pane.android.ui.media.fullscreenEnterRequest
+import app.pane.android.ui.media.nextManualLock
+import app.pane.android.ui.media.orientationAfterExit
+import app.pane.android.ui.media.orientationRequest
+import app.pane.android.ui.media.rotateControlLabel
 import app.pane.android.ui.media.surfaceGestureAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,10 +60,59 @@ class VideoGestureTest {
     }
 
     @Test
-    fun landscapeVideoUsesSensorLandscapeAndPortraitStaysPortrait() {
-        assertEquals(FullscreenOrientationLock.SensorLandscape, fullscreenOrientation(1920f, 1080f))
-        assertEquals(FullscreenOrientationLock.Portrait, fullscreenOrientation(1080f, 1920f))
-        assertEquals(FullscreenOrientationLock.Portrait, fullscreenOrientation(1080f, 1080f))
-        assertEquals(FullscreenOrientationLock.Portrait, fullscreenOrientation(0f, 0f))
+    fun enteringFullscreenFollowsTheUserAndDoesNotForceLandscape() {
+        assertEquals(FullscreenOrientationRequest.FullUser, fullscreenEnterRequest())
+        assertEquals(FullscreenOrientationRequest.FullUser, orientationRequest(ManualOrientationLock.None))
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_FULL_USER,
+            activityOrientation(FullscreenOrientationRequest.FullUser),
+        )
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+            activityOrientation(FullscreenOrientationRequest.Portrait),
+        )
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE,
+            activityOrientation(FullscreenOrientationRequest.UserLandscape),
+        )
+        val requested = FullscreenOrientationRequest.entries.map(::activityOrientation)
+        assertFalse(requested.contains(ActivityInfo.SCREEN_ORIENTATION_SENSOR))
+        assertFalse(requested.contains(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE))
+        assertNotEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR, activityOrientation(fullscreenEnterRequest()))
+    }
+
+    @Test
+    fun rotateButtonLocksTheOtherSideUntilExit() {
+        assertEquals(
+            ManualOrientationLock.UserLandscape,
+            nextManualLock(ManualOrientationLock.None, deviceLandscape = false),
+        )
+        assertEquals(
+            ManualOrientationLock.Portrait,
+            nextManualLock(ManualOrientationLock.None, deviceLandscape = true),
+        )
+        assertEquals(
+            ManualOrientationLock.Portrait,
+            nextManualLock(ManualOrientationLock.UserLandscape, deviceLandscape = true),
+        )
+        assertEquals(
+            ManualOrientationLock.UserLandscape,
+            nextManualLock(ManualOrientationLock.Portrait, deviceLandscape = false),
+        )
+        assertEquals(
+            RotateControlLabel.ToLandscape,
+            rotateControlLabel(ManualOrientationLock.None, deviceLandscape = false),
+        )
+        assertEquals(
+            RotateControlLabel.ToPortrait,
+            rotateControlLabel(ManualOrientationLock.None, deviceLandscape = true),
+        )
+        assertEquals(
+            RotateControlLabel.ToPortrait,
+            rotateControlLabel(ManualOrientationLock.UserLandscape, deviceLandscape = true),
+        )
+        val saved = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        assertEquals(saved, orientationAfterExit(saved))
+        assertNotEquals(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE, orientationAfterExit(saved))
     }
 }

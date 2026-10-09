@@ -15,6 +15,50 @@ import org.junit.Test
 
 class FacebookDocumentTest {
     @Test
+    fun jsonUnicodeAndAMissingAvatarFallBackToAProfilePhoto() {
+        val escaped = FacebookDocument.parse(
+            """
+            <html>
+              <meta property="og:description" content="A public caption long enough to keep.">
+              <meta property="og:image" content="https://scontent.example/post-photo.jpg">
+              <script>{"actors":[{"name":"\\u05e7\\u05d5\\u05e0\\u05d4","id":"9"}]}</script>
+              <img alt="קונה" src="https://scontent.example/face.jpg">
+            </html>
+            """.trimIndent(),
+            "1",
+            "https://www.facebook.com/page/posts/1",
+        )
+        assertEquals("קונה", escaped?.author)
+        assertEquals("https://scontent.example/face.jpg", escaped?.authorAvatarUrl)
+
+        val postPhoto = FacebookDocument.parse(
+            """
+            <html>
+              <meta property="og:description" content="A public caption long enough to keep.">
+              <meta property="og:image" content="https://scontent.example/post-photo.jpg">
+              <script>{"actors":[{"name":"NASA","id":"1"}]}</script>
+            </html>
+            """.trimIndent(),
+            "1",
+            "https://www.facebook.com/nasa/posts/1",
+        )
+        assertNull(postPhoto?.authorAvatarUrl)
+
+        val profileOg = FacebookDocument.parse(
+            """
+            <html>
+              <meta property="og:description" content="A public caption long enough to keep.">
+              <meta property="og:image" content="https://scontent.example/profile_pic.jpg">
+              <script>{"actors":[{"name":"NASA","id":"1"}]}</script>
+            </html>
+            """.trimIndent(),
+            "1",
+            "https://www.facebook.com/nasa/posts/1",
+        )
+        assertEquals("https://scontent.example/profile_pic.jpg", profileOg?.authorAvatarUrl)
+    }
+
+    @Test
     fun readsAPublicPostFromOpenGraphTags() {
         val post = FacebookDocument.parse(PUBLIC_HTML, "pfbid0123", "https://www.facebook.com/nasa/posts/pfbid0123")
 

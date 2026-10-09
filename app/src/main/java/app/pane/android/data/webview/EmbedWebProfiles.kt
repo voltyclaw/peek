@@ -22,6 +22,9 @@ object EmbedWebProfiles {
     const val INSTAGRAM = "pane-instagram"
     const val THREADS = "pane-threads"
 
+    /** Profiles this build actually assigns to a WebView. Instagram and Threads stay reserved. */
+    private val assignedProfiles = setOf(YOUTUBE, TIKTOK)
+
     /** First Chromium milestone whose WebView boundary exposes [WebViewFeature.MULTI_PROFILE]. */
     const val MIN_WEBVIEW_MAJOR = 119
 
@@ -54,6 +57,26 @@ object EmbedWebProfiles {
             deleted
         }.getOrDefault(false)
     }
+
+    /**
+     * Sheet copy, chosen before [delete]. Full only when multi-profile is on,
+     * this source's profile is one we assign, and that profile already exists.
+     */
+    fun expectsFullProfileClear(profile: String): Boolean {
+        val assigned = profile in assignedProfiles
+        val multiProfile = supported()
+        val exists = assigned && multiProfile && runCatching {
+            ProfileStore.getInstance().getProfile(profile) != null
+        }.getOrDefault(false)
+        return withdrawSheetIsFull(multiProfile, exists, assigned)
+    }
+
+    /** Sheet prediction without touching WebView. Instagram and Threads are not assigned. */
+    internal fun predictsFullSheet(
+        profile: String,
+        multiProfileSupported: Boolean,
+        profileExists: Boolean,
+    ): Boolean = withdrawSheetIsFull(multiProfileSupported, profileExists, profile in assignedProfiles)
 }
 
 /** Which withdraw path ran. Profile deletion is the only path that clears all site data. */
@@ -64,3 +87,13 @@ internal fun siteClearPath(multiProfileSupported: Boolean): SiteClearPath =
 
 internal fun withdrawClearsAllSiteData(path: SiteClearPath, profileDeleted: Boolean): Boolean =
     path == SiteClearPath.Profile && profileDeleted
+
+/**
+ * Withdraw sheet body, before clear runs.
+ * True only when multi-profile is supported, the source's profile exists, and this build assigns it.
+ */
+internal fun withdrawSheetIsFull(
+    multiProfileSupported: Boolean,
+    profileExists: Boolean,
+    profileAssigned: Boolean,
+): Boolean = multiProfileSupported && profileExists && profileAssigned

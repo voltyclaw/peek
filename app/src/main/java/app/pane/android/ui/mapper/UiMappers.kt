@@ -17,6 +17,7 @@ import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.TikTokMetadata
 import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.RowTitles
+import app.pane.android.domain.text.UnicodeEscapes
 import app.pane.android.domain.model.YouTubeCommentsState
 import app.pane.android.domain.model.YouTubeMetadata
 import app.pane.android.domain.model.YouTubeRowCopy
@@ -94,20 +95,37 @@ class HomeUiMapper(
                     )
                 } else {
                     val youtube = content.source == LinkSource.YouTube
+                    val decodedTitle = UnicodeEscapes.decode(content.title)
                     val named = (content.sourceMetadata as? ExternalPostMetadata)?.let { meta ->
                         meta.articleTitle?.takeIf { it.isNotBlank() }
                             ?: meta.linkCards.firstOrNull { it.title.isNotBlank() }?.title
                             ?: meta.linkCards.firstOrNull { it.label.isNotBlank() }?.label
-                    }.orEmpty()
-                    val title = if (youtube) {
-                        YouTubeRowCopy.title(content.title, (content.sourceMetadata as? YouTubeMetadata)?.videoId ?: YouTubeUrls.videoId(content.url).orEmpty())
-                    } else {
-                        RowTitles.display(content.title, content.title, canonical, named)
+                    }.orEmpty().let(UnicodeEscapes::decode)
+                    val title = when {
+                        youtube -> YouTubeRowCopy.title(
+                            decodedTitle,
+                            (content.sourceMetadata as? YouTubeMetadata)?.videoId ?: YouTubeUrls.videoId(content.url).orEmpty(),
+                        )
+                        content.source == LinkSource.X -> RowTitles.xTitle(
+                            decodedTitle,
+                            decodedTitle,
+                            canonical,
+                            named,
+                            UnicodeEscapes.decode(viewed?.handle.orEmpty()),
+                        )
+                        else -> RowTitles.display(decodedTitle, decodedTitle, canonical, named)
                     }
                     val identity = if (youtube) {
-                        YouTubeRowCopy.identity(content.author.name, viewed?.handle.orEmpty())
+                        YouTubeRowCopy.identity(
+                            UnicodeEscapes.decode(content.author.name),
+                            UnicodeEscapes.decode(viewed?.handle.orEmpty()),
+                        )
                     } else {
-                        HistoryLedger.identity(app, viewed?.handle.orEmpty(), viewed?.authorName.orEmpty())
+                        HistoryLedger.identity(
+                            app,
+                            UnicodeEscapes.decode(viewed?.handle.orEmpty()),
+                            UnicodeEscapes.decode(viewed?.authorName.orEmpty()),
+                        )
                     }
                     RecentLinkUiModel(
                         url = content.url,
