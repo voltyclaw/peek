@@ -156,29 +156,29 @@ class YouTubeConsentTest {
         val terms = "YouTube's Terms"
         val google = "Google's Privacy Policy"
         val english = consentPieces(
-            "By playing, you agree to \u0001 and \u0002. \u0003 and \u0004 also apply.",
+            "Tapping plays this video with YouTube's player, which shares data with Google, and means you agree to \u0001, \u0002, \u0003 and \u0004.",
             fourLinks(paneTerms, panePrivacy, terms, google),
         )
         assertEquals(paneTerms, english.first { it.url == "" }.label)
         assertEquals(terms, english.first { it.url == "https://www.youtube.com/t/terms" }.label)
         assertEquals(google, english.first { it.url == "https://policies.google.com/privacy" }.label)
-        assertTrue(english.any { it.label.contains("also apply") })
+        assertTrue(english.any { it.label.contains("shares data with Google") })
 
         val hePaneTerms = "תנאי השימוש של Pane"
         val hePanePrivacy = "מדיניות הפרטיות של Pane"
         val heTerms = "תנאי השימוש של YouTube"
         val heGoogle = "מדיניות הפרטיות של Google"
         val hebrew = consentPieces(
-            "ההפעלה משמעותה הסכמה ל\u0001 ול\u0002. חלים גם \u0003 ו\u0004.",
+            "לחיצה תפעיל את הסרטון בנגן של YouTube, שמעביר מידע ל-Google, ומשמעותה הסכמה ל\u0001, ל\u0002, ל\u0003 ול\u0004.",
             fourLinks(hePaneTerms, hePanePrivacy, heTerms, heGoogle),
         )
-        assertEquals("ההפעלה משמעותה הסכמה ל", hebrew.first().label)
+        assertEquals("לחיצה תפעיל את הסרטון בנגן של YouTube, שמעביר מידע ל-Google, ומשמעותה הסכמה ל", hebrew.first().label)
         assertEquals(hePaneTerms, hebrew[1].label)
-        assertEquals(" ול", hebrew[2].label)
+        assertEquals(", ל", hebrew[2].label)
         assertEquals(hePanePrivacy, hebrew[3].label)
-        assertEquals(". חלים גם ", hebrew[4].label)
+        assertEquals(", ל", hebrew[4].label)
         assertEquals(heTerms, hebrew[5].label)
-        assertEquals(" ו", hebrew[6].label)
+        assertEquals(" ול", hebrew[6].label)
         assertEquals(heGoogle, hebrew[7].label)
     }
 

@@ -283,11 +283,13 @@
     </plurals>
     <!-- TODO: counsel review — draft consent copy, not legal advice. -->
     <string name="yt_consent_button">Play on YouTube</string>
-    <string name="yt_consent_line">By playing, you agree to %1$s and %2$s. %3$s and %4$s also apply.</string>
+    <string name="yt_consent_heading">Before this video plays</string>
+    <string name="yt_consent_line">Tapping plays this video with YouTube\'s player, which shares data with Google, and means you agree to %1$s, %2$s, %3$s and %4$s.</string>
+    <string name="yt_consent_line_alt">Tapping plays this video with YouTube\'s player, which shares data with Google and may use cookies, and means you agree to %1$s, %2$s, %3$s and %4$s.</string>
     <string name="yt_consent_link_yt_terms">YouTube\'s Terms</string>
     <string name="yt_consent_link_google_privacy">Google\'s Privacy Policy</string>
     <string name="yt_consent_link_pane_privacy">Pane\'s Privacy Policy</string>
-    <string name="a11y_yt_consent_button">Play on YouTube. Agrees to Pane\'s Terms and Privacy Policy</string>
+    <string name="a11y_yt_consent_button">Play on YouTube. Shares data with Google. Agrees to Pane\'s Terms, Pane\'s Privacy Policy, YouTube\'s Terms and Google\'s Privacy Policy</string>
     <string name="tt_comments_live_on_tiktok">Comments live on TikTok</string>
     <string name="tt_embed_off_title">This one plays only on TikTok</string>
     <string name="tt_embed_off_body">Open it in TikTok to watch.</string>
@@ -328,8 +330,8 @@
     <string name="consent_instagram_detail_body">Instagram\'s embed can load in Pane and shares data with Meta.</string>
     <string name="consent_threads_detail_body">The Threads embed can load in Pane and shares data with Meta.</string>
     <string name="source_detail_links_heading">Terms and policies</string>
-    <string name="consent_withdraw">Withdraw</string>
-    <string name="consent_withdraw_keep">Keep</string>
+    <string name="consent_withdraw">Withdraw consent</string>
+    <string name="consent_withdraw_keep">Keep consent</string>
     <string name="consent_withdraw_title">Withdraw consent for %1$s?</string>
     <string name="consent_youtube_withdraw_body_full">This withdraws your consent and clears YouTube\'s cookies and site data and saved video details from Pane. Data Google already holds is not affected. Your stars, notes and tags stay. Pane asks again the next time you open a YouTube link.</string>
     <string name="consent_youtube_withdraw_body_partial">This withdraws your consent and clears YouTube\'s cookies and most site data and saved video details from Pane. Data Google already holds is not affected. Your stars, notes and tags stay. Pane asks again the next time you open a YouTube link.</string>
@@ -355,9 +357,6 @@
     <string name="consent_link_instagram_terms">Instagram Terms of Use</string>
     <string name="tiktok_post_fallback">TikTok post</string>
     <string name="short_link_label">short link</string>
-    <string name="tt_cookies_policy">TikTok Cookies Policy</string>
-    <string name="tt_terms">TikTok Terms of Service</string>
-    <string name="tt_privacy">TikTok Privacy Policy</string>
     <string name="hide_replies">Hide replies</string>
     <string name="caption_less">less</string>
     <string name="more_comments_on_youtube">More comments live on YouTube</string>
