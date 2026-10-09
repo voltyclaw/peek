@@ -60,7 +60,7 @@ class FacebookDirectPageLoader(
                 async {
                     var parsed: ParsedFacebookPost? = null
                     try {
-                        val html = try {
+                        val page = try {
                             get(target)
                         } catch (cancelled: CancellationException) {
                             throw cancelled
@@ -68,14 +68,14 @@ class FacebookDirectPageLoader(
                             lastError.set(error.message ?: lastError.get())
                             null
                         }
-                        if (html != null) {
-                            if (html.contains("login_form", ignoreCase = true)) {
+                        if (page != null) {
+                            if (page.html.contains("login_form", ignoreCase = true)) {
                                 lastError.set(FacebookDocument.LOGIN)
                             }
-                            if (FacebookGroups.isStandIn(html, url, target)) {
+                            if (FacebookGroups.isStandIn(page.html, url, page.landed)) {
                                 standIn.set(true)
                             } else {
-                                parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
+                                parsed = FacebookDocument.parse(page.html, post.id, post.canonicalUrl)
                             }
                         }
                         channel.send(FetchedPage(target, parsed))
@@ -249,7 +249,9 @@ class FacebookDirectPageLoader(
             }
             .orEmpty()
 
-    private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
+    private data class PageBody(val html: String, val landed: String)
+
+    private suspend fun get(url: String): PageBody = withContext(Dispatchers.IO) {
         val connection = connectionFactory(url)
         try {
             connection.instanceFollowRedirects = true
@@ -280,7 +282,7 @@ class FacebookDirectPageLoader(
                 throw IOException("Facebook returned HTTP $status")
             }
             if (body.isBlank()) throw IOException("Facebook returned an empty page")
-            body
+            PageBody(body, connection.url?.toString()?.takeIf { it.isNotBlank() } ?: url)
         } finally {
             connection.disconnect()
         }

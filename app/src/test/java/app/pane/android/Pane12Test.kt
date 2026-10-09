@@ -180,6 +180,9 @@ class Pane12Test {
             </head></html>
         """.trimIndent()
         assertFalse(FacebookGroups.isStandIn(pagePost, "https://www.facebook.com/somepage/posts/999888", pagePost))
+        val login = "https://www.facebook.com/login/?next=" +
+            "https%3A%2F%2Fwww.facebook.com%2Fgroups%2F12345%2Fpermalink%2F999888%2F"
+        assertTrue(FacebookGroups.isStandIn("<html>login_form</html>", requested, login))
     }
 
     @Test

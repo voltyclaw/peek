@@ -31,8 +31,10 @@ object FacebookGroups {
     }
 
     private fun underGroups(url: String): Boolean {
-        val segments = segments(url)
-        return segments.firstOrNull() == "groups"
+        if (segments(url).firstOrNull() == "groups") return true
+        val query = runCatching { URI(url.trim()).rawQuery }.getOrNull().orEmpty()
+        val decoded = runCatching { java.net.URLDecoder.decode(query, "UTF-8") }.getOrNull().orEmpty()
+        return "/groups/" in decoded
     }
 
     private fun isGroupRoot(url: String): Boolean {
