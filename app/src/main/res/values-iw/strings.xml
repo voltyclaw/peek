@@ -16,7 +16,7 @@
     <string name="source_off_note">הקישורים נפתחים ב-%1$s.</string>
     <string name="source_note_youtube">דרך הנגן של YouTube</string>
     <string name="source_note_tiktok">דרך הנגן של TikTok</string>
-    <string name="source_note_instagram">דרך התצוגה המוטמעת של Instagram, בעת הצורך</string>
+    <string name="source_note_instagram">דרך התצוגה המוטמעת של Instagram</string>
     <string name="source_note_threads">דרך התצוגה המוטמעת של Threads</string>
     <string name="consent_status_agreed">ניתנה הסכמה ב-%1$s</string>
     <string name="consent_status_allowed">אושר ב-%1$s</string>
@@ -29,11 +29,11 @@
     <string name="consent_withdraw">ביטול הסכמה</string>
     <string name="consent_withdraw_keep">השארה</string>
     <string name="consent_withdraw_title">לבטל את ההסכמה ל-%1$s?</string>
-    <string name="consent_youtube_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר ופרטי הסרטונים השמורים של YouTube. מידע שכבר נמצא אצל Google לא מושפע. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור YouTube, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_tiktok_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר ופרטי TikTok השמורים. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור TikTok, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_instagram_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר של Instagram. הכוכבים, ההערות והתגיות שלך נשארים. בפעם הבאה שיהיה צורך בתצוגה המוטמעת של Instagram, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_threads_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ונתוני האתר של Threads. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור Threads, \u200FPane תבקש אישור שוב.</string>
-    <string name="consent_withdrawn_snackbar">ההסכמה בוטלה. העוגיות ונתוני האתר של %1$s נמחקו.</string>
+    <string name="consent_youtube_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי הסרטונים השמורים של YouTube. מידע שכבר נמצא אצל Google לא מושפע. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור YouTube, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_tiktok_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר ופרטי TikTok השמורים. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור TikTok, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_instagram_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Instagram. הכוכבים, ההערות והתגיות שלך נשארים. בפעם הבאה שיהיה צורך בתצוגה המוטמעת של Instagram, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_threads_withdraw_body">פעולה זו מבטלת את ההסכמה שלך ומוחקת מ-Pane את העוגיות ורוב נתוני האתר של Threads. הכוכבים, ההערות והתגיות שלך נשארים. בפתיחה הבאה של קישור Threads, \u200FPane תבקש אישור שוב.</string>
+    <string name="consent_withdrawn_snackbar">ההסכמה בוטלה. העוגיות ורוב נתוני האתר של %1$s נמחקו.</string>
     <string name="consent_link_google_security">הגדרות האבטחה של Google</string>
     <string name="consent_link_pane_terms">תנאי השימוש של Pane</string>
     <string name="consent_link_tiktok_terms">תנאי השירות של TikTok</string>

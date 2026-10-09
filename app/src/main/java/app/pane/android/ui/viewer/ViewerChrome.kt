@@ -422,7 +422,15 @@ internal fun OpenRecovery(
     }
     val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
     val privateGroup = reason == OpenFailureKind.PrivateGroup
-    val headline = if (privateGroup) {
+    val blueskyCopy = when (reason) {
+        OpenFailureKind.BlueskyGone -> R.string.bs_gone_title to R.string.bs_gone_body
+        OpenFailureKind.BlueskyHidden -> R.string.bs_hidden_title to R.string.bs_hidden_body
+        OpenFailureKind.BlueskySignedIn -> R.string.bs_signed_in_title to R.string.bs_signed_in_body
+        else -> null
+    }
+    val headline = if (blueskyCopy != null) {
+        stringResource(blueskyCopy.first)
+    } else if (privateGroup) {
         stringResource(R.string.private_group_title)
     } else when (presentation.headline) {
         RecoveryHeadline.NotPublic -> if (presentation.appNameRes != null) {
@@ -434,7 +442,9 @@ internal fun OpenRecovery(
         RecoveryHeadline.Offline -> stringResource(R.string.youre_offline)
         RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
     }
-    val body = if (privateGroup) {
+    val body = if (blueskyCopy != null) {
+        stringResource(blueskyCopy.second)
+    } else if (privateGroup) {
         stringResource(R.string.private_group_body, appName.ifBlank { stringResource(R.string.source_facebook) })
     } else when (presentation.body) {
         RecoveryBody.NamedApp -> stringResource(R.string.open_in_app_body, appName)
@@ -464,7 +474,7 @@ internal fun OpenRecovery(
             textAlign = TextAlign.Center,
             style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
         )
-        if (presentation.retryPrimary && !privateGroup) {
+        if (presentation.retryPrimary && !privateGroup && blueskyCopy == null) {
             RecoveryButton(
                 label = stringResource(R.string.try_again),
                 filled = true,

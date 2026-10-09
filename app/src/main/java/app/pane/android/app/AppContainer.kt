@@ -38,6 +38,7 @@ import app.pane.android.data.tiktok.AndroidTikTokConsentStore
 import app.pane.android.data.tiktok.AndroidTikTokSiteData
 import app.pane.android.data.tiktok.FileTikTokOEmbedDisk
 import app.pane.android.data.tiktok.HttpTikTokTransport
+import app.pane.android.data.bluesky.BlueskyLinkContentRepository
 import app.pane.android.data.tiktok.TikTokLinkContentRepository
 import app.pane.android.data.tiktok.TikTokOEmbedClient
 import app.pane.android.data.tiktok.TikTokRedirectResolver
@@ -145,6 +146,7 @@ class DefaultAppContainer(
         api = tiktokApi,
         redirects = TikTokRedirectResolver(HttpTikTokTransport),
     )
+    private val blueskyRepository = BlueskyLinkContentRepository()
     override val tiktok = TikTokSession(
         store = tiktokStore,
         api = tiktokApi,
@@ -162,6 +164,7 @@ class DefaultAppContainer(
             add(RoutingLinkContentRepository.Route(xRepository::supports, xRepository))
             add(RoutingLinkContentRepository.Route(youtubeRepository::supports, youtubeRepository))
             add(RoutingLinkContentRepository.Route(tiktokRepository::supports, tiktokRepository))
+            add(RoutingLinkContentRepository.Route(blueskyRepository::supports, blueskyRepository))
         },
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())

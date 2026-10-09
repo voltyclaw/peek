@@ -4,7 +4,8 @@ import app.pane.android.domain.model.SourceApp
 
 /**
  * Show-in-Pane switches. Absent means ON. Consent lives in other files and is never read here.
- * Bluesky and Threads stay off this list until those sources ship. Reddit is not a row.
+ * Threads stays off this list until that source ships. Reddit is not a row.
+ * Bluesky has a row and no detail page.
  */
 object SourceSwitches {
     val rows: List<SourceApp> = listOf(
@@ -13,6 +14,7 @@ object SourceSwitches {
         SourceApp.Instagram,
         SourceApp.YouTube,
         SourceApp.TikTok,
+        SourceApp.Bluesky,
     )
 
     /** Keys that meant "not consented" or an old off toggle. Migration drops them. */

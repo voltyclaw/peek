@@ -3,7 +3,7 @@ package app.pane.android.domain.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class LinkSource { Instagram, YouTube, TikTok, Reddit, Facebook, X }
+enum class LinkSource { Instagram, YouTube, TikTok, Reddit, Facebook, X, Bluesky }
 
 @Serializable
 enum class LinkKind { Post, Video }
@@ -106,6 +106,8 @@ data class ExternalMediaItem(
     val width: Int? = null,
     val height: Int? = null,
     val gif: Boolean = false,
+    /** adult, graphic, or nudity. Empty image means the media stays covered. */
+    val cover: String? = null,
 )
 
 /** One post in an X author's own chain. Empty for Facebook. */
@@ -115,6 +117,8 @@ data class ExternalThreadPost(
     val author: String,
     val text: String,
     val media: List<ExternalMediaItem> = emptyList(),
+    val spans: List<BskyTextSpan> = emptyList(),
+    val warning: Boolean = false,
 )
 
 /** Whether more X replies can be fetched, the public list is complete, or the guest page stopped. */
@@ -198,6 +202,7 @@ data class ExternalLinkCard(
     val url: String,
     val label: String,
     val title: String = "",
+    val thumbUrl: String? = null,
 )
 
 @Serializable
@@ -215,7 +220,50 @@ data class Comment(
     val cardBody: String? = null,
     val cardUrl: String? = null,
     val media: List<ExternalMediaItem> = emptyList(),
+    val profileUrl: String? = null,
+    val spans: List<BskyTextSpan> = emptyList(),
 )
+
+@Serializable
+data class BskyTextSpan(
+    val start: Int,
+    val end: Int,
+    val url: String? = null,
+)
+
+@Serializable
+enum class BskyQuoteStub { Gone, Detached, SignedIn, Nested }
+
+/** Public Bluesky post. History stores the DID URL; [shareUrl] is the handle form. */
+@Serializable
+data class BlueskyMetadata(
+    val postId: String,
+    val did: String,
+    val handle: String,
+    val shareUrl: String,
+    val profileUrl: String,
+    val replyingToHandle: String? = null,
+    val replyingToUrl: String? = null,
+    val spans: List<BskyTextSpan> = emptyList(),
+    val mediaItems: List<ExternalMediaItem> = emptyList(),
+    val authorThread: List<ExternalThreadPost> = emptyList(),
+    val authorThreadPartial: Boolean = false,
+    val contentWarning: Boolean = false,
+    val avatarHidden: Boolean = false,
+    val createdAtEpochMillis: Long? = null,
+    val quoteAuthor: String? = null,
+    val quoteHandle: String? = null,
+    val quoteText: String? = null,
+    val quoteUrl: String? = null,
+    val quoteMedia: List<ExternalMediaItem> = emptyList(),
+    val quoteStub: BskyQuoteStub? = null,
+    val linkCards: List<ExternalLinkCard> = emptyList(),
+) : SourceMetadata
+
+/** Unloadable Bluesky post. History strips the row. Network failures use [java.io.IOException]. */
+class BlueskyPostException(val kind: Kind) : Exception() {
+    enum class Kind { Gone, Hidden, SignedIn }
+}
 
 @Serializable
 data class LinkContent(

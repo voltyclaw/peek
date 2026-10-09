@@ -4,6 +4,7 @@ import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
+import app.pane.android.data.bluesky.BskyUrls
 import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.LinkShims
@@ -51,6 +52,7 @@ internal fun profileLink(raw: String): ProfileLink? {
         ?: threadsProfile(host, segments)
         ?: youtubeProfile(host, segments, uri)
         ?: tiktokProfile(host, segments)
+        ?: blueskyProfile(url)
 }
 
 internal fun isXHost(url: String): Boolean {
@@ -66,6 +68,7 @@ private fun isRenderablePost(url: String): Boolean {
     if (XUrls.supports(url) || FacebookUrls.supports(url) || FacebookUrls.isMarketplace(url)) return true
     if (YouTubeUrls.supports(url)) return true
     if (TikTokUrls.supports(url)) return true
+    if (BskyUrls.parsePost(url) != null) return true
     if (RedditUrls.supports(url)) return true
     if (InstagramStories.parse(url) != null) return true
     return isInstagramPost(url)
@@ -145,6 +148,11 @@ private fun tiktokProfile(host: String, segments: List<String>): ProfileLink? {
     val handle = head.removePrefix("@")
     if (handle.isBlank()) return null
     return ProfileLink("https://www.tiktok.com/@$handle", listOf(TIKTOK_PACKAGE, TIKTOK_TRILL_PACKAGE))
+}
+
+private fun blueskyProfile(url: String): ProfileLink? {
+    if (!BskyUrls.isProfile(url)) return null
+    return ProfileLink(url, listOf(BskyUrls.PACKAGE))
 }
 
 private fun threadsProfile(host: String, segments: List<String>): ProfileLink? {

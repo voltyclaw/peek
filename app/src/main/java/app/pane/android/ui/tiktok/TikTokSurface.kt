@@ -276,6 +276,7 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
+                    app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.TIKTOK)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.mediaPlaybackRequiresUserGesture = false

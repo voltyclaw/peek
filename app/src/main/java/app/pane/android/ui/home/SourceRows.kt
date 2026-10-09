@@ -43,7 +43,7 @@ fun rememberSourceRows(
     tikTokAgreedAt: Long?,
 ): List<SourceRowUi> {
     val locale = Locale.getDefault()
-    return listOf(SourceApp.X, SourceApp.Facebook, SourceApp.Instagram, SourceApp.YouTube, SourceApp.TikTok).map { app ->
+    return listOf(SourceApp.X, SourceApp.Facebook, SourceApp.Instagram, SourceApp.YouTube, SourceApp.TikTok, SourceApp.Bluesky).map { app ->
         val name = stringResource(sourceName(app))
         val on = shown[app] != false
         val line = secondLine(
@@ -94,6 +94,7 @@ private fun sourceName(app: SourceApp): Int = when (app) {
     SourceApp.Instagram -> R.string.source_instagram
     SourceApp.YouTube -> R.string.source_youtube
     SourceApp.TikTok -> R.string.source_tiktok
+    SourceApp.Bluesky -> R.string.source_bluesky
     SourceApp.Threads -> R.string.source_threads
     SourceApp.Reddit -> R.string.source_reddit
     SourceApp.Other -> R.string.source_x

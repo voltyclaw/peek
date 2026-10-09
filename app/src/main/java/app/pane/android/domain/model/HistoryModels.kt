@@ -2,7 +2,7 @@ package app.pane.android.domain.model
 
 /** One history row. The primary key is the canonical post URL. */
 /** Normalized app chip. Anything unrecognized lands in [SourceApp.Other]. */
-enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, YouTube, TikTok, Other }
+enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, YouTube, TikTok, Bluesky, Other }
 
 enum class HistoryScope { All, Starred }
 
@@ -168,6 +168,8 @@ private fun LinkContent.historyMediaType(): String {
         is ExternalPostMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() }
         is YouTubeMetadata -> false
         is TikTokMetadata -> false
+        is BlueskyMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() } ||
+            meta.authorThread.any { post -> post.media.any { !it.videoUrl.isNullOrBlank() } }
         else -> false
     }
     if (video) return HistoryLedger.VIDEO

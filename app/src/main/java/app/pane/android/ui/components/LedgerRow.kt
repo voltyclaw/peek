@@ -129,7 +129,10 @@ fun LedgerSwipeRow(
     }
     val starLabel = if (row.starred) stringResource(R.string.remove_star) else stringResource(R.string.star)
     val removeLabel = if (recents) stringResource(R.string.remove_from_recents) else stringResource(R.string.remove_from_history)
-    val description = listOf(row.title, row.identity, row.timeLabel)
+    val title = row.title.ifBlank {
+        if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
+    }
+    val description = listOf(title, row.identity, row.timeLabel)
         .filter { it.isNotBlank() }
         .joinToString(", ")
         .let { base ->
@@ -279,6 +282,9 @@ private fun LedgerBody(
     onActionStar: () -> Unit,
     onActionRemove: () -> Unit,
 ) {
+    val title = row.title.ifBlank {
+        if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
+    }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val wash = lerp(PaneGround, PaneTile, 0.85f)
@@ -333,7 +339,7 @@ private fun LedgerBody(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = row.title,
+                text = title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = PaneInk,
@@ -429,7 +435,9 @@ fun LedgerMenuSheet(
         LedgerBody(
             row = row,
             held = false,
-            description = row.title,
+            description = row.title.ifBlank {
+                if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
+            },
             starLabel = "",
             removeLabel = "",
             onOpen = {},

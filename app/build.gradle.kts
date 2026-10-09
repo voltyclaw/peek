@@ -21,8 +21,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 48
-        versionName = "1.2.0"
+        versionCode = 49
+        versionName = "1.3.0"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
@@ -79,6 +79,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)
   implementation(libs.okhttp)
+  implementation(libs.androidx.webkit)
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.exoplayer.hls)
   implementation(libs.androidx.media3.exoplayer.dash)

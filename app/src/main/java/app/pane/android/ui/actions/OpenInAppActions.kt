@@ -18,6 +18,7 @@ import app.pane.android.data.links.TIKTOK_PACKAGE
 import app.pane.android.data.links.TIKTOK_TRILL_PACKAGE
 import app.pane.android.data.links.YOUTUBE_MUSIC_PACKAGE
 import app.pane.android.data.links.YOUTUBE_PACKAGE
+import app.pane.android.data.bluesky.BskyUrls
 import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.data.links.profileLink
 import app.pane.android.data.youtube.YouTubeUrls
@@ -125,6 +126,10 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(https, "com.twitter.android"),
             OpenInAppTarget(https, null),
         )
+    }
+    if (BskyUrls.isHost(unwrapped) || BskyUrls.parsePost(unwrapped) != null) {
+        val open = BskyUrls.parsePost(unwrapped)?.https() ?: unwrapped
+        return listOf(OpenInAppTarget(open, BskyUrls.PACKAGE))
     }
     if (TikTokUrls.isHost(unwrapped)) {
         val open = TikTokUrls.parse(unwrapped)?.canonicalUrl ?: unwrapped
@@ -339,6 +344,7 @@ internal fun sourceNameRes(host: String): Int? {
         normalized == "youtube.com" || normalized.endsWith(".youtube.com") || normalized == "youtu.be" -> R.string.source_youtube
         normalized == "tiktok.com" || normalized.endsWith(".tiktok.com") -> R.string.source_tiktok
         normalized == "threads.net" || normalized.endsWith(".threads.net") -> R.string.source_threads
+        normalized == "bsky.app" || normalized.endsWith(".bsky.app") -> R.string.source_bluesky
         else -> null
     }
 }

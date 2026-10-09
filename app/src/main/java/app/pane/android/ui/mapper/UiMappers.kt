@@ -25,6 +25,7 @@ import app.pane.android.domain.model.SourceMetadata
 import app.pane.android.domain.model.XReplyContinuation
 import app.pane.android.ui.history.sourceMark
 import app.pane.android.ui.model.AuthorThreadPostUiModel
+import app.pane.android.ui.model.TextSpanUi
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
@@ -118,6 +119,7 @@ class HomeUiMapper(
         LinkSource.Reddit -> if (content.kind == LinkKind.Video) "REDDIT · VIDEO" else "REDDIT · POST"
         LinkSource.Facebook -> if (content.kind == LinkKind.Video) "FACEBOOK · VIDEO" else "FACEBOOK · POST"
         LinkSource.X -> if (content.kind == LinkKind.Video) "X · VIDEO" else "X · POST"
+        LinkSource.Bluesky -> "BLUESKY · POST"
     }
 
     private fun ageLabel(openedAtEpochMillis: Long): String =
@@ -167,6 +169,8 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             }
         } else if (sourceMetadata is ExternalPostMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
             sourceMetadata.mediaItems.map { externalMedia(it) }
+        } else if (sourceMetadata is app.pane.android.domain.model.BlueskyMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
+            sourceMetadata.mediaItems.map { externalMedia(it) }
         } else {
             listOf(
                 ViewerMediaItemUiModel(
@@ -178,6 +182,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             )
         }
         val external = sourceMetadata as? ExternalPostMetadata
+        val bluesky = sourceMetadata as? app.pane.android.domain.model.BlueskyMetadata
         val youtube = sourceMetadata as? YouTubeMetadata
         val tiktok = sourceMetadata as? TikTokMetadata
         val author = AuthorLines.present(content.author.name, content.author.metadata)
@@ -187,6 +192,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             is InstagramMetadata -> sourceMetadata.postId
             is YouTubeMetadata -> null
             is TikTokMetadata -> null
+            is app.pane.android.domain.model.BlueskyMetadata -> sourceMetadata.postId
             null -> null
         }
         val comments = commentsWithoutPrimary(primaryId, content.comments)
@@ -214,21 +220,24 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                 XReplyContinuation.Blocked -> true
                 XReplyContinuation.Exhausted, XReplyContinuation.More -> false
                 null -> youtube?.commentsHardWall == true ||
-                    (content.source == LinkSource.X && content.commentCount > comments.size)
+                    (content.source == LinkSource.X && content.commentCount > comments.size) ||
+                    (content.source == LinkSource.Bluesky && content.commentCount > comments.size)
             },
-            authorThread = external?.authorThread.orEmpty().map { item ->
+            authorThread = (bluesky?.authorThread ?: external?.authorThread).orEmpty().map { item ->
                 AuthorThreadPostUiModel(
                     id = item.id,
                     author = item.author,
                     text = item.text,
-                    opened = item.id == external?.postId,
+                    opened = item.id == external?.postId || item.id.endsWith("/${bluesky?.postId}"),
                     media = item.media.map { externalMedia(it) },
+                    spans = item.spans.map { span -> TextSpanUi(span.start, span.end, span.url) },
+                    warning = item.warning,
                 )
             },
-            authorThreadPartial = external?.authorThreadPartial == true,
+            authorThreadPartial = external?.authorThreadPartial == true || bluesky?.authorThreadPartial == true,
             mediaItems = mediaItems,
             initialMediaIndex = requestedMediaIndex(content.url, mediaItems.size),
-            sourceUrl = content.url,
+            sourceUrl = bluesky?.shareUrl?.takeIf { it.isNotBlank() } ?: content.url,
             authorAvatar = content.author.avatarUrl
                 ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
                 ?.let { UiImage.Url(it) },
@@ -243,16 +252,9 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     )
                 }
             },
-            quote = external?.quoteUrl?.takeIf { it.isNotBlank() }?.let { url ->
-                ViewerQuoteUiModel(
-                    authorName = external.quoteAuthor.orEmpty(),
-                    handle = external.quoteHandle.orEmpty(),
-                    text = external.quoteText.orEmpty(),
-                    url = url,
-                )
-            },
-            linkCards = external?.linkCards.orEmpty().map { card ->
-                ViewerLinkCardUiModel(url = card.url, label = card.label, title = card.title)
+            quote = quoteOf(external, bluesky),
+            linkCards = (bluesky?.linkCards ?: external?.linkCards).orEmpty().map { card ->
+                ViewerLinkCardUiModel(url = card.url, label = card.label, title = card.title, thumbUrl = card.thumbUrl)
             },
             description = youtube?.description.orEmpty(),
             metaLine = youtube?.metaLine.orEmpty(),
@@ -274,8 +276,39 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             tiktokPostedAtEpochSeconds = tiktok?.postedAtEpochSeconds,
             tiktokShortLink = tiktok?.shortLink == true,
             authorProfileUrl = youtube?.channelUrl?.takeIf { it.isNotBlank() }
+                ?: bluesky?.profileUrl
                 ?: authorProfileUrl(content),
+            bluesky = bluesky != null,
+            blueskyAvatarHidden = bluesky?.avatarHidden == true,
+            blueskyWarning = bluesky?.contentWarning == true,
+            blueskySpans = bluesky?.spans.orEmpty().map { span -> TextSpanUi(span.start, span.end, span.url) },
+            replyingTo = bluesky?.replyingToHandle?.let { "@${it.removePrefix("@")}" },
+            replyingToUrl = bluesky?.replyingToUrl,
         )
+    }
+
+    private fun quoteOf(
+        external: ExternalPostMetadata?,
+        bluesky: app.pane.android.domain.model.BlueskyMetadata?,
+    ): ViewerQuoteUiModel? {
+        if (bluesky != null && (bluesky.quoteStub != null || !bluesky.quoteUrl.isNullOrBlank())) {
+            return ViewerQuoteUiModel(
+                authorName = bluesky.quoteAuthor.orEmpty(),
+                handle = bluesky.quoteHandle.orEmpty(),
+                text = bluesky.quoteText.orEmpty(),
+                url = bluesky.quoteUrl.orEmpty(),
+                media = bluesky.quoteMedia.map { externalMedia(it) },
+                stub = bluesky.quoteStub?.name,
+            )
+        }
+        return external?.quoteUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            ViewerQuoteUiModel(
+                authorName = external.quoteAuthor.orEmpty(),
+                handle = external.quoteHandle.orEmpty(),
+                text = external.quoteText.orEmpty(),
+                url = url,
+            )
+        }
     }
 
     private fun requestedMediaIndex(url: String, itemCount: Int): Int {
@@ -298,6 +331,9 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             is ExternalPostMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             is YouTubeMetadata -> null
             is TikTokMetadata -> null
+            is app.pane.android.domain.model.BlueskyMetadata ->
+                sourceMetadata.mediaItems.firstOrNull()?.videoUrl
+                    ?: sourceMetadata.authorThread.firstOrNull()?.media?.firstOrNull()?.videoUrl
             null -> null
         }
 
@@ -314,6 +350,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             width = item.width?.takeIf { it > 0 },
             height = item.height?.takeIf { it > 0 },
             gif = item.gif,
+            cover = item.cover,
             videoSources = item.videos.map { source ->
                 VideoSourceUiModel(
                     url = source.url,
@@ -337,7 +374,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             replies = comment.replies.map { mapComment(it, source) },
             avatarUrl = comment.avatarUrl?.takeIf { it.startsWith("http") },
             handle = handle,
-            profileUrl = commentProfileUrl(source, comment.author, handle),
+            profileUrl = comment.profileUrl ?: commentProfileUrl(source, comment.author, handle),
             cardTitle = comment.cardTitle,
             cardBody = comment.cardBody,
             cardUrl = comment.cardUrl,
@@ -357,6 +394,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         }
         LinkSource.YouTube -> (content.sourceMetadata as? YouTubeMetadata)?.channelUrl?.takeIf { it.isNotBlank() }
         LinkSource.TikTok -> (content.sourceMetadata as? TikTokMetadata)?.authorUrl?.takeIf { it.isNotBlank() }
+        LinkSource.Bluesky -> (content.sourceMetadata as? app.pane.android.domain.model.BlueskyMetadata)?.profileUrl
         else -> null
     }
 

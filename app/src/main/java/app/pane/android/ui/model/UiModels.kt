@@ -142,6 +142,12 @@ data class ViewerPostUiModel(
     val tiktokHandle: String = "",
     val tiktokPostedAtEpochSeconds: Long? = null,
     val tiktokShortLink: Boolean = false,
+    val bluesky: Boolean = false,
+    val blueskyAvatarHidden: Boolean = false,
+    val blueskyWarning: Boolean = false,
+    val blueskySpans: List<TextSpanUi> = emptyList(),
+    val replyingTo: String? = null,
+    val replyingToUrl: String? = null,
 )
 
 enum class ViewerCommentsNotice { None, Unavailable, Off, Failed }
@@ -161,6 +167,8 @@ data class ViewerQuoteUiModel(
     val handle: String,
     val text: String,
     val url: String,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
+    val stub: String? = null,
 )
 
 @Immutable
@@ -168,6 +176,7 @@ data class ViewerLinkCardUiModel(
     val url: String,
     val label: String,
     val title: String = "",
+    val thumbUrl: String? = null,
 )
 
 @Immutable
@@ -177,6 +186,15 @@ data class AuthorThreadPostUiModel(
     val text: String,
     val opened: Boolean,
     val media: List<ViewerMediaItemUiModel> = emptyList(),
+    val spans: List<TextSpanUi> = emptyList(),
+    val warning: Boolean = false,
+)
+
+@Immutable
+data class TextSpanUi(
+    val start: Int,
+    val end: Int,
+    val url: String? = null,
 )
 
 @Immutable
@@ -198,6 +216,7 @@ data class ViewerMediaItemUiModel(
     val height: Int? = null,
     val videoSources: List<VideoSourceUiModel> = emptyList(),
     val gif: Boolean = false,
+    val cover: String? = null,
 )
 
 fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {

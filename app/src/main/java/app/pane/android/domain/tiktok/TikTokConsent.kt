@@ -83,6 +83,9 @@ fun interface TikTokRedirects {
 /** Clears TikTok cookies and web storage only. YouTube data stays. */
 interface TikTokSiteData {
     fun clear()
+
+    /** True after [clear] deleted a named WebView profile. See [YouTubeSiteData.withdrawClearsAllSiteData]. */
+    val withdrawClearsAllSiteData: Boolean get() = false
 }
 
 object TikTokWebOrigins {

@@ -149,6 +149,18 @@ class ViewerViewModel(
             loaded = content
             mutableUiState.value = ViewerUiState.Content(mapper.map(content), starred = isStarred(url))
         }.onFailure { error ->
+            if (error is app.pane.android.domain.model.BlueskyPostException) {
+                historyRepository.stripDisplayCache(url)
+                val rkey = url.substringAfterLast("/post/").substringBefore('?').substringBefore('/')
+                if (rkey.isNotBlank() && rkey != url) {
+                    historyRepository.observeHistory().first()
+                        .filter { row ->
+                            row.sourceApp == app.pane.android.domain.model.SourceApp.Bluesky &&
+                                row.url.substringAfterLast("/post/").substringBefore('?') == rkey
+                        }
+                        .forEach { row -> historyRepository.stripDisplayCache(row.url) }
+                }
+            }
             if (!revealed) mutableUiState.value = savedStar(url) ?: viewerStateFor(url, error)
         }
     }

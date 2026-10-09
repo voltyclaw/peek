@@ -84,12 +84,15 @@ object HistoryPresenter {
         }
         return LedgerRowUi(
             url = entry.url,
-            title = if (entry.sourceApp == SourceApp.Other || app.pane.android.domain.model.looksLikeUrl(entry.title) || app.pane.android.domain.model.looksLikeUrl(entry.caption)) {
+            title = if (entry.sourceApp == SourceApp.Bluesky && entry.title.isBlank() && entry.caption.isBlank()) {
+                ""
+            } else if (entry.sourceApp == SourceApp.Other || app.pane.android.domain.model.looksLikeUrl(entry.title) || app.pane.android.domain.model.looksLikeUrl(entry.caption)) {
                 app.pane.android.domain.model.OtherTitles.displayTitle(entry.title, entry.caption, entry.url)
             } else {
                 entry.title.ifBlank { entry.caption }.ifBlank { entry.url }
             },
-            identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName),
+            identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName)
+                .ifBlank { if (entry.sourceApp == SourceApp.Bluesky) "bsky.app" else "" },
             timeLabel = HistoryLedger.relTime(stamp, now, zone, locale),
             pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url)
                 ?: if (entry.sourceApp == SourceApp.Other) {
@@ -114,5 +117,5 @@ fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.Instagram -> R.drawable.ic_source_instagram
     SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
-    SourceApp.YouTube, SourceApp.TikTok, SourceApp.Threads, SourceApp.Other -> null
+    SourceApp.YouTube, SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
 }

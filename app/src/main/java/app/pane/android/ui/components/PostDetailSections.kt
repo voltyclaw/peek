@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -419,8 +420,10 @@ fun CommentsSection(
         return
     }
     val x = isXHost(sourceHost)
+    val bsky = sourceHost.contains("bsky.app")
+    val directReplies = x || bsky
     // T5: no replies and no guest wall — omit the section, including the THREAD label.
-    val showThreadBody = if (x) {
+    val showThreadBody = if (directReplies) {
         post.comments.isNotEmpty() || post.canLoadMoreComments || post.commentsTruncated
     } else {
         post.comments.isNotEmpty() ||
@@ -437,8 +440,8 @@ fun CommentsSection(
         ThreadLabel.Thread -> R.string.thread_label
     }
     val remainder = post.commentsTruncated || (post.commentCount > loaded && loaded > 0)
-    val showEndCap = !x && !post.canLoadMoreComments && remainder
-    val showReplyList = post.comments.isNotEmpty() || (!x && post.commentCount > 0) || post.canLoadMoreComments
+    val showEndCap = !directReplies && !post.canLoadMoreComments && remainder
+    val showReplyList = post.comments.isNotEmpty() || (!directReplies && post.commentCount > 0) || post.canLoadMoreComments
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -459,7 +462,7 @@ fun CommentsSection(
             Column(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile),
             ) {
-                if (!x && post.comments.isEmpty() && post.commentCount > 0) {
+                if (!directReplies && post.comments.isEmpty() && post.commentCount > 0) {
                     Text(
                         text = stringResource(R.string.replies_unavailable),
                         modifier = Modifier.padding(14.dp),
@@ -469,10 +472,10 @@ fun CommentsSection(
                 }
                 post.comments.forEachIndexed { index, comment ->
                     if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
-                    CommentThread(comment, accentLine = false, profile = x, onOpen = onOpen, play = play, onOpenMedia = onOpenMedia, postUrl = post.sourceUrl)
+                    CommentThread(comment, accentLine = false, profile = directReplies, onOpen = onOpen, play = play, onOpenMedia = onOpenMedia, postUrl = post.sourceUrl)
                 }
                 if (post.canLoadMoreComments) {
-                    if (x) {
+                    if (directReplies) {
                         ReplyFetchSpinner(
                             isLoading = isLoadingMore,
                             scrollOffset = scrollOffset,
@@ -488,10 +491,11 @@ fun CommentsSection(
                 }
             }
         }
-        if (x && post.commentsTruncated && !post.canLoadMoreComments) {
+        if (directReplies && post.commentsTruncated && !post.canLoadMoreComments) {
             MoreRepliesOnX(
                 url = post.sourceUrl,
                 onOpen = onOpenSource,
+                message = if (bsky) R.string.bs_more_replies else R.string.more_replies_on_x,
                 modifier = Modifier.padding(top = if (showReplyList) 14.dp else 10.dp),
             )
         }
@@ -557,7 +561,12 @@ private fun ReplyFetchSpinner(
 }
 
 @Composable
-private fun MoreRepliesOnX(url: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+private fun MoreRepliesOnX(
+    url: String,
+    onOpen: () -> Unit,
+    message: Int = R.string.more_replies_on_x,
+    modifier: Modifier = Modifier,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val presentation = remember(url) {
         recoveryPresentation(url, RecoveryReason.Other) { packageName ->
@@ -579,7 +588,7 @@ private fun MoreRepliesOnX(url: String, onOpen: () -> Unit, modifier: Modifier =
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = stringResource(R.string.more_replies_on_x),
+            text = stringResource(message),
             color = PaneInk,
             style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
         )
@@ -955,26 +964,63 @@ fun ArticleCard(article: ViewerArticleUiModel, onOpen: (String) -> Unit) {
 }
 
 @Composable
-fun QuoteCard(quote: ViewerQuoteUiModel, onOpen: (String) -> Unit) {
+fun QuoteCard(quote: ViewerQuoteUiModel, onOpen: (String) -> Unit, maxLines: Int = Int.MAX_VALUE) {
+    val stub = when (quote.stub) {
+        "Gone" -> stringResource(R.string.bs_quote_gone)
+        "Detached" -> stringResource(R.string.bs_quote_detached)
+        "SignedIn" -> stringResource(R.string.bs_quote_signed_in)
+        "Nested" -> stringResource(R.string.bs_quoted_post)
+        else -> null
+    }
+    val openable = stub == null || (quote.stub == "Nested" && quote.url.isNotBlank())
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .border(1.dp, PaneBorder, RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClick = { onOpen(quote.url) })
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        if (stub != null) {
+            Text(
+                stub,
+                color = PaneMuted,
+                modifier = if (openable && quote.url.isNotBlank()) {
+                    Modifier.clickable(role = Role.Button) { onOpen(quote.url) }
+                } else {
+                    Modifier
+                },
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp),
+            )
+            return@Column
+        }
+        Column(
+            modifier = if (quote.url.isNotBlank()) Modifier.clickable(role = Role.Button) { onOpen(quote.url) } else Modifier,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
         val name = quote.authorName.ifBlank { quote.handle }
         Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
         if (quote.handle.isNotBlank()) {
-            Text("@${quote.handle}", color = PaneHandle, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+            Text("@${quote.handle.removePrefix("@")}", color = PaneHandle, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
         }
         if (quote.text.isNotBlank()) {
             Text(
-                text = autolinkedCaption(quote.text, PaneInk, MentionNetwork.X, onOpen, PaneHandle, PaneHandlePressed),
+                text = quote.text,
                 color = PaneInk,
+                maxLines = maxLines,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+            )
+        }
+        }
+        if (quote.media.isNotEmpty()) {
+            ThreadMediaBlock(
+                postUrl = quote.url,
+                items = quote.media,
+                playingId = null,
+                muted = true,
+                onVisible = { _, _, _ -> },
+                onOpen = {},
             )
         }
     }
@@ -991,10 +1037,24 @@ fun ExternalLinkCard(card: ViewerLinkCardUiModel, onOpen: (String) -> Unit) {
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(card.label, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
-        if (card.title.isNotBlank()) {
-            Text(card.title, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium))
+        card.thumbUrl?.takeIf { it.startsWith("http") }?.let { thumb ->
+            app.pane.android.ui.components.PeekImage(
+                image = UiImage.Url(thumb),
+                contentDescription = card.title.ifBlank { card.label },
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.91f).clip(RoundedCornerShape(12.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            )
         }
+        if (card.title.isNotBlank()) {
+            Text(
+                card.title,
+                color = PaneInk,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+            )
+        }
+        Text(card.label, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
     }
 }
 
@@ -1016,7 +1076,12 @@ fun ProfileAvatar(
     image: UiImage?,
     label: String,
     size: Dp,
+    empty: Boolean = false,
 ) {
+    if (empty) {
+        Box(Modifier.size(size).clip(CircleShape).background(PaneTile))
+        return
+    }
     val url = (image as? UiImage.Url)?.value?.takeIf { it.startsWith("http") }
     var failed by remember(url) { mutableStateOf(false) }
     Box(

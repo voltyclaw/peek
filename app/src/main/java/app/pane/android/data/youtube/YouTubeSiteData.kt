@@ -2,6 +2,7 @@ package app.pane.android.data.youtube
 
 import android.webkit.CookieManager
 import android.webkit.WebStorage
+import app.pane.android.data.webview.EmbedWebProfiles
 import app.pane.android.domain.youtube.YouTubeSiteData
 
 /** Cookie names from one Cookie header, each rewritten so the browser drops it. */
@@ -36,7 +37,12 @@ object YouTubeWebOrigins {
 }
 
 class AndroidYouTubeSiteData : YouTubeSiteData {
+    override var withdrawClearsAllSiteData: Boolean = false
+        private set
+
     override fun clear() {
+        withdrawClearsAllSiteData = EmbedWebProfiles.delete(EmbedWebProfiles.YOUTUBE)
+        if (withdrawClearsAllSiteData) return
         runCatching {
             val manager = CookieManager.getInstance()
             YouTubeWebOrigins.PAGES.forEach { origin ->

@@ -4,6 +4,7 @@ import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
+import app.pane.android.data.bluesky.BskyUrls
 import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.LinkShims
@@ -18,6 +19,7 @@ internal object HistoryUrls {
         val unwrapped = LinkShims.unwrap(url.trim())
         YouTubeUrls.canonical(unwrapped)?.let { return it }
         TikTokUrls.canonical(unwrapped)?.let { return it }
+        BskyUrls.parsePost(unwrapped)?.let { return it.https() }
         XUrls.parse(unwrapped)?.let { return it.canonicalUrl }
         RedditUrls.direct(unwrapped)?.let { return it.canonicalUrl }
         FacebookUrls.parse(unwrapped)?.let { return it.canonicalUrl }
@@ -31,6 +33,9 @@ internal object HistoryUrls {
         if (host != null && "threads.net" in host) return SourceApp.Threads
         if (YouTubeUrls.videoId(key) != null || YouTubeUrls.videoId(url) != null) return SourceApp.YouTube
         if (TikTokUrls.supports(key) || TikTokUrls.supports(url)) return SourceApp.TikTok
+        if (BskyUrls.parsePost(key) != null || BskyUrls.parsePost(url) != null || BskyUrls.isHost(key) || BskyUrls.isHost(url)) {
+            return SourceApp.Bluesky
+        }
         return when {
             XUrls.parse(key) != null -> SourceApp.X
             RedditUrls.direct(key) != null -> SourceApp.Reddit
@@ -43,6 +48,7 @@ internal object HistoryUrls {
             hint.equals("Threads", ignoreCase = true) -> SourceApp.Threads
             hint.equals("YouTube", ignoreCase = true) -> SourceApp.YouTube
             hint.equals("TikTok", ignoreCase = true) -> SourceApp.TikTok
+            hint.equals("Bluesky", ignoreCase = true) -> SourceApp.Bluesky
             else -> SourceApp.Other
         }
     }

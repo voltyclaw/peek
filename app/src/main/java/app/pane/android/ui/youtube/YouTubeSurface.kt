@@ -301,6 +301,7 @@ private fun YouTubeEmbed(
         modifier = modifier.fillMaxWidth().aspectRatio(ratio).background(PaneTile),
         factory = { context ->
             WebView(context).apply {
+                app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.YOUTUBE)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.mediaPlaybackRequiresUserGesture = false

@@ -17,7 +17,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import app.pane.android.ui.theme.Inter
+import app.pane.android.ui.theme.PaneInk
+import app.pane.android.ui.theme.PaneMuted
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
@@ -26,6 +35,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.compose.ui.res.stringResource
+import app.pane.android.R
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.theme.PaneTile
@@ -109,6 +120,26 @@ private fun Cell(
     modifier: Modifier,
 ) {
     val ratio = ThreadMedia.aspectCap(item.width ?: 0, item.height ?: 0)
+    if (item.cover == "adult" || item.cover == "graphic") {
+        MediaCover(
+            title = if (item.cover == "graphic") R.string.bs_label_graphic else R.string.bs_label_adult,
+            body = R.string.bs_adult_body,
+            action = null,
+            modifier = modifier,
+        )
+        return
+    }
+    var revealed by remember(item.id) { mutableStateOf(item.cover != "nudity") }
+    if (item.cover == "nudity" && !revealed) {
+        MediaCover(
+            title = R.string.bs_label_nudity,
+            body = null,
+            action = R.string.bs_show_media,
+            modifier = modifier,
+            onAction = { revealed = true },
+        )
+        return
+    }
     val video = item.videoUrl
     val shape = RoundedCornerShape(12.dp)
     val active = !video.isNullOrBlank() && playingId == item.id
@@ -210,3 +241,36 @@ class ThreadPlayController(startMuted: Boolean) {
 @Composable
 fun rememberThreadPlay(startMuted: Boolean): ThreadPlayController =
     remember { ThreadPlayController(startMuted) }
+
+@Composable
+private fun MediaCover(
+    title: Int,
+    body: Int?,
+    action: Int?,
+    modifier: Modifier,
+    onAction: () -> Unit = {},
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(PaneTile)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(title), color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold))
+        if (body != null) {
+            Text(stringResource(body), color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 14.sp))
+        }
+        if (action != null) {
+            Text(
+                stringResource(action),
+                color = PaneInk,
+                modifier = Modifier.clickable(role = Role.Button, onClick = onAction).padding(vertical = 12.dp),
+                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+            )
+        }
+    }
+}
