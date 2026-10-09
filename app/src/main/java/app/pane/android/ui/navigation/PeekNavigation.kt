@@ -87,8 +87,12 @@ fun PeekNavigation(
     var videoQuality by remember { mutableStateOf(VideoQualityPreferences.read(context)) }
     var soundMode by remember { mutableStateOf(SoundPreferences.read(context)) }
     var youTubeConsent by remember { mutableStateOf(container.youtube.hasConsent()) }
+    var youTubeAgreedAt by remember { mutableStateOf(container.youtube.acceptedAtEpochMillis()) }
     var tikTokConsent by remember { mutableStateOf(container.tiktok.hasConsent()) }
     var tikTokAgreedAt by remember { mutableStateOf(container.tiktok.acceptedAtEpochMillis()) }
+    val sourceStore = remember { app.pane.android.ui.home.SourceSwitchStore(context).also { it.migrateOnce() } }
+    var sourceShown by remember { mutableStateOf(sourceStore.snapshot()) }
+    val sourceRows = app.pane.android.ui.home.rememberSourceRows(sourceShown, youTubeAgreedAt, tikTokAgreedAt)
     var browserTrampoline by remember { mutableStateOf(BrowserTrampolinePreferences.read(context)) }
     var showSamples by remember {
         mutableStateOf(BuildConfig.DEBUG && SampleRecentsPreferences.read(context))
@@ -170,10 +174,21 @@ fun PeekNavigation(
         }
     }
 
-    fun openFromHub(url: String) {
-        if (paneEntry(url) == PaneEntry.ProfileHandoff) {
-            val started = openExternally(context, url, finishAfter = false)
-            if (!started) {
+    fun sourceHandsOff(url: String): Boolean {
+        val stored = app.pane.android.domain.source.SourceSwitches.rows.associate {
+            app.pane.android.domain.source.SourceSwitches.key(it) to (sourceShown[it] != false)
+        }
+        val source = app.pane.android.data.history.HistoryUrls.sourceApp(url)
+        return app.pane.android.domain.source.SourceSwitches.handsOff(source, stored)
+    }
+
+    fun deliver(url: String, finishAfter: Boolean) {
+        val profile = app.pane.android.data.links.paneEntry(url) == app.pane.android.data.links.PaneEntry.ProfileHandoff
+        if (profile || sourceHandsOff(url)) {
+            val started = openExternally(context, url, finishAfter = finishAfter)
+            if (finishAfter && app.pane.android.data.links.profileHandoffFinishes(fromExternal = launchedFromViewLink, started = started)) {
+                activity?.finish()
+            } else if (!started) {
                 Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
             }
         } else {
@@ -181,8 +196,15 @@ fun PeekNavigation(
         }
     }
 
+    fun openFromHub(url: String) {
+        deliver(url, finishAfter = false)
+    }
+
     fun openLinked(url: String) {
-        if (paneEntry(url) == PaneEntry.ProfileHandoff || BrowserTrampoline.openablePost(url) == null) {
+        if (app.pane.android.data.links.paneEntry(url) == app.pane.android.data.links.PaneEntry.ProfileHandoff ||
+            BrowserTrampoline.openablePost(url) == null ||
+            sourceHandsOff(url)
+        ) {
             val started = openExternally(context, url, finishAfter = false)
             if (!started) {
                 Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
@@ -195,16 +217,7 @@ fun PeekNavigation(
     LaunchedEffect(viewIntentUrl.value) {
         val url = viewIntentUrl.value ?: return@LaunchedEffect
         viewIntentUrl.value = null
-        if (paneEntry(url) == PaneEntry.ProfileHandoff) {
-            val started = openExternally(context, url, finishAfter = true)
-            if (profileHandoffFinishes(fromExternal = launchedFromViewLink, started = started)) {
-                activity?.finish()
-            } else if (!started) {
-                Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            backStack.add(ViewerKey(url))
-        }
+        deliver(url, finishAfter = true)
     }
 
     NavDisplay(
@@ -278,24 +291,27 @@ fun PeekNavigation(
                         if (BuildConfig.DEBUG) SampleRecentsPreferences.write(context, enabled)
                     },
                     onOpenSample = { url -> openFromHub(url) },
-                    youTubeConsent = youTubeConsent,
-                    onWithdrawYouTubeConsent = {
-                        container.youtube.withdraw()
-                        youTubeConsent = false
+                    sourceRows = sourceRows,
+                    onSourceShown = { id, on ->
+                        val app = app.pane.android.domain.model.SourceApp.valueOf(id)
+                        sourceStore.set(app, on)
+                        sourceShown = sourceStore.snapshot()
                     },
-                    tikTokConsent = tikTokConsent,
-                    tikTokAgreedAt = tikTokAgreedAt,
-                    onAllowTikTok = {
-                        val now = System.currentTimeMillis()
-                        container.tiktok.allow(now)
-                        tikTokConsent = true
-                        tikTokAgreedAt = now
-                    },
-                    onWithdrawTikTok = {
-                        container.tiktok.withdraw()
-                        tikTokConsent = false
-                        tikTokAgreedAt = null
-                        scope.launch { container.historyRepository.stripSourceDisplayCache(SourceApp.TikTok) }
+                    onWithdrawSource = { id ->
+                        when (id) {
+                            "YouTube" -> {
+                                container.youtube.withdraw()
+                                youTubeConsent = false
+                                youTubeAgreedAt = null
+                                scope.launch { container.historyRepository.stripSourceDisplayCache(app.pane.android.domain.model.SourceApp.YouTube) }
+                            }
+                            "TikTok" -> {
+                                container.tiktok.withdraw()
+                                tikTokConsent = false
+                                tikTokAgreedAt = null
+                                scope.launch { container.historyRepository.stripSourceDisplayCache(app.pane.android.domain.model.SourceApp.TikTok) }
+                            }
+                        }
                     },
                     modifier = Modifier.safeDrawingPadding(),
                 )
@@ -337,12 +353,13 @@ fun PeekNavigation(
                     onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },
                     onBack = ::handleBack,
                     onLeave = { while (backStack.size > 1) backStack.removeLastOrNull() },
-                    onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
+                    onOpenMedia = { ownerId, mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex, ownerId)) },
                     onOpenLinked = { url -> openLinked(url) },
                     youTubeConsented = youTubeConsent,
                     onAcceptYouTube = { videoId ->
                         container.youtube.accept(videoId, System.currentTimeMillis())
                         youTubeConsent = true
+                        youTubeAgreedAt = container.youtube.acceptedAtEpochMillis()
                     },
                     onYouTubePlayerShown = { videoId ->
                         container.youtube.open(videoId, app.pane.android.domain.youtube.YouTubeEntry.View)
@@ -369,6 +386,7 @@ fun PeekNavigation(
                     prepareMediaForSharing = container.prepareMediaForSharing,
                     downloadMedia = container.downloadMedia,
                     initialMediaIndex = key.mediaIndex,
+                    ownerId = key.ownerId,
                     videoQuality = videoQuality,
                     startMuted = { SoundPreferences.startMuted(context) },
                     onMutedChange = { muted -> SoundPreferences.rememberMuted(context, muted) },

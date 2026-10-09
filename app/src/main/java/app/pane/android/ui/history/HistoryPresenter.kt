@@ -84,16 +84,26 @@ object HistoryPresenter {
         }
         return LedgerRowUi(
             url = entry.url,
-            title = entry.title.ifBlank { entry.caption }.ifBlank { entry.url },
+            title = if (entry.sourceApp == SourceApp.Other || app.pane.android.domain.model.looksLikeUrl(entry.title) || app.pane.android.domain.model.looksLikeUrl(entry.caption)) {
+                app.pane.android.domain.model.OtherTitles.displayTitle(entry.title, entry.caption, entry.url)
+            } else {
+                entry.title.ifBlank { entry.caption }.ifBlank { entry.url }
+            },
             identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName),
             timeLabel = HistoryLedger.relTime(stamp, now, zone, locale),
-            pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url),
+            pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url)
+                ?: if (entry.sourceApp == SourceApp.Other) {
+                    app.pane.android.domain.model.OtherTitles.faviconUrl(entry.url)?.let(UiImage::Url)
+                } else {
+                    null
+                },
             sourceMark = sourceMark(entry.sourceApp),
             thumb = thumb?.let(UiImage::Url),
             video = video,
             starred = entry.starredAt != null,
             tiktokId = tiktokId,
             tiktokThumbUrl = if (tiktokId.isBlank()) null else entry.thumbUrl,
+            globe = entry.sourceApp == SourceApp.Other && entry.pfpUrl.isNullOrBlank(),
         )
     }
 }

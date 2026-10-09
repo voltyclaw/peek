@@ -144,11 +144,8 @@ internal object XRichText {
         return "[${label.replace("]", "")}]($target)"
     }
 
-    private fun linkLabel(entity: XUrlEntity): String {
-        val display = entity.display.trim()
-        if (display.isNotBlank() && !display.contains("t.co")) return display
-        return hostPath(entity.expanded)
-    }
+    private fun linkLabel(entity: XUrlEntity): String =
+        app.pane.android.domain.text.LinkLabels.display(entity.display, entity.expanded)
 
     /**
      * Removes one short link. A trailing link-only tail also drops the colon or

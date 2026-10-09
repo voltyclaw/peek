@@ -13,10 +13,11 @@ import app.pane.android.domain.model.HistorySwipeResolver
 import app.pane.android.domain.model.HistoryUndo
 import app.pane.android.domain.model.HistoryView
 import app.pane.android.domain.model.SourceApp
+import app.pane.android.domain.model.StarCopy
 import app.pane.android.domain.model.RecentContent
 import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.model.toHistoryView
-import app.pane.android.domain.model.StarCopy
+import app.pane.android.domain.model.keepText
 import app.pane.android.domain.model.StarImageBytes
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
@@ -110,7 +111,14 @@ internal class SqliteHistoryRepository(
                 imageStore.pin(key, images.thumbnail, images.profile)
             }
             val starredAt = existing?.starredAt ?: clock.nowEpochMillis()
-            val text = copy.normalized()
+            val text = copy.normalized().let { incoming ->
+                if (existing == null) incoming else incoming.copy(
+                    title = keepText(incoming.title, existing.title),
+                    authorName = keepText(incoming.authorName, existing.authorName),
+                    handle = keepText(incoming.handle, existing.handle),
+                    caption = keepText(incoming.caption, existing.caption),
+                )
+            }
             sql.transaction {
                 if (existing == null) {
                     insert(

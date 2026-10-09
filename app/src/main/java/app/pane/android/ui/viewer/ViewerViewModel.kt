@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface ViewerNotice {
     data object Starred : ViewerNotice
@@ -48,9 +50,20 @@ class ViewerViewModel(
     private val notices = MutableSharedFlow<ViewerNotice>(extraBufferCapacity = 1)
     val notice: SharedFlow<ViewerNotice> = notices.asSharedFlow()
     private var loaded: LinkContent? = null
+    private val writes = Mutex()
 
     init {
         viewModelScope.launch { load { onProgress, onPreview -> openLink(url, onProgress, onPreview) } }
+        viewModelScope.launch {
+            historyRepository.observeHistory().collect { rows ->
+                val key = HistoryUrls.canonical(url)
+                val starred = rows.any { it.url == key && it.starredAt != null }
+                val current = mutableUiState.value
+                if (current is ViewerUiState.Content && current.starred != starred) {
+                    mutableUiState.value = current.copy(starred = starred)
+                }
+            }
+        }
     }
 
     fun onYouTubeAccepted() {
@@ -109,7 +122,8 @@ class ViewerViewModel(
         mutableUiState.value = content.copy(isLoadingMoreComments = true)
         viewModelScope.launch {
             loadMoreComments(url).onSuccess { updated ->
-                mutableUiState.value = ViewerUiState.Content(mapper.map(updated))
+                val starred = (mutableUiState.value as? ViewerUiState.Content)?.starred == true
+                mutableUiState.value = ViewerUiState.Content(mapper.map(updated), starred = starred)
             }.onFailure {
                 mutableUiState.value = content
             }
@@ -128,7 +142,8 @@ class ViewerViewModel(
         }
         val onPreview: (LinkContent) -> Unit = { preview ->
             revealed = true
-            mutableUiState.value = ViewerUiState.Content(mapper.map(preview))
+            val current = mutableUiState.value as? ViewerUiState.Content
+            mutableUiState.value = ViewerUiState.Content(mapper.map(preview), starred = current?.starred == true)
         }
         fetch(onProgress, onPreview).onSuccess { content ->
             loaded = content
@@ -139,16 +154,16 @@ class ViewerViewModel(
     }
 
     fun onToggleStar() {
-        val content = mutableUiState.value as? ViewerUiState.Content ?: return
         viewModelScope.launch {
-            if (content.starred) {
-                val undo = historyRepository.applySwipe(url) ?: return@launch
-                mutableUiState.value = content.copy(starred = false)
-                notices.emit(ViewerNotice.Unstarred(undo))
-            } else {
-                historyRepository.star(url, starCopy(content))
-                mutableUiState.value = content.copy(starred = true)
-                notices.emit(ViewerNotice.Starred)
+            writes.withLock {
+                val content = mutableUiState.value as? ViewerUiState.Content ?: return@withLock
+                if (isStarred(url)) {
+                    val undo = historyRepository.applySwipe(url) ?: return@withLock
+                    notices.emit(ViewerNotice.Unstarred(undo))
+                } else {
+                    historyRepository.star(url, starCopy(content))
+                    notices.emit(ViewerNotice.Starred)
+                }
             }
         }
     }

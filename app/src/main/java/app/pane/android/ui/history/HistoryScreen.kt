@@ -235,9 +235,7 @@ fun HistoryView(
                     onClick = onToggleAppMenu,
                 )
                 DropdownMenu(expanded = appMenu, onDismissRequest = onDismissAppMenu) {
-                    if (ui.selectedApps.isNotEmpty()) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.history_all)) }, onClick = { onClearApps(); onDismissAppMenu() })
-                    }
+                    DropdownMenuItem(text = { Text(stringResource(R.string.history_all)) }, onClick = { onClearApps(); onDismissAppMenu() })
                     ui.apps.forEach { app ->
                         val selected = app in ui.selectedApps
                         DropdownMenuItem(

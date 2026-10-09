@@ -53,7 +53,7 @@ fun ViewerRoute(
     downloadMedia: DownloadMediaUseCase,
     onBack: () -> Unit,
     onLeave: () -> Unit = onBack,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     modifier: Modifier = Modifier,
     videoQuality: VideoQuality = VideoQuality.Auto,
     startMuted: () -> Boolean = { true },
@@ -210,7 +210,7 @@ fun ViewerRoute(
     )
     LaunchedEffect(openImmersive, mediaIndex) {
         if (openImmersive) {
-            onOpenMedia(mediaIndex)
+            onOpenMedia("", mediaIndex)
             handedToImmersive = true
         }
     }

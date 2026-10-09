@@ -74,6 +74,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import app.pane.android.ui.media.ThreadMediaBlock
+import app.pane.android.ui.media.ThreadPlayController
+import app.pane.android.ui.text.BidiText
+import app.pane.android.ui.text.userContent
 import app.pane.android.R
 import coil3.compose.AsyncImage
 import app.pane.android.ui.model.CommentUiModel
@@ -314,7 +318,7 @@ fun CaptionText(
             fontSize = if (large) 20.5.sp else 16.sp,
             lineHeight = if (large) 30.sp else 22.sp,
             fontWeight = FontWeight.Normal,
-        ),
+        ).userContent(),
     )
 }
 
@@ -325,8 +329,9 @@ fun CaptionText(
 @Composable
 fun AuthorThreadSection(
     post: ViewerPostUiModel,
-    inlineImage: UiImage? = null,
     onOpen: (String) -> Unit = {},
+    play: ThreadPlayController? = null,
+    onOpenMedia: (String, Int) -> Unit = { _, _ -> },
 ) {
     val posts = post.authorThread
     if (posts.size < 2) return
@@ -351,21 +356,25 @@ fun AuthorThreadSection(
                         color = PaneMuted,
                         style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
                     )
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(
-                            text = autolinkedCaption(item.text, PaneInk, mentionNetwork(post.sourceUrl), onOpen, PaneHandle, PaneHandlePressed),
-                            modifier = Modifier.weight(1f).padding(top = 4.dp),
-                            color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, lineHeight = 21.sp),
+                    Text(
+                        text = autolinkedCaption(item.text, PaneInk, mentionNetwork(post.sourceUrl), onOpen, PaneHandle, PaneHandlePressed),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        color = PaneInk,
+                        style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, lineHeight = 21.sp).userContent(),
+                    )
+                    if (item.media.isNotEmpty()) {
+                        ThreadMediaBlock(
+                            postUrl = post.sourceUrl,
+                            items = item.media,
+                            playingId = play?.winner,
+                            muted = play?.muted != false,
+                            userPaused = play?.userPaused == true,
+                            onVisible = { id, fraction, top -> play?.report(id, fraction, top) },
+                            onTogglePlay = { id -> play?.togglePlay(id) },
+                            onToggleMute = { play?.toggleMute() },
+                            onOpen = { index -> onOpenMedia(item.id, index) },
+                            modifier = Modifier.padding(top = 8.dp),
                         )
-                        if (item.opened && inlineImage != null) {
-                            PeekImage(
-                                image = inlineImage,
-                                contentDescription = post.mediaDescription,
-                                modifier = Modifier.padding(start = 10.dp).size(width = 68.dp, height = 56.dp).clip(RoundedCornerShape(8.dp)),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            )
-                        }
                     }
                 }
             }
@@ -390,6 +399,8 @@ fun CommentsSection(
     host: String = "",
     onOpenSource: () -> Unit = {},
     onOpen: (String) -> Unit = {},
+    play: ThreadPlayController? = null,
+    onOpenMedia: (String, Int) -> Unit = { _, _ -> },
 ) {
     val sourceHost = host.ifBlank { post.sourceUrl }
     if (post.commentsNotice != app.pane.android.ui.model.ViewerCommentsNotice.None && post.comments.isEmpty()) {
@@ -458,7 +469,7 @@ fun CommentsSection(
                 }
                 post.comments.forEachIndexed { index, comment ->
                     if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
-                    CommentThread(comment, accentLine = false, profile = x, onOpen = onOpen)
+                    CommentThread(comment, accentLine = false, profile = x, onOpen = onOpen, play = play, onOpenMedia = onOpenMedia, postUrl = post.sourceUrl)
                 }
                 if (post.canLoadMoreComments) {
                     if (x) {
@@ -624,6 +635,9 @@ fun CommentThread(
     depth: Int = 0,
     profile: Boolean = false,
     onOpen: (String) -> Unit = {},
+    play: ThreadPlayController? = null,
+    onOpenMedia: (String, Int) -> Unit = { _, _ -> },
+    postUrl: String = "",
 ) {
     var collapsed by rememberSaveable(comment.id) { mutableStateOf(false) }
     val canFold = comment.replies.isNotEmpty()
@@ -658,10 +672,13 @@ fun CommentThread(
             },
             profile = profile,
             onOpen = onOpen,
+            play = play,
+            onOpenMedia = onOpenMedia,
+            postUrl = postUrl,
         )
         if (expanded) {
             comment.replies.forEach { reply ->
-                CommentThread(reply, accentLine = false, depth = depth + 1, profile = profile, onOpen = onOpen)
+                CommentThread(reply, accentLine = false, depth = depth + 1, profile = profile, onOpen = onOpen, play = play, onOpenMedia = onOpenMedia, postUrl = postUrl)
             }
         }
     }
@@ -674,10 +691,13 @@ fun CommentRow(
     onToggleFold: (() -> Unit)? = null,
     profile: Boolean = false,
     onOpen: (String) -> Unit = {},
+    play: ThreadPlayController? = null,
+    onOpenMedia: (String, Int) -> Unit = { _, _ -> },
+    postUrl: String = "",
 ) {
     val toggleLabel = stringResource(if (folded) R.string.expand_replies else R.string.collapse_replies)
     if (profile) {
-        XReplyRow(comment, folded, toggleLabel, onToggleFold, onOpen)
+        XReplyRow(comment, folded, toggleLabel, onToggleFold, onOpen, play, onOpenMedia, postUrl)
         return
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -693,7 +713,7 @@ fun CommentRow(
                 Text(
                     comment.author,
                     color = replyNameColor(comment),
-                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = if (replyUsesHandle(comment)) FontWeight.Medium else FontWeight.SemiBold),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = if (replyUsesHandle(comment)) FontWeight.Medium else FontWeight.SemiBold).userContent(),
                 )
             }
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
@@ -721,8 +741,22 @@ fun CommentRow(
                 .fillMaxWidth()
                 .then(if (onToggleFold != null) Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold) else Modifier),
             color = PaneInk,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 19.sp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 19.sp).userContent(),
         )
+        if (comment.media.isNotEmpty()) {
+            ThreadMediaBlock(
+                postUrl = postUrl,
+                items = comment.media,
+                playingId = play?.winner,
+                muted = play?.muted != false,
+                userPaused = play?.userPaused == true,
+                onVisible = { id, fraction, top -> play?.report(id, fraction, top) },
+                onTogglePlay = { id -> play?.togglePlay(id) },
+                onToggleMute = { play?.toggleMute() },
+                onOpen = { index -> onOpenMedia(comment.id, index) },
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
         ReplyCard(comment, onOpen)
     }
 }
@@ -734,6 +768,9 @@ private fun XReplyRow(
     toggleLabel: String,
     onToggleFold: (() -> Unit)?,
     onOpen: (String) -> Unit,
+    play: ThreadPlayController? = null,
+    onOpenMedia: (String, Int) -> Unit = { _, _ -> },
+    postUrl: String = "",
 ) {
     val handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() }
     Row(
@@ -760,10 +797,14 @@ private fun XReplyRow(
                             fontFamily = Inter,
                             fontSize = 14.sp,
                             fontWeight = if (handle != null) FontWeight.SemiBold else FontWeight.Medium,
-                        ),
+                        ).userContent(),
                     )
                     if (handle != null) {
-                        Text("@$handle", color = PaneHandle, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+                        Text(
+                            BidiText.isolate("@$handle"),
+                            color = PaneHandle,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium).userContent(),
+                        )
                     }
                 }
                 if (comment.age.isNotBlank()) {
@@ -794,8 +835,22 @@ private fun XReplyRow(
                     .padding(top = 2.dp)
                     .then(if (onToggleFold != null) Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold) else Modifier),
                 color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
+                style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp).userContent(),
             )
+            if (comment.media.isNotEmpty()) {
+                ThreadMediaBlock(
+                    postUrl = postUrl,
+                    items = comment.media,
+                    playingId = play?.winner,
+                    muted = play?.muted != false,
+                    userPaused = play?.userPaused == true,
+                    onVisible = { id, fraction, top -> play?.report(id, fraction, top) },
+                    onTogglePlay = { id -> play?.togglePlay(id) },
+                    onToggleMute = { play?.toggleMute() },
+                    onOpen = { index -> onOpenMedia(comment.id, index) },
+                    modifier = Modifier.padding(start = 42.dp, top = 8.dp),
+                )
+            }
             ReplyCard(comment, onOpen)
         }
     }

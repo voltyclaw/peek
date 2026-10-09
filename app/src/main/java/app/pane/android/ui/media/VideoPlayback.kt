@@ -95,6 +95,7 @@ internal fun MutedInlineVideo(
     paused: Boolean = false,
     onContinuity: (playing: Boolean, muted: Boolean) -> Unit = { _, _ -> },
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
+    resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
 ) {
     val session = rememberPlaybackSession()
     val acquired = session.acquire(postUrl, mediaKey, videoUrl, freshMuted = muted)
@@ -137,7 +138,7 @@ internal fun MutedInlineVideo(
     }
     VideoSurface(
         exoPlayer = exoPlayer,
-        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        resizeMode = resizeMode,
         modifier = modifier,
     )
 }

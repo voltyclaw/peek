@@ -103,6 +103,9 @@ data class ExternalMediaItem(
     val contentDescription: String,
     val videoUrl: String? = null,
     val videos: List<PlayableVideo> = emptyList(),
+    val width: Int? = null,
+    val height: Int? = null,
+    val gif: Boolean = false,
 )
 
 /** One post in an X author's own chain. Empty for Facebook. */
@@ -111,6 +114,7 @@ data class ExternalThreadPost(
     val id: String,
     val author: String,
     val text: String,
+    val media: List<ExternalMediaItem> = emptyList(),
 )
 
 /** Whether more X replies can be fetched, the public list is complete, or the guest page stopped. */
@@ -210,6 +214,7 @@ data class Comment(
     val cardTitle: String? = null,
     val cardBody: String? = null,
     val cardUrl: String? = null,
+    val media: List<ExternalMediaItem> = emptyList(),
 )
 
 @Serializable

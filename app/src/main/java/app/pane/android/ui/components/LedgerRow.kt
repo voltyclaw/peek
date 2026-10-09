@@ -1,7 +1,17 @@
 package app.pane.android.ui.components
 
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
@@ -31,17 +42,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +78,8 @@ import app.pane.android.domain.model.HistoryGesture
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
+import app.pane.android.ui.text.BidiText
+import app.pane.android.ui.text.userContent
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneGround
@@ -98,31 +111,14 @@ fun LedgerSwipeRow(
     showDivider: Boolean = true,
 ) {
     val haptic = LocalHapticFeedback.current
-    var armed by remember(row.url) { mutableStateOf(true) }
-    var pastCommit by remember(row.url) { mutableStateOf(false) }
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled && armed) {
-                armed = false
-                onSwipe(value == SwipeToDismissBoxValue.EndToStart)
-            }
-            false
-        },
-        positionalThreshold = { distance -> distance * 0.4f },
-    )
-    val offset = runCatching { state.requireOffset() }.getOrDefault(0f)
-    val dragging = abs(offset) > 1f
-    LaunchedEffect(dragging) {
-        if (!dragging) armed = true
-    }
-    val direction = state.dismissDirection
-    val left = direction == SwipeToDismissBoxValue.EndToStart
-    val progress = runCatching { state.progress }.getOrDefault(0f)
-    val past = dragging && progress >= 0.4f && state.targetValue != SwipeToDismissBoxValue.Settled
-    LaunchedEffect(past) {
-        if (past && !pastCommit) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        pastCommit = past
-    }
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    var offsetPx by remember(row.url) { mutableFloatStateOf(0f) }
+    var settle by remember(row.url) { mutableStateOf<Job?>(null) }
+    var width by remember(row.url) { mutableStateOf(1f) }
+    var past by remember(row.url) { mutableStateOf(false) }
+    val dragging = abs(offsetPx) > 1f
+    val left = offsetPx < 0f
     val kind = if (recents) HistoryLedger.hubGesture(left, row.starred) else HistoryLedger.gesture(left, row.starred)
     val removeFull = lerp(PaneTile, PaneMuted, 0.30f)
     val starFull = lerp(PaneTile, PaneInk, 0.11f)
@@ -144,25 +140,73 @@ fun LedgerSwipeRow(
             }
         }
     Column(modifier.fillMaxWidth()) {
-        SwipeToDismissBox(
-            state = state,
-            backgroundContent = {
-                SwipeBackground(kind = kind, past = past, left = left, color = background)
-            },
-            enableDismissFromStartToEnd = true,
-            enableDismissFromEndToStart = true,
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
+                .pointerInput(row.url, row.starred) {
+                    val slop = viewConfiguration.touchSlop
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        settle?.cancel()
+                        val tracker = VelocityTracker()
+                        tracker.addPosition(down.uptimeMillis, down.position)
+                        var decided = false
+                        var horizontal = false
+                        var totalX = 0f
+                        var totalY = 0f
+                        var last = down.position
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            if (!change.pressed) {
+                                val velocity = tracker.calculateVelocity().x
+                                val commit = LedgerSwipe.commits(offsetPx, width, velocity, density.density)
+                                if (commit) onSwipe(offsetPx < 0f)
+                                past = false
+                                val releasedAt = offsetPx
+                                settle = scope.launch {
+                                    animate(releasedAt, 0f) { value, _ -> offsetPx = value }
+                                }
+                                break
+                            }
+                            val dx = change.position.x - last.x
+                            val dy = change.position.y - last.y
+                            totalX += dx
+                            totalY += dy
+                            last = change.position
+                            if (!decided && (abs(totalX) > slop || abs(totalY) > slop)) {
+                                decided = true
+                                horizontal = abs(totalX) > abs(totalY)
+                                if (!horizontal) break
+                            }
+                            if (horizontal) {
+                                change.consume()
+                                val next = (offsetPx + dx).coerceIn(-width, width)
+                                offsetPx = next
+                                val nowPast = abs(next) / width >= LedgerSwipe.COMMIT_FRACTION
+                                if (nowPast != past) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                past = nowPast
+                            }
+                        }
+                    }
+                },
         ) {
-            LedgerBody(
-                row = row,
-                held = held,
-                description = description,
-                starLabel = starLabel,
-                removeLabel = removeLabel,
-                onOpen = onOpen,
-                onLongPress = onLongPress,
-                onActionStar = onActionStar,
-                onActionRemove = onActionRemove,
-            )
+            SwipeBackground(kind = kind, past = past, left = left, color = background)
+            Box(Modifier.offset { IntOffset(offsetPx.roundToInt(), 0) }) {
+                LedgerBody(
+                    row = row,
+                    held = held,
+                    description = description,
+                    starLabel = starLabel,
+                    removeLabel = removeLabel,
+                    onOpen = onOpen,
+                    onLongPress = onLongPress,
+                    onActionStar = onActionStar,
+                    onActionRemove = onActionRemove,
+                )
+            }
         }
         if (showDivider && !held && !dragging) {
             HorizontalDivider(
@@ -283,7 +327,7 @@ private fun LedgerBody(
                 )
             }
         }
-        Poster(row.pfp, row.identity, row.sourceMark, ring)
+        Poster(row.pfp, row.identity, row.sourceMark, ring, row.globe)
         Column(
             modifier = Modifier.padding(start = 12.dp).weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -293,16 +337,16 @@ private fun LedgerBody(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = PaneInk,
-                style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
+                style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold).userContent(),
             )
-            val meta = listOf(row.identity, row.timeLabel).filter { it.isNotBlank() }.joinToString(" · ")
+            val meta = BidiText.join(listOf(row.identity, row.timeLabel))
             if (meta.isNotBlank()) {
                 Text(
                     text = meta,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+                    style = TextStyle(fontFamily = Inter, fontSize = 12.sp).userContent(),
                 )
             }
         }
@@ -321,11 +365,22 @@ private fun LedgerBody(
 }
 
 @Composable
-private fun Poster(pfp: UiImage?, identity: String, sourceMark: Int?, ring: Color) {
+private fun Poster(pfp: UiImage?, identity: String, sourceMark: Int?, ring: Color, globe: Boolean) {
     val letter = identity.trim().removePrefix("@").removePrefix("r/").firstOrNull()?.uppercase() ?: "·"
+    var failed by remember(pfp) { mutableStateOf(false) }
+    val showGlobe = globe && (pfp == null || failed)
     Box(Modifier.size(30.dp)) {
-        if (pfp != null) {
-            PeekImage(pfp, contentDescription = null, modifier = Modifier.fillMaxSize().clip(CircleShape))
+        if (pfp != null && !failed) {
+            PeekImage(
+                pfp,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                onError = { if (globe) failed = true },
+            )
+        } else if (showGlobe) {
+            Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Public, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(16.dp))
+            }
         } else {
             Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
                 Text(letter, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))

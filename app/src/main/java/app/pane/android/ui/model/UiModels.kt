@@ -54,7 +54,21 @@ data class LedgerRowUi(
     val starred: Boolean,
     val tiktokId: String = "",
     val tiktokThumbUrl: String? = null,
+    val globe: Boolean = false,
 )
+
+fun ViewerPostUiModel.gallery(ownerId: String): List<ViewerMediaItemUiModel> {
+    if (ownerId.isBlank()) return mediaItemsOrPrimary()
+    authorThread.firstOrNull { it.id == ownerId }?.media?.takeIf { it.isNotEmpty() }?.let { return it }
+    fun walk(comments: List<CommentUiModel>): List<ViewerMediaItemUiModel>? {
+        comments.forEach { comment ->
+            if (comment.id == ownerId && comment.media.isNotEmpty()) return comment.media
+            walk(comment.replies)?.let { return it }
+        }
+        return null
+    }
+    return walk(comments) ?: mediaItemsOrPrimary()
+}
 
 fun RecentLinkUiModel.asLedgerRow(): LedgerRowUi = LedgerRowUi(
     url = url,
@@ -162,6 +176,7 @@ data class AuthorThreadPostUiModel(
     val author: String,
     val text: String,
     val opened: Boolean,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
 )
 
 @Immutable
@@ -182,6 +197,7 @@ data class ViewerMediaItemUiModel(
     val width: Int? = null,
     val height: Int? = null,
     val videoSources: List<VideoSourceUiModel> = emptyList(),
+    val gif: Boolean = false,
 )
 
 fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {
@@ -216,4 +232,5 @@ data class CommentUiModel(
     val cardTitle: String? = null,
     val cardBody: String? = null,
     val cardUrl: String? = null,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
 )

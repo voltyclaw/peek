@@ -16,6 +16,7 @@ fun PlayerRoute(
     prepareMediaForSharing: PrepareMediaForSharingUseCase,
     downloadMedia: DownloadMediaUseCase,
     initialMediaIndex: Int,
+    ownerId: String = "",
     onBack: () -> Unit,
     onLeave: () -> Unit = onBack,
     videoQuality: VideoQuality = VideoQuality.Auto,
@@ -29,6 +30,7 @@ fun PlayerRoute(
     PlayerView(
         uiState = uiState,
         initialMediaIndex = initialMediaIndex,
+        ownerId = ownerId,
         videoQuality = videoQuality,
         startMuted = startMuted,
         onMutedChange = onMutedChange,

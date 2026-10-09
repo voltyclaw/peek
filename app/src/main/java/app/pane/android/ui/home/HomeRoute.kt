@@ -74,12 +74,9 @@ fun HomeRoute(
     showSamplesInRecents: Boolean = false,
     onShowSamplesInRecents: (Boolean) -> Unit = {},
     onOpenSample: (String) -> Unit = {},
-    youTubeConsent: Boolean = false,
-    onWithdrawYouTubeConsent: () -> Unit = {},
-    tikTokConsent: Boolean = false,
-    tikTokAgreedAt: Long? = null,
-    onAllowTikTok: () -> Unit = {},
-    onWithdrawTikTok: () -> Unit = {},
+    sourceRows: List<SourceRowUi> = emptyList(),
+    onSourceShown: (String, Boolean) -> Unit = { _, _ -> },
+    onWithdrawSource: (String) -> Unit = {},
 ) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
@@ -96,7 +93,6 @@ fun HomeRoute(
     val linksPartialMessage = stringResource(R.string.link_settings_partial)
     val linksStillOffMessage = stringResource(R.string.link_settings_still_off)
     val linksHandlingOffMessage = stringResource(R.string.link_settings_handling_off)
-    val youTubeWithdrawnMessage = stringResource(R.string.settings_yt_consent_done)
     val lifecycleOwner = LocalLifecycleOwner.current
     var openedLinkSettings by remember { mutableStateOf(false) }
     var showFirstLaunchHint by remember { mutableStateOf(!FirstLaunchPreferences.isDismissed(context)) }
@@ -261,15 +257,23 @@ fun HomeRoute(
             showSamplesInRecents = showSamplesInRecents,
             onShowSamplesInRecents = onShowSamplesInRecents,
             onOpenSample = onOpenSample,
-            youTubeConsent = youTubeConsent,
-            onWithdrawYouTubeConsent = {
-                onWithdrawYouTubeConsent()
-                scope.launch { snackbarHostState.showForFiveSeconds(youTubeWithdrawnMessage) }
+            sourceRows = sourceRows,
+            onSourceShown = onSourceShown,
+            onWithdrawSource = { id ->
+                onWithdrawSource(id)
+                val name = when (id) {
+                    "YouTube" -> context.getString(R.string.source_youtube)
+                    "TikTok" -> context.getString(R.string.source_tiktok)
+                    else -> null
+                }
+                if (name != null) {
+                    scope.launch {
+                        snackbarHostState.showForFiveSeconds(
+                            context.getString(R.string.consent_withdrawn_snackbar, name),
+                        )
+                    }
+                }
             },
-            tikTokConsent = tikTokConsent,
-            tikTokAgreedAt = tikTokAgreedAt,
-            onAllowTikTok = onAllowTikTok,
-            onWithdrawTikTok = onWithdrawTikTok,
             onOpenExternal = { url -> openExternally(context, url, finishAfter = false) },
         )
         PaneSnackbarHost(

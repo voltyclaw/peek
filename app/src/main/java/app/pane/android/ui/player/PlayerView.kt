@@ -96,12 +96,14 @@ import kotlinx.coroutines.delay
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerUiState
+import app.pane.android.ui.model.gallery
 import app.pane.android.ui.model.mediaItemsOrPrimary
 
 @Composable
 fun PlayerView(
     uiState: ViewerUiState,
     initialMediaIndex: Int,
+    ownerId: String = "",
     onBack: () -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
@@ -152,6 +154,7 @@ fun PlayerView(
             is ViewerUiState.LoadFailed -> UnavailableMedia(onBack, url = uiState.url, reason = uiState.reason, failed = true)
             is ViewerUiState.Content -> MediaContent(
                 post = uiState.post,
+                ownerId = ownerId,
                 initialMediaIndex = initialMediaIndex,
                 videoQuality = videoQuality,
                 startMuted = startMuted,
@@ -240,6 +243,7 @@ private fun UnavailableMedia(onBack: () -> Unit, url: String = "", reason: Strin
 @Composable
 private fun MediaContent(
     post: ViewerPostUiModel,
+    ownerId: String,
     initialMediaIndex: Int,
     videoQuality: VideoQuality,
     startMuted: () -> Boolean,
@@ -247,7 +251,7 @@ private fun MediaContent(
     onBack: () -> Unit,
     onLeave: () -> Unit,
 ) {
-    val items = post.mediaItemsOrPrimary()
+    val items = post.gallery(ownerId)
     val initialPage = initialMediaIndex.coerceIn(0, items.lastIndex)
     val pagerState = rememberPagerState(
         initialPage = initialPage,

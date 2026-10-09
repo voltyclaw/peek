@@ -55,6 +55,7 @@ class FacebookDirectPageLoader(
             val channel = Channel<FetchedPage>(Channel.UNLIMITED)
             val pending = AtomicInteger(pages.size)
             val lastError = AtomicReference(FacebookDocument.UNAVAILABLE)
+            val standIn = java.util.concurrent.atomic.AtomicBoolean(false)
             val jobs = pages.map { target ->
                 async {
                     var parsed: ParsedFacebookPost? = null
@@ -71,7 +72,11 @@ class FacebookDirectPageLoader(
                             if (html.contains("login_form", ignoreCase = true)) {
                                 lastError.set(FacebookDocument.LOGIN)
                             }
-                            parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
+                            if (FacebookGroups.isStandIn(html, url, target)) {
+                                standIn.set(true)
+                            } else {
+                                parsed = FacebookDocument.parse(html, post.id, post.canonicalUrl)
+                            }
                         }
                         channel.send(FetchedPage(target, parsed))
                     } finally {
@@ -116,6 +121,7 @@ class FacebookDirectPageLoader(
                 return@coroutineScope chosen
             }
             if (post.kind == FacebookUrls.Kind.Story) throw StoryUnavailableException()
+            if (standIn.get()) throw app.pane.android.domain.model.PrivateGroupException()
             throw IOException(lastError.get())
         }
     }

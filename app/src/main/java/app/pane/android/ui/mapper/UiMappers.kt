@@ -166,23 +166,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                 )
             }
         } else if (sourceMetadata is ExternalPostMetadata && sourceMetadata.mediaItems.isNotEmpty()) {
-            sourceMetadata.mediaItems.map { item ->
-                ViewerMediaItemUiModel(
-                    id = item.id,
-                    image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
-                    contentDescription = item.contentDescription,
-                    videoUrl = item.videoUrl,
-                    videoSources = item.videos.map { source ->
-                        VideoSourceUiModel(
-                            url = source.url,
-                            width = source.width,
-                            height = source.height,
-                            bitrate = source.bitrate,
-                            adaptive = source.adaptive,
-                        )
-                    },
-                )
-            }
+            sourceMetadata.mediaItems.map { externalMedia(it) }
         } else {
             listOf(
                 ViewerMediaItemUiModel(
@@ -238,6 +222,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
                     author = item.author,
                     text = item.text,
                     opened = item.id == external?.postId,
+                    media = item.media.map { externalMedia(it) },
                 )
             },
             authorThreadPartial = external?.authorThreadPartial == true,
@@ -320,6 +305,26 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         variants: List<app.pane.android.domain.model.InstagramVideoVariant>,
     ): String? = variants.maxByOrNull { (it.width ?: 0) * (it.height ?: 0) }?.url
 
+    private fun externalMedia(item: app.pane.android.domain.model.ExternalMediaItem): ViewerMediaItemUiModel =
+        ViewerMediaItemUiModel(
+            id = item.id,
+            image = imageMapper.map(MediaLocation.Remote(item.imageUrl)),
+            contentDescription = item.contentDescription,
+            videoUrl = item.videoUrl,
+            width = item.width?.takeIf { it > 0 },
+            height = item.height?.takeIf { it > 0 },
+            gif = item.gif,
+            videoSources = item.videos.map { source ->
+                VideoSourceUiModel(
+                    url = source.url,
+                    width = source.width,
+                    height = source.height,
+                    bitrate = source.bitrate,
+                    adaptive = source.adaptive,
+                )
+            },
+        )
+
     private fun mapComment(comment: Comment, source: LinkSource): CommentUiModel {
         val handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() }
         return CommentUiModel(
@@ -336,6 +341,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             cardTitle = comment.cardTitle,
             cardBody = comment.cardBody,
             cardUrl = comment.cardUrl,
+            media = comment.media.map { externalMedia(it) },
         )
     }
 

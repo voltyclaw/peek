@@ -421,7 +421,10 @@ internal fun OpenRecovery(
         }
     }
     val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
-    val headline = when (presentation.headline) {
+    val privateGroup = reason == OpenFailureKind.PrivateGroup
+    val headline = if (privateGroup) {
+        stringResource(R.string.private_group_title)
+    } else when (presentation.headline) {
         RecoveryHeadline.NotPublic -> if (presentation.appNameRes != null) {
             stringResource(R.string.link_isnt_public_post, appName)
         } else {
@@ -431,7 +434,9 @@ internal fun OpenRecovery(
         RecoveryHeadline.Offline -> stringResource(R.string.youre_offline)
         RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
     }
-    val body = when (presentation.body) {
+    val body = if (privateGroup) {
+        stringResource(R.string.private_group_body, appName.ifBlank { stringResource(R.string.source_facebook) })
+    } else when (presentation.body) {
         RecoveryBody.NamedApp -> stringResource(R.string.open_in_app_body, appName)
         RecoveryBody.Browser -> stringResource(R.string.open_it_in_browser_instead)
         RecoveryBody.CheckConnection -> stringResource(R.string.check_connection)
@@ -459,7 +464,7 @@ internal fun OpenRecovery(
             textAlign = TextAlign.Center,
             style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
         )
-        if (presentation.retryPrimary) {
+        if (presentation.retryPrimary && !privateGroup) {
             RecoveryButton(
                 label = stringResource(R.string.try_again),
                 filled = true,

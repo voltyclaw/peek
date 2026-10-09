@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface HubNotice {
     data class Removed(val link: RecentLink) : HubNotice
@@ -42,6 +44,7 @@ class HomeViewModel(
     private val notices = MutableSharedFlow<HubNotice>(extraBufferCapacity = 1)
     val notice: SharedFlow<HubNotice> = notices.asSharedFlow()
     private var latest = emptyList<RecentContent>()
+    private val writes = Mutex()
 
     val uiState: StateFlow<HomeUiState> = combine(
         observeRecentContent(),
@@ -60,15 +63,17 @@ class HomeViewModel(
     /** Left removes the recent only. Right stars, or unstars when the post is already starred. */
     fun swipe(url: String, left: Boolean) {
         viewModelScope.launch {
-            when (HistoryLedger.hubGesture(left, isStarred(url))) {
-                HistoryGesture.Remove -> removeFromRecents(url)
-                HistoryGesture.RemoveStar -> {
-                    val undo = historyRepository.applySwipe(url) ?: return@launch
-                    notices.emit(HubNotice.Unstarred(undo))
-                }
-                HistoryGesture.Star -> {
-                    historyRepository.star(url, copyFor(url))
-                    notices.emit(HubNotice.Starred)
+            writes.withLock {
+                when (HistoryLedger.hubGesture(left, isStarred(url))) {
+                    HistoryGesture.Remove -> removeFromRecents(url)
+                    HistoryGesture.RemoveStar -> {
+                        val undo = historyRepository.applySwipe(url) ?: return@withLock
+                        notices.emit(HubNotice.Unstarred(undo))
+                    }
+                    HistoryGesture.Star -> {
+                        historyRepository.star(url, copyFor(url))
+                        notices.emit(HubNotice.Starred)
+                    }
                 }
             }
         }
@@ -97,10 +102,18 @@ class HomeViewModel(
         return historyRepository.observeHistory().first().any { it.url == key && it.starredAt != null }
     }
 
-    private fun copyFor(url: String): StarCopy {
-        val content = latest.firstOrNull { it.recentLink.url == url }?.content ?: return StarCopy(url, "", "", url)
-        val viewed = content.toHistoryView(url, 0L)
-        return StarCopy(viewed.title, viewed.authorName, viewed.handle, viewed.caption, viewed.thumbUrl, viewed.pfpUrl)
+    private suspend fun copyFor(url: String): StarCopy {
+        val key = HistoryUrls.canonical(url)
+        val content = latest.firstOrNull { HistoryUrls.canonical(it.recentLink.url) == key }?.content
+        if (content != null) {
+            val viewed = content.toHistoryView(url, 0L)
+            return StarCopy(viewed.title, viewed.authorName, viewed.handle, viewed.caption, viewed.thumbUrl, viewed.pfpUrl)
+        }
+        val existing = historyRepository.observeHistory().first().firstOrNull { it.url == key }
+        if (existing != null) {
+            return StarCopy(existing.title, existing.authorName, existing.handle, existing.caption, existing.thumbUrl, existing.pfpUrl)
+        }
+        return StarCopy(url, "", "", url)
     }
 
     class Factory(

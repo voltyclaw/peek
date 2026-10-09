@@ -42,6 +42,7 @@ object XConversation {
                     author = block.author,
                     screenName = block.screenName,
                     text = block.text,
+                    media = block.media,
                 )
             },
             partial = partial,
@@ -89,6 +90,7 @@ object XConversation {
                 cardTitle = card?.title,
                 cardBody = card?.body,
                 cardUrl = card?.url,
+                media = XThreadMedia.parse(slice),
             )
             if (replies.size >= MAX_REPLIES) break
         }
@@ -307,7 +309,8 @@ object XConversation {
             longerCaption(preview, note).ifBlank { note?.trim().orEmpty() },
             slice,
         )
-        if (text.isBlank()) return null
+        val media = XThreadMedia.parse(slice)
+        if (text.isBlank() && media.isEmpty()) return null
         return ThreadBlock(
             id = id,
             author = authorBeside(slice, screenName),
@@ -315,6 +318,7 @@ object XConversation {
             text = text,
             parentId = parentRestId(slice),
             parentScreenName = parentScreenName(slice),
+            media = media,
         )
     }
 
@@ -362,6 +366,7 @@ object XConversation {
         val text: String,
         val parentId: String?,
         val parentScreenName: String?,
+        val media: List<ParsedXMedia> = emptyList(),
     )
 
     private val ENTRY_ID = Regex("""entry_id"?\s*:\s*"([^"]*)"""")

@@ -135,6 +135,44 @@ class PlaybackHandoffTest {
     }
 
     @Test
+    fun anotherItemKeepsItsOwnPositionWhileTheFirstParks() {
+        val session = session()
+        val first = session.acquire(POST, MEDIA, URL, freshMuted = true).player
+        first.positionMs = 5_000L
+        first.volume = 0.4f
+        first.playWhenReady = true
+
+        val second = session.acquire(POST, "video-2", URL, freshMuted = true)
+        assertFalse(second.reused)
+        assertEquals(0L, second.player.positionMs)
+        assertEquals(0f, second.player.volume, 0.001f)
+
+        val back = session.acquire(POST, MEDIA, URL, freshMuted = false)
+        assertFalse(back.reused)
+        assertEquals(5_000L, back.player.positionMs)
+        assertEquals(0.4f, back.player.volume, 0.001f)
+        assertTrue(back.player.playWhenReady)
+    }
+
+    @Test
+    fun parkingKeepsTheMapAndReleaseClearsIt() {
+        val session = session()
+        val player = session.acquire(POST, MEDIA, URL, freshMuted = true).player
+        player.positionMs = 9_000L
+        session.park()
+        assertEquals(null, session.player)
+        val resumed = session.acquire(POST, MEDIA, URL, freshMuted = true)
+        assertEquals(9_000L, resumed.player.positionMs)
+        session.release()
+        val fresh = session.acquire(POST, MEDIA, URL, freshMuted = true)
+        assertEquals(0L, fresh.player.positionMs)
+        assertEquals(
+            listOf("volume:0.0", "play:false", "load:$URL@0", "seek:0", "play:true"),
+            fresh.player.events,
+        )
+    }
+
+    @Test
     fun leavingThePostDropsThePlayer() {
         val session = session()
         val player = session.acquire(POST, MEDIA, URL, freshMuted = true).player

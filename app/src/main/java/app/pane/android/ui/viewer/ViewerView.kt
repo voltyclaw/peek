@@ -113,6 +113,7 @@ import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.text.MentionNetwork
+import app.pane.android.ui.text.userContent
 import app.pane.android.ui.youtube.YouTubeConsentSurface
 import app.pane.android.ui.tiktok.TikTokConsentSurface
 import app.pane.android.ui.tiktok.TikTokDetails
@@ -135,7 +136,7 @@ fun ViewerView(
     uiState: ViewerUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreComments: () -> Unit = {},
     onCopyLink: suspend (String) -> Unit = {},
@@ -220,7 +221,7 @@ private fun ColumnScope.ViewerContent(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLoadMoreComments: () -> Unit,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     onCopyLink: suspend (String) -> Unit,
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
@@ -240,6 +241,11 @@ private fun ColumnScope.ViewerContent(
     tiktok: TikTokFrame? = null,
 ) {
     val host = displayHost(post.sourceUrl)
+    val play = app.pane.android.ui.media.rememberThreadPlay(startMuted())
+    val playback = app.pane.android.ui.media.rememberPlaybackSession()
+    androidx.compose.runtime.LaunchedEffect(play.winner) {
+        if (play.reports.isNotEmpty() && play.winner == null) playback.park()
+    }
     val affordance = rememberOpenAffordance(post.sourceUrl)
     val appName = affordance.appNameRes?.let { stringResource(it) }.orEmpty()
     val openLabel = if (affordance.opensInApp && affordance.appNameRes != null) {
@@ -330,14 +336,14 @@ private fun ColumnScope.ViewerContent(
                         Text(
                             text = post.title,
                             color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp).userContent(),
                         )
                     }
                     if (post.metaLine.isNotBlank()) {
                         Text(
                             text = post.metaLine,
                             color = PaneMuted,
-                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp).userContent(),
                         )
                     }
                     if (showAuthor) AuthorCaption(post, onOpenLinked)
@@ -345,7 +351,7 @@ private fun ColumnScope.ViewerContent(
                         Text(
                             text = post.description,
                             color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp).userContent(),
                         )
                     }
                 } else if (reddit) {
@@ -356,7 +362,7 @@ private fun ColumnScope.ViewerContent(
                 } else {
                     if (showAuthor) AuthorCaption(post, onOpenLinked)
                     if (post.authorThread.size >= 2) {
-                        AuthorThreadSection(post, if (hasMedia) currentItem?.image else null, onOpenLinked)
+                        AuthorThreadSection(post, onOpenLinked, play, onOpenMedia)
                     } else if (outbound != null && linkCard && post.linkCards.isEmpty() && post.article == null) {
                         CaptionText(post, onOpen = onOpenLinked)
                         LinkPreviewCard(outbound, currentItem, onOpenLinked)
@@ -381,6 +387,8 @@ private fun ColumnScope.ViewerContent(
                     host = host,
                     onOpenSource = { scope.launch { onOpenInApp(post.sourceUrl) } },
                     onOpen = onOpenLinked,
+                    play = play,
+                    onOpenMedia = onOpenMedia,
                 )
             }
         }
@@ -478,7 +486,7 @@ private fun MediaCanvas(
     post: ViewerPostUiModel,
     items: List<ViewerMediaItemUiModel>,
     pagerState: PagerState,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
     videoQuality: VideoQuality,
     startMuted: () -> Boolean,
@@ -566,11 +574,11 @@ private fun MediaCanvas(
                     .fillMaxSize()
                     .then(
                         if (videoUrl == null) {
-                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
                         } else {
                             Modifier.confirmedMediaTaps(
                                 onSingleTapConfirmed = { showControls = !showControls },
-                                onDoubleTap = { onOpenMedia(page) },
+                                onDoubleTap = { onOpenMedia("", page) },
                             )
                         },
                     ),
@@ -581,7 +589,7 @@ private fun MediaCanvas(
                     contentDescription = if (videoUrl == null) item.contentDescription else null,
                     modifier = mediaModifier.then(
                         if (videoUrl == null) {
-                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
                         } else {
                             Modifier
                         },
@@ -618,7 +626,7 @@ private fun MediaCanvas(
                             inlineMuted = !inlineMuted
                             onMutedChange(inlineMuted)
                         },
-                        onEnterFullscreen = { onOpenMedia(page) },
+                        onEnterFullscreen = { onOpenMedia("", page) },
                         onScrubbing = { scrubbing = it },
                     )
                 }
@@ -947,14 +955,14 @@ private fun AuthorCaption(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
                     fontFamily = Inter,
                     fontSize = 15.sp,
                     fontWeight = if (redditAccount && profile != null) FontWeight.Medium else FontWeight.SemiBold,
-                ),
+                ).userContent(),
             )
             if (detail != null) {
                 val handleLine = detail.trim().startsWith("@")
                 Text(
                     detail,
                     color = if (handleLine) PaneHandle else PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium).userContent(),
                 )
             }
         }
@@ -970,13 +978,13 @@ private fun RedditBody(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
         Text(
             text = autolinkedCaption(post.authorMetadata, PaneMuted, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
             color = PaneMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp).userContent(),
         )
     }
     Text(
         text = autolinkedCaption(post.title, PaneInk, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
         color = PaneInk,
-        style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp),
+        style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp).userContent(),
     )
 }
 

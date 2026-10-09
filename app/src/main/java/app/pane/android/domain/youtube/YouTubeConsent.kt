@@ -173,6 +173,8 @@ class YouTubeSession(
 ) {
     fun hasConsent(): Boolean = matchesPolicy(store.read())
 
+    fun acceptedAtEpochMillis(): Long? = store.read()?.takeIf(::matchesPolicy)?.acceptedAtEpochMillis
+
     fun open(videoId: String, entry: YouTubeEntry): YouTubeSurface {
         if (!hasConsent()) return YouTubeSurface.Poster(videoId)
         api.fetch(videoId)

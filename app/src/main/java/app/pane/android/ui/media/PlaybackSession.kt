@@ -11,6 +11,7 @@ internal class PlaybackSession<T : ContinuablePlayer>(
         private set
     private var key: String? = null
     private var postUrl: String? = null
+    private val positions = mutableMapOf<String, PlaybackCarry>()
 
     data class Acquired<T>(val player: T, val reused: Boolean)
 
@@ -20,12 +21,22 @@ internal class PlaybackSession<T : ContinuablePlayer>(
         if (existing != null && key == id) {
             return Acquired(existing, reused = true)
         }
-        existing?.release()
+        if (existing != null && key != null) {
+            positions[key!!] = existing.carry()
+            existing.release()
+        }
+        val saved = positions[id]
         val created = factory(url)
-        created.volume = if (freshMuted) 0f else 1f
-        created.playWhenReady = false
-        created.load(url, 0L)
-        created.playWhenReady = true
+        if (saved == null) {
+            created.volume = if (freshMuted) 0f else 1f
+            created.playWhenReady = false
+            created.load(url, 0L)
+            created.playWhenReady = true
+        } else {
+            created.load(url, saved.positionMs.coerceAtLeast(0L))
+            created.volume = if (freshMuted) 0f else saved.volume
+            created.playWhenReady = saved.playWhenReady
+        }
         player = created
         key = id
         this.postUrl = postUrl
@@ -46,11 +57,21 @@ internal class PlaybackSession<T : ContinuablePlayer>(
         if (activePostUrl == null || activePostUrl != postUrl) release()
     }
 
+    /** Off-screen: drop the player and keep each item's position for this post. */
+    fun park() {
+        val id = key ?: return
+        player?.let { positions[id] = it.carry() }
+        player?.release()
+        player = null
+        key = null
+    }
+
     fun release() {
         player?.release()
         player = null
         key = null
         postUrl = null
+        positions.clear()
     }
 }
 
