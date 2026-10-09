@@ -39,6 +39,7 @@ data class RecentLinkUiModel(
     val thumbUrl: String? = null,
     val video: Boolean = false,
     val starred: Boolean = false,
+    val markAsAvatar: Boolean = false,
 )
 
 @Immutable
@@ -55,6 +56,7 @@ data class LedgerRowUi(
     val tiktokId: String = "",
     val tiktokThumbUrl: String? = null,
     val globe: Boolean = false,
+    val markAsAvatar: Boolean = false,
 )
 
 fun ViewerPostUiModel.gallery(ownerId: String): List<ViewerMediaItemUiModel> {
@@ -73,13 +75,14 @@ fun ViewerPostUiModel.gallery(ownerId: String): List<ViewerMediaItemUiModel> {
 fun RecentLinkUiModel.asLedgerRow(): LedgerRowUi = LedgerRowUi(
     url = url,
     title = title,
-    identity = identity.ifBlank { sourceLabel },
+    identity = if (markAsAvatar) identity else identity.ifBlank { sourceLabel },
     timeLabel = ageLabel,
     pfp = pfpUrl?.let(UiImage::Url),
     sourceMark = sourceMark,
     thumb = thumbUrl?.let(UiImage::Url) ?: thumbnail,
     video = video,
     starred = starred,
+    markAsAvatar = markAsAvatar,
 )
 
 @Immutable

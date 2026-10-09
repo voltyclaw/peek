@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -925,8 +926,9 @@ private fun EmptyRecents(onOpenHistory: () -> Unit) {
         )
         Text(
             text = stringResource(R.string.nothing_recent_hint),
-            modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 24.dp, end = 24.dp),
             color = PaneMuted,
+            textAlign = TextAlign.Center,
             style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
         )
         Box(Modifier.padding(top = 28.dp).width(48.dp).height(1.dp).background(PaneBorder))

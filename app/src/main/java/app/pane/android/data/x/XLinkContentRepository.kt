@@ -169,19 +169,27 @@ class XLinkContentRepository(
         val primaryImage = images.firstOrNull().orEmpty()
         val isVideo = !video.isNullOrBlank()
         val replies = post.replies.filter { it.id != post.id }
-        val expanded = XRichText.expandShortLinks(
-            post.text,
+        val expanded = XRichText.displayText(
+            text = post.text,
+            entities = post.urlEntities,
+            articleUrl = post.article?.url,
+            quoteUrl = post.quote?.url,
+            cardUrls = post.linkCards.map { it.url },
             stripMedia = images.isNotEmpty() || isVideo,
-            rendered = buildSet {
-                post.article?.url?.let(::add)
-                post.quote?.url?.let(::add)
-                post.linkCards.forEach { add(it.url) }
-            },
         )
-        val caption = expanded.takeIf { XRichText.visible(it).isNotBlank() }
-            ?: post.article?.title
-            ?: post.quote?.text
-            ?: "X"
+        val visible = XRichText.visible(expanded).trim()
+        val articleTitle = post.article?.title?.takeIf { it.isNotBlank() }
+        val cardTitle = post.linkCards.firstOrNull { it.title.isNotBlank() }?.title
+        val cardLabel = post.linkCards.firstOrNull { it.label.isNotBlank() }?.label
+        val quoteText = post.quote?.text?.takeIf { it.isNotBlank() && !app.pane.android.domain.model.looksLikeUrl(it) }
+        val caption = when {
+            visible.isNotBlank() && !app.pane.android.domain.model.looksLikeUrl(visible) -> expanded
+            articleTitle != null -> articleTitle
+            cardTitle != null -> cardTitle
+            cardLabel != null -> cardLabel
+            quoteText != null -> quoteText
+            else -> app.pane.android.domain.text.LinkLabels.domain(requestedUrl) ?: "X"
+        }
         return LinkContent(
             url = requestedUrl,
             title = caption,

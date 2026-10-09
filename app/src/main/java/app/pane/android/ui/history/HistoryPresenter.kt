@@ -9,7 +9,10 @@ import app.pane.android.domain.model.HistoryEntry
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.domain.model.HistoryQuery
 import app.pane.android.domain.model.HistoryScope
+import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.domain.model.RowTitles
 import app.pane.android.domain.model.SourceApp
+import app.pane.android.domain.model.YouTubeRowCopy
 import app.pane.android.domain.tiktok.TikTokLinks
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
@@ -82,25 +85,21 @@ object HistoryPresenter {
         } else {
             ""
         }
+        val youtube = entry.sourceApp == SourceApp.YouTube
+        val pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url)
+            ?: if (entry.sourceApp == SourceApp.Other) {
+                app.pane.android.domain.model.OtherTitles.faviconUrl(entry.url)?.let(UiImage::Url)
+            } else {
+                null
+            }
         return LedgerRowUi(
             url = entry.url,
-            title = if (entry.sourceApp == SourceApp.Bluesky && entry.title.isBlank() && entry.caption.isBlank()) {
-                ""
-            } else if (entry.sourceApp == SourceApp.Other || app.pane.android.domain.model.looksLikeUrl(entry.title) || app.pane.android.domain.model.looksLikeUrl(entry.caption)) {
-                app.pane.android.domain.model.OtherTitles.displayTitle(entry.title, entry.caption, entry.url)
-            } else {
-                entry.title.ifBlank { entry.caption }.ifBlank { entry.url }
-            },
-            identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName)
-                .ifBlank { if (entry.sourceApp == SourceApp.Bluesky) "bsky.app" else "" },
+            title = rowTitle(entry),
+            identity = rowIdentity(entry),
             timeLabel = HistoryLedger.relTime(stamp, now, zone, locale),
-            pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url)
-                ?: if (entry.sourceApp == SourceApp.Other) {
-                    app.pane.android.domain.model.OtherTitles.faviconUrl(entry.url)?.let(UiImage::Url)
-                } else {
-                    null
-                },
+            pfp = pfp,
             sourceMark = sourceMark(entry.sourceApp),
+            markAsAvatar = youtube && pfp == null,
             thumb = thumb?.let(UiImage::Url),
             video = video,
             starred = entry.starredAt != null,
@@ -108,6 +107,23 @@ object HistoryPresenter {
             tiktokThumbUrl = if (tiktokId.isBlank()) null else entry.thumbUrl,
             globe = entry.sourceApp == SourceApp.Other && entry.pfpUrl.isNullOrBlank(),
         )
+    }
+
+    private fun rowTitle(entry: HistoryEntry): String {
+        if (entry.sourceApp == SourceApp.YouTube) {
+            return YouTubeRowCopy.title(
+                entry.title.ifBlank { entry.caption },
+                YouTubeUrls.videoId(entry.url).orEmpty(),
+            )
+        }
+        if (entry.sourceApp == SourceApp.Bluesky && entry.title.isBlank() && entry.caption.isBlank()) return ""
+        return RowTitles.display(entry.title, entry.caption, entry.url)
+    }
+
+    private fun rowIdentity(entry: HistoryEntry): String {
+        if (entry.sourceApp == SourceApp.YouTube) return YouTubeRowCopy.identity(entry.authorName, entry.handle)
+        return HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName)
+            .ifBlank { if (entry.sourceApp == SourceApp.Bluesky) "bsky.app" else "" }
     }
 }
 
@@ -117,5 +133,6 @@ fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.Instagram -> R.drawable.ic_source_instagram
     SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
-    SourceApp.YouTube, SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
+    SourceApp.YouTube -> R.drawable.ic_source_youtube
+    SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
 }

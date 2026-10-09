@@ -15,6 +15,45 @@ fun keepText(incoming: String, existing: String): String {
     return next.ifBlank { prior }
 }
 
+object RowTitles {
+    private val shortLink = Regex("""https?://t\.co/\S+""", RegexOption.IGNORE_CASE)
+
+    /** Post text with every t.co removed. A raw URL is not a title. */
+    fun withoutShortLinks(text: String): String = shortLink.replace(text, " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .trim('.', ':', '…')
+        .trim()
+
+    fun display(title: String, caption: String, pageUrl: String, named: String = ""): String {
+        val cleaned = sequenceOf(title, caption)
+            .map(::withoutShortLinks)
+            .firstOrNull { it.isNotBlank() && !looksLikeUrl(it) }
+        if (cleaned != null) return cleaned
+        val fallback = named.trim()
+        if (fallback.isNotBlank() && !looksLikeUrl(fallback)) return fallback
+        return app.pane.android.domain.text.LinkLabels.domain(pageUrl) ?: "Link"
+    }
+}
+
+object YouTubeRowCopy {
+    fun title(known: String, videoId: String): String {
+        val clean = known.trim()
+        if (clean.isNotBlank() && !looksLikeUrl(clean)) return clean
+        return if (videoId.isBlank()) "YouTube video" else "YouTube video $videoId"
+    }
+
+    /** Channel or oEmbed author. Blank when neither is known, so the row shows the source badge. */
+    fun identity(channelOrAuthor: String, handle: String): String {
+        val name = channelOrAuthor.trim()
+        if (name.isNotBlank() && !looksLikeUrl(name)) return name
+        val clean = handle.trim().removePrefix("@")
+        return if (clean.isNotBlank()) "@$clean" else ""
+    }
+
+    fun hostLine(videoId: String): String = "youtube.com · youtu.be/$videoId"
+}
+
 object OtherTitles {
     fun displayTitle(title: String, caption: String, url: String): String {
         val candidate = title.trim().ifBlank { caption.trim() }

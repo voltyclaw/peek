@@ -119,7 +119,7 @@ fun LinkContent.toHistoryView(recordUrl: String, viewedAtEpochMillis: Long): His
     return HistoryView(
         url = recordUrl,
         source = source.name,
-        title = title.take(HISTORY_TEXT_LIMIT),
+        title = historyTitle(recordUrl).take(HISTORY_TEXT_LIMIT),
         authorName = author.name.take(HISTORY_TEXT_LIMIT),
         handle = handle.take(80),
         caption = title.take(HISTORY_TEXT_LIMIT),
@@ -128,6 +128,19 @@ fun LinkContent.toHistoryView(recordUrl: String, viewedAtEpochMillis: Long): His
         mediaType = historyMediaType(),
         viewedAtEpochMillis = viewedAtEpochMillis,
     )
+}
+
+private fun LinkContent.historyTitle(recordUrl: String): String = when (source) {
+    LinkSource.YouTube -> YouTubeRowCopy.title(title, (sourceMetadata as? YouTubeMetadata)?.videoId.orEmpty())
+    LinkSource.Bluesky -> title
+    else -> {
+        val named = (sourceMetadata as? ExternalPostMetadata)?.let { meta ->
+            meta.articleTitle?.takeIf { it.isNotBlank() }
+                ?: meta.linkCards.firstOrNull { it.title.isNotBlank() }?.title
+                ?: meta.linkCards.firstOrNull { it.label.isNotBlank() }?.label
+        }.orEmpty()
+        RowTitles.display(title, title, recordUrl, named)
+    }
 }
 
 private fun LinkContent.historyHandle(): String {

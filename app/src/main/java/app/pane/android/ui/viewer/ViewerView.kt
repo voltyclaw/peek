@@ -287,7 +287,14 @@ private fun ColumnScope.ViewerContent(
                 )
                 TikTokConsentSurface(tiktok)
             } else if (youtube != null) {
-                ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
+                ViewerTopBar(
+                    onBack,
+                    onRefresh,
+                    overMedia = false,
+                    starred = starred,
+                    onStar = onStar,
+                    showRefresh = youtube.embedHtml != null,
+                )
                 YouTubeConsentSurface(youtube)
             } else if (overMedia) {
                 Box(Modifier.fillMaxWidth()) {

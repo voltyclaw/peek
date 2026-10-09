@@ -262,7 +262,7 @@ class AndroidInstagramPageLoader(
         const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-        const val DEFAULT_TIMEOUT_MILLIS = 30_000L
+        const val DEFAULT_TIMEOUT_MILLIS = 10_000L
         const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
         private const val DOCUMENT_HTML_SCRIPT =
             "(function() { return document.documentElement ? document.documentElement.innerHTML : null; })();"

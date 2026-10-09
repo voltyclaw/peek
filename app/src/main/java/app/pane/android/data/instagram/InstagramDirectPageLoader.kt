@@ -373,8 +373,8 @@ class InstagramDirectPageLoader(
         const val USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-        const val CONNECT_TIMEOUT_MILLIS = 15_000
-        const val READ_TIMEOUT_MILLIS = 30_000
+        const val CONNECT_TIMEOUT_MILLIS = 8_000
+        const val READ_TIMEOUT_MILLIS = 10_000
         const val MAX_EMBED_CHARS = 400_000
         const val SHORTCODE_ALPHABET =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"

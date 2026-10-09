@@ -325,7 +325,7 @@ class AndroidRedditPageLoader(
     }
 
     companion object {
-        const val DEFAULT_TIMEOUT_MILLIS = 45_000L
+        const val DEFAULT_TIMEOUT_MILLIS = 10_000L
         const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
         private const val MAX_COMMENT_WAITS = 10
         private val DOCUMENT_HTML_SCRIPT = """

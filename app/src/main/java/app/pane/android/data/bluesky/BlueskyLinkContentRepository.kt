@@ -26,14 +26,14 @@ fun interface BskyTransport {
     fun get(url: String): BskyHttp
 }
 
-private const val BSKY_USER_AGENT = "Pane/1.3.0 (public post viewer)"
+private const val BSKY_USER_AGENT = "Pane/1.3.1 (public post viewer)"
 
 internal object HttpBskyTransport : BskyTransport {
     override fun get(url: String): BskyHttp {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
-        connection.connectTimeout = 12_000
-        connection.readTimeout = 12_000
+        connection.connectTimeout = app.pane.android.data.net.HttpTimeouts.CONNECT_MILLIS
+        connection.readTimeout = app.pane.android.data.net.HttpTimeouts.READ_MILLIS
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("User-Agent", BSKY_USER_AGENT)
         return try {

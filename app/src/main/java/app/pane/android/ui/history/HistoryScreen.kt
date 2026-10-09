@@ -235,7 +235,19 @@ fun HistoryView(
                     onClick = onToggleAppMenu,
                 )
                 DropdownMenu(expanded = appMenu, onDismissRequest = onDismissAppMenu) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.history_all)) }, onClick = { onClearApps(); onDismissAppMenu() })
+                    val allApps = ui.selectedApps.isEmpty()
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (allApps) {
+                                    "✓  ${stringResource(R.string.history_filter_app_all)}"
+                                } else {
+                                    stringResource(R.string.history_filter_app_all)
+                                },
+                            )
+                        },
+                        onClick = { onClearApps(); onDismissAppMenu() },
+                    )
                     ui.apps.forEach { app ->
                         val selected = app in ui.selectedApps
                         DropdownMenuItem(
