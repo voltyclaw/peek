@@ -5,6 +5,13 @@ plugins {
   alias(libs.plugins.compose.screenshot)
 }
 
+val youtubeApiKey = providers.gradleProperty("YOUTUBE_API_KEY")
+    .orElse(providers.environmentVariable("YOUTUBE_API_KEY"))
+    .orElse("")
+    .get()
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "app.pane.android"
     compileSdk = 36
@@ -14,8 +21,9 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 44
-        versionName = "1.0.42"
+        versionCode = 46
+        versionName = "1.0.44"
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
     buildTypes {

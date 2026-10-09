@@ -392,6 +392,21 @@ fun CommentsSection(
     onOpen: (String) -> Unit = {},
 ) {
     val sourceHost = host.ifBlank { post.sourceUrl }
+    if (post.commentsNotice != app.pane.android.ui.model.ViewerCommentsNotice.None && post.comments.isEmpty()) {
+        val notice = when (post.commentsNotice) {
+            app.pane.android.ui.model.ViewerCommentsNotice.Off -> R.string.yt_comments_off
+            app.pane.android.ui.model.ViewerCommentsNotice.Failed -> R.string.yt_comments_failed
+            app.pane.android.ui.model.ViewerCommentsNotice.Unavailable,
+            app.pane.android.ui.model.ViewerCommentsNotice.None,
+            -> R.string.yt_comments_unavailable
+        }
+        Text(
+            text = stringResource(notice),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+        )
+        return
+    }
     val x = isXHost(sourceHost)
     // T5: no replies and no guest wall — omit the section, including the THREAD label.
     val showThreadBody = if (x) {
@@ -469,7 +484,14 @@ fun CommentsSection(
                 modifier = Modifier.padding(top = if (showReplyList) 14.dp else 10.dp),
             )
         }
-        if (showEndCap) {
+        if (showEndCap && (sourceHost.contains("youtube.com") || sourceHost.contains("youtu.be"))) {
+            Text(
+                text = stringResource(R.string.more_comments_on_youtube),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                color = PaneMuted,
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            )
+        } else if (showEndCap) {
             val sourceName = sourceDisplayNameRes(sourceHost)?.let { stringResource(it) }
                 ?: sourceDisplayNameFallback(sourceHost)
             Text(

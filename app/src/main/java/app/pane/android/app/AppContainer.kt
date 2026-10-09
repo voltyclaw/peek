@@ -30,6 +30,11 @@ import app.pane.android.data.sample.SampleLinkContentRepository
 import app.pane.android.data.sample.SampleMedia
 import app.pane.android.data.x.XDirectPageLoader
 import app.pane.android.data.x.XLinkContentRepository
+import app.pane.android.data.youtube.AndroidYouTubeConsentStore
+import app.pane.android.data.youtube.AndroidYouTubeSiteData
+import app.pane.android.data.youtube.YouTubeDataApiClient
+import app.pane.android.data.youtube.YouTubeLinkContentRepository
+import app.pane.android.domain.youtube.YouTubeSession
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.HistoryQuery
 import app.pane.android.domain.model.RecentContent
@@ -67,6 +72,7 @@ interface AppContainer {
     val historyRepository: HistoryRepository
     fun readHistoryFilter(): HistoryQuery
     fun writeHistoryFilter(query: HistoryQuery)
+    val youtube: YouTubeSession
 }
 
 class DefaultAppContainer(
@@ -108,6 +114,14 @@ class DefaultAppContainer(
         pageLoaders = listOf(XDirectPageLoader()),
         cacheStore = linkContentCacheStore,
     )
+    private val youtubeStore = AndroidYouTubeConsentStore(context)
+    private val youtubeApi = YouTubeDataApiClient(BuildConfig.YOUTUBE_API_KEY)
+    private val youtubeRepository = YouTubeLinkContentRepository(youtubeStore, youtubeApi)
+    override val youtube = YouTubeSession(
+        store = youtubeStore,
+        api = youtubeApi,
+        siteData = AndroidYouTubeSiteData(),
+    )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
         buildList {
             if (BuildConfig.DEBUG) {
@@ -118,6 +132,7 @@ class DefaultAppContainer(
             add(RoutingLinkContentRepository.Route(redditRepository::supports, redditRepository))
             add(RoutingLinkContentRepository.Route(facebookRepository::supports, facebookRepository))
             add(RoutingLinkContentRepository.Route(xRepository::supports, xRepository))
+            add(RoutingLinkContentRepository.Route(youtubeRepository::supports, youtubeRepository))
         },
     )
     private val seedDocument = RecentLinksDocument(links = emptyList())

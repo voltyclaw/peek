@@ -14,7 +14,10 @@ import app.pane.android.R
 import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.links.isXHost
+import app.pane.android.data.links.YOUTUBE_MUSIC_PACKAGE
+import app.pane.android.data.links.YOUTUBE_PACKAGE
 import app.pane.android.data.links.profileLink
+import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
 import app.pane.android.domain.model.LinkShims
@@ -120,6 +123,12 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(https, null),
         )
     }
+    val youtube = YouTubeUrls.parse(unwrapped)
+    if (youtube?.videoId != null) {
+        val open = youtube.canonicalUrl ?: unwrapped
+        val pkg = if (youtube.music) YOUTUBE_MUSIC_PACKAGE else YOUTUBE_PACKAGE
+        return listOf(OpenInAppTarget(open, pkg))
+    }
     return listOf(OpenInAppTarget(unwrapped, null))
 }
 
@@ -172,7 +181,7 @@ internal fun performExternalLaunch(
     start: (ExternalLaunchAttempt) -> ExternalStart,
     openBrowser: (String) -> Boolean,
     openChooser: (String) -> Boolean,
-    allowChooser: Boolean = profileLink(url) == null,
+    allowChooser: Boolean = profileLink(url) == null && YouTubeUrls.parse(url) == null,
 ): ExternalLaunchOutcome {
     val attempts = packagedAttempts(url)
     val openUrl = attempts.firstOrNull()?.url ?: externalOpenUrl(url)

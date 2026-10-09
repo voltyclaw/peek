@@ -53,6 +53,15 @@ class ViewerViewModel(
         viewModelScope.launch { load { onProgress, onPreview -> openLink(url, onProgress, onPreview) } }
     }
 
+    fun onYouTubeAccepted() {
+        viewModelScope.launch {
+            openLink(url).onSuccess { content ->
+                loaded = content
+                mutableUiState.value = ViewerUiState.Content(mapper.map(content), starred = isStarred(url))
+            }
+        }
+    }
+
     fun onRefresh() {
         mutableUiState.value = ViewerUiState.Loading()
         viewModelScope.launch { load { onProgress, onPreview -> refreshLink(url, onProgress, onPreview) } }

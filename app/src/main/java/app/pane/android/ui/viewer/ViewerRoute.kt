@@ -36,6 +36,11 @@ import app.pane.android.ui.actions.rememberPostActionCallbacks
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.mediaItemsOrPrimary
+import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.domain.youtube.YouTubeLinkKind
+import app.pane.android.domain.youtube.YouTubePlayback
+import app.pane.android.domain.youtube.YouTubeShorts
+import app.pane.android.ui.youtube.YouTubeFrame
 
 @Composable
 fun ViewerRoute(
@@ -50,6 +55,9 @@ fun ViewerRoute(
     startMuted: () -> Boolean = { true },
     onMutedChange: (Boolean) -> Unit = {},
     onOpenLinked: ((String) -> Unit)? = null,
+    youTubeConsented: Boolean = false,
+    onAcceptYouTube: (String) -> Unit = {},
+    onYouTubePlayerShown: (String) -> Unit = {},
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -78,12 +86,60 @@ fun ViewerRoute(
     val viewportWidth = configuration.screenWidthDp * density.density
     val viewportHeight = configuration.screenHeightDp * density.density
     val content = viewerUiState as? ViewerUiState.Content
+    val sourceUrl = content?.post?.sourceUrl.orEmpty()
+    val youtubeLink = remember(sourceUrl) { YouTubeUrls.parse(sourceUrl) }
+    val youtubeId = youtubeLink?.videoId
+    var acceptedYouTube by remember(sourceUrl) { mutableStateOf(false) }
+    val consented = youTubeConsented || acceptedYouTube
+    val playShorts = YouTubeShorts.PLAY_IN_PANE
+    val embedOff = content?.post?.youtubeEmbedOff == true
+    val ageRestricted = content?.post?.youtubeAgeRestricted == true
+    val shortsBlocked = youtubeLink?.kind == YouTubeLinkKind.Short && !playShorts
+    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube, shortsBlocked) {
+        if (youtubeId != null && !shortsBlocked && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
+    }
+    val youtubeFrame = youtubeLink?.takeIf { it.videoId != null }?.let { link ->
+        val id = link.videoId ?: return@let null
+        val kind = link.kind
+        YouTubeFrame(
+            embedHtml = YouTubePlayback.iframeHtml(
+                videoId = id,
+                startSeconds = link.startSeconds,
+                kind = kind,
+                consented = consented,
+                playShorts = playShorts,
+                embeddable = !embedOff,
+                ageRestricted = ageRestricted,
+            ),
+            blocked = shortsBlocked,
+            embedOff = consented && embedOff && !shortsBlocked,
+            ageRestricted = consented && ageRestricted && !shortsBlocked,
+            portrait = kind == YouTubeLinkKind.Short && playShorts,
+            title = content?.post?.title.orEmpty(),
+            onPlay = {
+                acceptedYouTube = true
+                onAcceptYouTube(id)
+                viewModel.onYouTubeAccepted()
+            },
+            onOpenLink = { link ->
+                val started = openExternally(context, link, finishAfter = false)
+                if (!started) {
+                    Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onLeave = onBack,
+            onOpenInYouTube = {
+                val started = openExternally(context, sourceUrl, finishAfter = true)
+                if (shouldFinishAfterExternalOpen(started, finishAfter = true)) onBack()
+            },
+        )
+    }
     val items = content?.post?.mediaItemsOrPrimary().orEmpty()
     val mediaIndex = content?.post?.initialMediaIndex?.coerceIn(0, items.lastIndex.coerceAtLeast(0)) ?: 0
     val item = items.getOrNull(mediaIndex)
     val contentWidth = item?.width?.takeIf { it > 1 }?.toFloat() ?: measuredWidth
     val contentHeight = item?.height?.takeIf { it > 1 }?.toFloat() ?: measuredHeight
-    val openImmersive = VideoAutoplay.shouldOpen(
+    val openImmersive = youtubeId == null && VideoAutoplay.shouldOpen(
         alreadyOpened = handedToImmersive,
         contentWidthPx = contentWidth,
         contentHeightPx = contentHeight,
@@ -146,6 +202,7 @@ fun ViewerRoute(
                 measuredHeight = height
             }
         },
+        youtube = youtubeFrame,
         modifier = Modifier.fillMaxSize(),
     )
         PaneSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp))

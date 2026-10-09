@@ -91,7 +91,7 @@
     <string name="loading">Loading</string>
     <string name="content_unavailable">Content unavailable</string>
     <string name="unsupported_link_title">This link isn\'t one Pane opens</string>
-    <string name="unsupported_link_description">Pane opens public Instagram, Reddit, Facebook, and X posts.</string>
+    <string name="unsupported_link_description">Pane opens public Instagram, Reddit, Facebook, X, and YouTube posts.</string>
     <string name="unsupported_link_label">LINK NOT SUPPORTED</string>
     <string name="load_failed_label">COULDN&#8217;T LOAD</string>
     <string name="load_failed_title">This link didn\'t open</string>
@@ -238,5 +238,56 @@
     <plurals name="media_saved_count">
         <item quantity="one">Saved to Downloads</item>
         <item quantity="other">Saved %1$d items</item>
+    </plurals>
+    <!-- TODO: counsel review — draft consent copy, not legal advice. -->
+    <string name="yt_consent_button">Play on YouTube</string>
+    <string name="yt_consent_line">Tapping plays this video with YouTube\'s player and means you agree to %1$s, %2$s and %3$s.</string>
+    <string name="yt_consent_link_yt_terms">YouTube\'s Terms</string>
+    <string name="yt_consent_link_google_privacy">Google\'s Privacy Policy</string>
+    <string name="yt_consent_link_pane_privacy">Pane\'s Privacy Policy</string>
+    <string name="a11y_yt_consent_button">Play on YouTube. Agrees to YouTube\'s Terms, Google\'s Privacy Policy and Pane\'s Privacy Policy</string>
+    <string name="settings_yt_consent_title">Play YouTube in Pane</string>
+    <string name="settings_yt_consent_summary_on">YouTube\'s player runs in Pane and shares data with Google.</string>
+    <string name="settings_yt_consent_summary_off">YouTube links open in the YouTube app.</string>
+    <string name="settings_yt_consent_confirm_title">Withdraw consent?</string>
+    <string name="settings_yt_consent_confirm_body">Pane will stop playing YouTube videos and will clear YouTube\'s cookies saved in Pane. YouTube links will open in the YouTube app.</string>
+    <string name="settings_yt_consent_confirm_ok">Withdraw</string>
+    <string name="settings_yt_consent_confirm_cancel">Keep</string>
+    <string name="settings_yt_consent_done">Consent withdrawn. YouTube cookies cleared.</string>
+    <string name="hide_replies">Hide replies</string>
+    <string name="caption_less">less</string>
+    <string name="more_comments_on_youtube">More comments live on YouTube</string>
+    <string name="yt_comments_off">Comments are off for this video.</string>
+    <string name="yt_comments_failed">Comments didn\'t load.</string>
+    <string name="yt_comments_unavailable">Comments unavailable</string>
+    <string name="yt_embed_off_title">This video stays on YouTube</string>
+    <string name="yt_embed_off_body">Its uploader turned off playing it elsewhere.</string>
+    <string name="yt_age_title">YouTube wants a sign-in for this one</string>
+    <string name="yt_age_body">It\'s age-restricted. Open it in YouTube.</string>
+    <string name="yt_meta_line">%1$s · %2$s</string>
+    <string name="yt_live_now">Live now</string>
+    <string name="yt_premieres">Premieres %1$s</string>
+    <string name="yt_short_tag">Short</string>
+    <string name="yt_shorts_title">Shorts aren\'t Pane\'s thing</string>
+    <string name="yt_shorts_body">This one\'s a Short. Open it in YouTube instead.</string>
+    <string name="kids_shorts_title">Shorts are off in Kids mode</string>
+    <string name="kids_shorts_body">Ask a grown-up if you want to watch this one.</string>
+    <string name="yt_sound_on">Sound on</string>
+    <string name="yt_replay">Replay</string>
+    <string name="yt_leave">Leave</string>
+    <string name="source_youtube_music">YouTube Music</string>
+    <string name="a11y_open_channel">%1$s, %2$s. Open channel on YouTube</string>
+    <string name="a11y_open_handle_youtube">Open %1$s on YouTube</string>
+    <string name="a11y_jump_to">Jump to %1$s</string>
+    <string name="a11y_show_replies">Show %1$d replies</string>
+    <string name="a11y_expand_description">Show full description</string>
+    <string name="a11y_collapse_description">Show less</string>
+    <plurals name="comment_replies">
+        <item quantity="one">%1$d reply</item>
+        <item quantity="other">%1$d replies</item>
+    </plurals>
+    <plurals name="yt_views">
+        <item quantity="one">%1$s view</item>
+        <item quantity="other">%1$s views</item>
     </plurals>
 </resources>

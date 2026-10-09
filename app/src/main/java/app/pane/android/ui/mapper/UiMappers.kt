@@ -14,6 +14,8 @@ import app.pane.android.domain.model.InstagramMetadata
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
+import app.pane.android.domain.model.YouTubeCommentsState
+import app.pane.android.domain.model.YouTubeMetadata
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.model.RecentContent
@@ -30,6 +32,7 @@ import app.pane.android.ui.model.VideoSourceUiModel
 import app.pane.android.ui.model.ViewerArticleUiModel
 import app.pane.android.ui.model.ViewerLinkCardUiModel
 import app.pane.android.ui.model.ViewerMediaItemUiModel
+import app.pane.android.ui.model.ViewerCommentsNotice
 import app.pane.android.ui.model.ViewerPostUiModel
 import app.pane.android.ui.model.ViewerQuoteUiModel
 import java.time.ZoneId
@@ -190,11 +193,13 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             )
         }
         val external = sourceMetadata as? ExternalPostMetadata
+        val youtube = sourceMetadata as? YouTubeMetadata
         val author = AuthorLines.present(content.author.name, content.author.metadata)
         val primaryId = when (sourceMetadata) {
             is ExternalPostMetadata -> sourceMetadata.postId
             is RedditMetadata -> sourceMetadata.postId
             is InstagramMetadata -> sourceMetadata.postId
+            is YouTubeMetadata -> null
             null -> null
         }
         val comments = commentsWithoutPrimary(primaryId, content.comments)
@@ -214,13 +219,15 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             canLoadMoreComments = when {
                 sourceMetadata is InstagramMetadata -> sourceMetadata.commentsEndCursor != null
                 sourceMetadata is RedditMetadata -> sourceMetadata.moreCommentIds.isNotEmpty()
+                youtube != null -> !youtube.commentPageToken.isNullOrBlank() && !youtube.commentsHardWall
                 xContinuation == XReplyContinuation.More -> !external?.repliesCursor.isNullOrBlank()
                 else -> false
             },
             commentsTruncated = when (xContinuation) {
                 XReplyContinuation.Blocked -> true
                 XReplyContinuation.Exhausted, XReplyContinuation.More -> false
-                null -> content.source == LinkSource.X && content.commentCount > comments.size
+                null -> youtube?.commentsHardWall == true ||
+                    (content.source == LinkSource.X && content.commentCount > comments.size)
             },
             authorThread = external?.authorThread.orEmpty().map { item ->
                 AuthorThreadPostUiModel(
@@ -237,7 +244,6 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             authorAvatar = content.author.avatarUrl
                 ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
                 ?.let { UiImage.Url(it) },
-            authorProfileUrl = authorProfileUrl(content),
             article = external?.articleTitle?.takeIf { it.isNotBlank() }?.let { title ->
                 external.articleUrl?.takeIf { it.isNotBlank() }?.let { url ->
                     ViewerArticleUiModel(
@@ -260,6 +266,18 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             linkCards = external?.linkCards.orEmpty().map { card ->
                 ViewerLinkCardUiModel(url = card.url, label = card.label, title = card.title)
             },
+            description = youtube?.description.orEmpty(),
+            metaLine = youtube?.metaLine.orEmpty(),
+            commentsNotice = when (youtube?.commentsState) {
+                YouTubeCommentsState.Unavailable -> ViewerCommentsNotice.Unavailable
+                YouTubeCommentsState.Off -> ViewerCommentsNotice.Off
+                YouTubeCommentsState.Failed -> ViewerCommentsNotice.Failed
+                YouTubeCommentsState.Ready, null -> ViewerCommentsNotice.None
+            },
+            youtubeEmbedOff = youtube?.embeddable == false,
+            youtubeAgeRestricted = youtube?.ageRestricted == true,
+            authorProfileUrl = youtube?.channelUrl?.takeIf { it.isNotBlank() }
+                ?: authorProfileUrl(content),
         )
     }
 
@@ -281,6 +299,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             is InstagramMetadata -> bestVideoUrl(sourceMetadata.videoVariants)
             is RedditMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
             is ExternalPostMetadata -> sourceMetadata.mediaItems.firstOrNull()?.videoUrl
+            is YouTubeMetadata -> null
             null -> null
         }
 
@@ -317,6 +336,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             val name = (content.sourceMetadata as? RedditMetadata)?.author ?: content.author.name
             redditUser(name)?.let { "https://www.reddit.com/user/$it" }
         }
+        LinkSource.YouTube -> (content.sourceMetadata as? YouTubeMetadata)?.channelUrl?.takeIf { it.isNotBlank() }
         else -> null
     }
 

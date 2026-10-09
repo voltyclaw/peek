@@ -113,6 +113,8 @@ import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.text.MentionNetwork
+import app.pane.android.ui.youtube.YouTubeConsentSurface
+import app.pane.android.ui.youtube.YouTubeFrame
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
 import app.pane.android.ui.theme.PaneHandle
@@ -148,6 +150,7 @@ fun ViewerView(
     onSaveNote: (String) -> Unit = {},
     onOpenOutbound: (String) -> Unit = {},
     onStar: () -> Unit = {},
+    youtube: YouTubeFrame? = null,
 ) {
     val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -196,6 +199,7 @@ fun ViewerView(
                     onSaveNote = onSaveNote,
                     onOpenOutbound = onOpenOutbound,
                     onOpenLinked = onOpenOutbound,
+                    youtube = youtube,
                 )
             }
         }
@@ -227,6 +231,7 @@ private fun ColumnScope.ViewerContent(
     onSaveNote: (String) -> Unit,
     onOpenOutbound: (String) -> Unit,
     onOpenLinked: (String) -> Unit,
+    youtube: YouTubeFrame? = null,
 ) {
     val host = displayHost(post.sourceUrl)
     val affordance = rememberOpenAffordance(post.sourceUrl)
@@ -258,7 +263,10 @@ private fun ColumnScope.ViewerContent(
             modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (overMedia) {
+            if (youtube != null) {
+                ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
+                YouTubeConsentSurface(youtube)
+            } else if (overMedia) {
                 Box(Modifier.fillMaxWidth()) {
                     MediaCanvas(
                         post,
@@ -286,7 +294,30 @@ private fun ColumnScope.ViewerContent(
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
-                if (reddit) {
+                if (youtube != null) {
+                    if (post.title.isNotBlank()) {
+                        Text(
+                            text = post.title,
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp),
+                        )
+                    }
+                    if (post.metaLine.isNotBlank()) {
+                        Text(
+                            text = post.metaLine,
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+                        )
+                    }
+                    if (showAuthor) AuthorCaption(post, onOpenLinked)
+                    if (post.description.isNotBlank()) {
+                        Text(
+                            text = post.description,
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
+                        )
+                    }
+                } else if (reddit) {
                     RedditBody(post, onOpenLinked)
                     if (outbound != null && linkCard && post.linkCards.isEmpty()) {
                         LinkPreviewCard(outbound, currentItem, onOpenLinked)

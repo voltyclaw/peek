@@ -33,11 +33,13 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +131,8 @@ fun HomeView(
     showSamplesInRecents: Boolean = false,
     onShowSamplesInRecents: (Boolean) -> Unit = {},
     onOpenSample: (String) -> Unit = {},
+    youTubeConsent: Boolean = false,
+    onWithdrawYouTubeConsent: () -> Unit = {},
 ) {
     var samplePickerOpen by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -158,6 +162,8 @@ fun HomeView(
                 showSamplesInRecents,
                 onShowSamplesInRecents,
                 onOpenSamplePicker = { samplePickerOpen = true },
+                youTubeConsent = youTubeConsent,
+                onWithdrawYouTubeConsent = onWithdrawYouTubeConsent,
             )
             Text(
                 text = stringResource(R.string.hub_tagline),
@@ -219,6 +225,8 @@ private fun HomeHeader(
     showSamplesInRecents: Boolean,
     onShowSamplesInRecents: (Boolean) -> Unit,
     onOpenSamplePicker: () -> Unit,
+    youTubeConsent: Boolean,
+    onWithdrawYouTubeConsent: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val optionsDescription = stringResource(R.string.more_options)
@@ -265,6 +273,8 @@ private fun HomeHeader(
                     menuOpen = false
                     onOpenSamplePicker()
                 },
+                youTubeConsent = youTubeConsent,
+                onWithdrawYouTubeConsent = onWithdrawYouTubeConsent,
             )
         }
     }
@@ -291,7 +301,10 @@ private fun OptionsMenu(
     showSamplesInRecents: Boolean,
     onShowSamplesInRecents: (Boolean) -> Unit,
     onOpenSamplePicker: () -> Unit,
+    youTubeConsent: Boolean,
+    onWithdrawYouTubeConsent: () -> Unit,
 ) {
+    var withdrawYouTube by remember { mutableStateOf(false) }
     if (!expanded) return
     Dialog(
         onDismissRequest = onDismiss,
@@ -380,6 +393,40 @@ private fun OptionsMenu(
                         title = stringResource(label),
                         selected = videoQuality == quality,
                         onClick = { onVideoQuality(quality) },
+                    )
+                }
+                SettingsHairline()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 56.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_yt_consent_title),
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = stringResource(
+                                if (youTubeConsent) R.string.settings_yt_consent_summary_on else R.string.settings_yt_consent_summary_off,
+                            ),
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp),
+                        )
+                    }
+                    Switch(
+                        checked = youTubeConsent,
+                        onCheckedChange = { enabled ->
+                            if (!enabled && youTubeConsent) withdrawYouTube = true
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = PaneInk,
+                            uncheckedTrackColor = PaneBorder,
+                            checkedThumbColor = PaneGround,
+                            uncheckedThumbColor = PaneInk,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedBorderColor = Color.Transparent,
+                        ),
                     )
                 }
                 SettingsSection(stringResource(R.string.section_opening_links))
@@ -548,6 +595,28 @@ private fun OptionsMenu(
                 )
             }
         }
+    }
+    if (withdrawYouTube) {
+        AlertDialog(
+            onDismissRequest = { withdrawYouTube = false },
+            title = { Text(stringResource(R.string.settings_yt_consent_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_yt_consent_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        withdrawYouTube = false
+                        onWithdrawYouTubeConsent()
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_yt_consent_confirm_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { withdrawYouTube = false }) {
+                    Text(stringResource(R.string.settings_yt_consent_confirm_cancel))
+                }
+            },
+        )
     }
 }
 

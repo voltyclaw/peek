@@ -4,6 +4,7 @@ import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.links.profileLink
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
+import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.LinkShims
 import java.net.URI
 import java.util.Locale
@@ -59,9 +60,9 @@ internal object BrowserTrampoline {
      * is the form Reddit or Instagram recognize. Profiles and home pages are not posts.
      */
     fun openablePost(url: String): String? {
-        if (XUrls.supports(url) || FacebookUrls.supports(url)) return url
+        if (XUrls.supports(url) || FacebookUrls.supports(url) || YouTubeUrls.supports(url)) return url
         val https = toHttps(url)
-        if (RedditUrls.supports(https) || isInstagramPost(https)) return https
+        if (RedditUrls.supports(https) || isInstagramPost(https) || YouTubeUrls.supports(https)) return https
         return null
     }
 

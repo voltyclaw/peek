@@ -103,7 +103,7 @@ object HistoryLedger {
                 if (sub.isNotEmpty()) "r/$sub" else authorName.trim()
             }
             SourceApp.Facebook -> authorName.trim().ifBlank { clean }
-            SourceApp.X, SourceApp.Instagram, SourceApp.Threads ->
+            SourceApp.X, SourceApp.Instagram, SourceApp.Threads, SourceApp.YouTube ->
                 if (clean.isNotEmpty()) "@$clean" else authorName.trim()
             SourceApp.Other -> when {
                 clean.isNotEmpty() -> "@$clean"

@@ -96,5 +96,5 @@ fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.Instagram -> R.drawable.ic_source_instagram
     SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
-    SourceApp.Threads, SourceApp.Other -> null
+    SourceApp.YouTube, SourceApp.Threads, SourceApp.Other -> null
 }
