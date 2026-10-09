@@ -64,22 +64,15 @@ class XDirectPageLoader(
                     track("https://x.com/$learned/status/${status.id}", USER_AGENT)
                 }
                 if (slices.any { !it.isCompleted }) {
-                    coroutineContext[XPreviewElement]?.emit(
-                        parsed.copy(text = XRichText.expandShortLinks(parsed.text)),
-                    )
+                    coroutineContext[XPreviewElement]?.emit(parsed.copy(text = shownText(parsed, parsed.text)))
                     log("x preview ${elapsed(started)}ms id=${status.id}")
                 }
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
                 val page = mergeSlices(slices.awaitAll().filterNotNull(), status.id)
-                val text = XRichText.expandShortLinks(
+                val text = shownText(
+                    parsed,
                     XConversation.longerCaption(parsed.text, page.note),
-                    page.note.orEmpty(),
-                    stripMedia = parsed.imageUrls.isNotEmpty() || !parsed.videoUrl.isNullOrBlank(),
-                    rendered = buildSet {
-                        parsed.article?.url?.let(::add)
-                        parsed.quote?.url?.let(::add)
-                        parsed.linkCards.forEach { add(it.url) }
-                    },
+                    XRichText.entitiesIn(page.note.orEmpty()),
                 )
                 log(
                     "x ready ${elapsed(started)}ms thread=${page.authorThread.size} " +
@@ -151,6 +144,19 @@ class XDirectPageLoader(
             add("https://mobile.twitter.com/i/status/$statusId" to MOBILE_USER_AGENT)
         }
     }
+
+    private fun shownText(
+        parsed: ParsedXPost,
+        text: String,
+        extraEntities: List<XUrlEntity> = emptyList(),
+    ): String = XRichText.displayText(
+        text = text,
+        entities = parsed.urlEntities + extraEntities,
+        articleUrl = parsed.article?.url,
+        quoteUrl = parsed.quote?.url,
+        cardUrls = parsed.linkCards.map { it.url },
+        stripMedia = parsed.imageUrls.isNotEmpty() || !parsed.videoUrl.isNullOrBlank(),
+    )
 
     private fun handleFrom(url: String): String? {
         val segments = runCatching { URI(url).path }.getOrNull()
@@ -224,8 +230,8 @@ class XDirectPageLoader(
         try {
             connection.instanceFollowRedirects = true
             connection.requestMethod = "GET"
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 20_000
+            connection.connectTimeout = app.pane.android.data.net.HttpTimeouts.CONNECT_MILLIS
+            connection.readTimeout = app.pane.android.data.net.HttpTimeouts.READ_MILLIS
             connection.setRequestProperty(
                 "Accept",
                 if (json) {

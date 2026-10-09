@@ -76,6 +76,7 @@ data class ParsedXPost(
     val article: XArticle? = null,
     val quote: XQuote? = null,
     val linkCards: List<XLinkPreview> = emptyList(),
+    val urlEntities: List<XUrlEntity> = emptyList(),
 )
 
 /**
@@ -139,6 +140,7 @@ object XSyndication {
             article = rich.article,
             quote = rich.quote,
             linkCards = rich.links,
+            urlEntities = XRichText.urlEntities(root),
         )
     }
 

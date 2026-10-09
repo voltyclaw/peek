@@ -79,7 +79,14 @@ internal object XRichText {
             quote?.url?.let(::add)
             (media + quoteLinks + articleLinks + cards).forEach { add(it.expanded) }
         }
-        val text = expand(base, entities, drop, stripMedia = media.isNotEmpty())
+        val text = displayText(
+            text = base,
+            entities = entities,
+            articleUrl = article?.url,
+            quoteUrl = quote?.url,
+            cardUrls = cards.map { it.expanded },
+            stripMedia = media.isNotEmpty(),
+        )
         val links = cards.mapNotNull { entity ->
             val label = linkLabel(entity)
             if (label.isBlank() || label.contains("t.co")) return@mapNotNull null
@@ -107,6 +114,40 @@ internal object XRichText {
         val entities = entitiesIn("$text\n$nearby")
         return expand(text, entities, rendered, stripMedia)
     }
+
+    /**
+     * Removes a t.co when its expanded URL is something this row already shows:
+     * the article (including `/i/article/` and `x.com/i/web/…`), a link card,
+     * the quote, or attached media.
+     */
+    fun displayText(
+        text: String,
+        entities: List<XUrlEntity>,
+        articleUrl: String? = null,
+        quoteUrl: String? = null,
+        cardUrls: Collection<String> = emptyList(),
+        stripMedia: Boolean = false,
+    ): String {
+        val drop = buildSet {
+            if (!articleUrl.isNullOrBlank()) {
+                add(articleUrl)
+                entities.filter { isArticle(it.expanded) || sameTarget(it.expanded, articleUrl) }
+                    .forEach { add(it.expanded); add(it.url) }
+            }
+            if (!quoteUrl.isNullOrBlank()) {
+                add(quoteUrl)
+                entities.filter { sameStatus(it.expanded, quoteUrl) }.forEach { add(it.expanded); add(it.url) }
+            }
+            cardUrls.forEach { card ->
+                add(card)
+                entities.filter { sameTarget(it.expanded, card) }.forEach { add(it.expanded); add(it.url) }
+            }
+        }
+        val expanded = expand(text, entities, drop, stripMedia)
+        return if (visible(expanded).isBlank()) "" else expanded
+    }
+
+    internal fun urlEntities(root: JsonObject): List<XUrlEntity> = entities(root)
 
     fun expand(
         text: String,
@@ -295,7 +336,10 @@ internal object XRichText {
         return "/photo/" in lower || "/video/" in lower
     }
 
-    private fun isArticle(url: String): Boolean = "/i/article/" in url
+    private fun isArticle(url: String): Boolean {
+        val path = url.substringBefore('?').lowercase()
+        return "/i/article/" in path || "/i/web/" in path
+    }
 
     private fun sameStatus(url: String, quoteUrl: String): Boolean {
         if (url == quoteUrl) return true

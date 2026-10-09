@@ -246,7 +246,7 @@ private fun normalizedMimeType(contentType: String?, kind: RemoteMediaKind): Str
 
 private fun defaultHttpClient(): OkHttpClient =
     OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)
         .build()

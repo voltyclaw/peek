@@ -2,6 +2,7 @@ package app.pane.android.ui.viewer
 
 import app.pane.android.R
 import app.pane.android.domain.model.BlueskyPostException
+import app.pane.android.domain.model.OfflineException
 import app.pane.android.domain.model.PrivateGroupException
 import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.ui.model.ViewerUiState
@@ -79,6 +80,7 @@ fun failureCopyRes(reason: String): Int {
 
 /** Unsupported URLs keep the existing screen. Fetch and parse failures stay separate. */
 fun viewerStateFor(url: String, error: Throwable): ViewerUiState = when {
+    error is OfflineException -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
     error is BlueskyPostException -> ViewerUiState.LoadFailed(
         url = url,
         reason = when (error.kind) {

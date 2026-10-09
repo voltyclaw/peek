@@ -67,8 +67,8 @@ internal object HttpYouTubeTransport : YouTubeTransport {
     override fun get(url: String): String {
         val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
         connection.instanceFollowRedirects = true
-        connection.connectTimeout = 12_000
-        connection.readTimeout = 12_000
+        connection.connectTimeout = app.pane.android.data.net.HttpTimeouts.CONNECT_MILLIS
+        connection.readTimeout = app.pane.android.data.net.HttpTimeouts.READ_MILLIS
         connection.setRequestProperty("Accept", "application/json")
         return try {
             val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream

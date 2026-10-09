@@ -15,8 +15,11 @@ import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.model.LinkKind
 import app.pane.android.domain.model.LinkSource
 import app.pane.android.domain.model.TikTokMetadata
+import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.domain.model.RowTitles
 import app.pane.android.domain.model.YouTubeCommentsState
 import app.pane.android.domain.model.YouTubeMetadata
+import app.pane.android.domain.model.YouTubeRowCopy
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.model.RecentContent
@@ -90,22 +93,39 @@ class HomeUiMapper(
                         starred = canonical in starred,
                     )
                 } else {
+                    val youtube = content.source == LinkSource.YouTube
+                    val named = (content.sourceMetadata as? ExternalPostMetadata)?.let { meta ->
+                        meta.articleTitle?.takeIf { it.isNotBlank() }
+                            ?: meta.linkCards.firstOrNull { it.title.isNotBlank() }?.title
+                            ?: meta.linkCards.firstOrNull { it.label.isNotBlank() }?.label
+                    }.orEmpty()
+                    val title = if (youtube) {
+                        YouTubeRowCopy.title(content.title, (content.sourceMetadata as? YouTubeMetadata)?.videoId ?: YouTubeUrls.videoId(content.url).orEmpty())
+                    } else {
+                        RowTitles.display(content.title, content.title, canonical, named)
+                    }
+                    val identity = if (youtube) {
+                        YouTubeRowCopy.identity(content.author.name, viewed?.handle.orEmpty())
+                    } else {
+                        HistoryLedger.identity(app, viewed?.handle.orEmpty(), viewed?.authorName.orEmpty())
+                    }
                     RecentLinkUiModel(
                         url = content.url,
-                        title = content.title,
+                        title = title,
                         sourceLabel = sourceLabel(content),
                         ageLabel = ageLabel(recent.recentLink.openedAtEpochMillis),
                         thumbnail = imageMapper.map(content.thumbnail).takeUnless { image ->
                             image is UiImage.Url && image.value.isBlank()
                         },
-                        thumbnailDescription = content.title,
+                        thumbnailDescription = title,
                         isCached = true,
-                        identity = HistoryLedger.identity(app, viewed?.handle.orEmpty(), viewed?.authorName.orEmpty()),
+                        identity = identity,
                         pfpUrl = viewed?.pfpUrl,
                         sourceMark = sourceMark(app),
                         thumbUrl = viewed?.thumbUrl?.takeIf { HistoryLedger.showsThumb(viewed.mediaType) },
                         video = viewed?.let { HistoryLedger.isVideo(it.mediaType) } == true,
                         starred = canonical in starred,
+                        markAsAvatar = youtube && viewed?.pfpUrl.isNullOrBlank(),
                     )
                 }
             },

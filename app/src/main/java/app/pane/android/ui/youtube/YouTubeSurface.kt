@@ -51,6 +51,7 @@ import java.util.Locale
 internal object YouTubeConsentLinks {
     const val YOUTUBE_TERMS = "https://www.youtube.com/t/terms"
     const val GOOGLE_PRIVACY = "https://www.google.com/policies/privacy"
+    const val PANE_TERMS = ""
     const val PANE_PRIVACY = ""
     const val PANE_PRIVACY_HEBREW = ""
     const val ISRAELI_NOTICE = ""
@@ -68,6 +69,7 @@ data class YouTubeFrame(
     val ageRestricted: Boolean = false,
     val portrait: Boolean = false,
     val title: String = "",
+    val hostLine: String = "",
     val onPlay: () -> Unit = {},
     val onOpenLink: (String) -> Unit = {},
     val onLeave: () -> Unit = {},
@@ -97,7 +99,7 @@ internal fun YouTubeConsentSurface(
             frame.onOpenInYouTube,
             modifier,
         )
-        frame.embedHtml == null -> YouTubeConsentPoster(frame.title, frame.onPlay, frame.onOpenLink, language, modifier)
+        frame.embedHtml == null -> YouTubeConsentPoster(frame.title, frame.hostLine, frame.onPlay, frame.onOpenLink, language, modifier)
         else -> YouTubeEmbed(frame.embedHtml, frame.portrait, frame.onLeave, modifier)
     }
 }
@@ -106,20 +108,23 @@ internal fun YouTubeConsentSurface(
 @Composable
 private fun YouTubeConsentPoster(
     title: String,
+    hostLine: String,
     onPlay: () -> Unit,
     onOpenLink: (String) -> Unit,
     language: String,
     modifier: Modifier = Modifier,
 ) {
     val button = stringResource(R.string.a11y_yt_consent_button)
+    val paneTerms = stringResource(R.string.consent_link_pane_terms)
+    val panePrivacy = stringResource(R.string.yt_consent_link_pane_privacy)
     val terms = stringResource(R.string.yt_consent_link_yt_terms)
     val google = stringResource(R.string.yt_consent_link_google_privacy)
-    val pane = stringResource(R.string.yt_consent_link_pane_privacy)
-    val line = stringResource(R.string.yt_consent_line, "\u0001", "\u0002", "\u0003")
+    val line = stringResource(R.string.yt_consent_line, "\u0001", "\u0002", "\u0003", "\u0004")
     val links = listOf(
-        "\u0001" to (terms to YouTubeConsentLinks.YOUTUBE_TERMS),
-        "\u0002" to (google to YouTubeConsentLinks.GOOGLE_PRIVACY),
-        "\u0003" to (pane to YouTubeConsentLinks.panePrivacy(language)),
+        "\u0001" to (paneTerms to YouTubeConsentLinks.PANE_TERMS),
+        "\u0002" to (panePrivacy to YouTubeConsentLinks.panePrivacy(language)),
+        "\u0003" to (terms to YouTubeConsentLinks.YOUTUBE_TERMS),
+        "\u0004" to (google to YouTubeConsentLinks.GOOGLE_PRIVACY),
     )
     Column(
         modifier = modifier.fillMaxWidth().background(PaneGround).padding(horizontal = 20.dp, vertical = 28.dp),
@@ -184,6 +189,14 @@ private fun YouTubeConsentPoster(
                     )
                 }
             }
+        }
+        if (hostLine.isNotBlank()) {
+            Text(
+                text = hostLine,
+                color = PaneMuted,
+                textAlign = TextAlign.Center,
+                style = TextStyle(fontFamily = Inter, fontSize = 12.sp),
+            )
         }
     }
 }

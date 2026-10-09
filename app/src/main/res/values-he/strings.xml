@@ -2,12 +2,12 @@
 <resources>
     <!-- TODO: counsel review — draft consent copy, not legal advice. -->
     <string name="yt_consent_button">הפעלה ב-YouTube</string>
-    <string name="yt_consent_line">הקשה תפעיל את הסרטון בנגן של YouTube, ומשמעותה הסכמה ל%1$s, ל%2$s ול%3$s.</string>
+    <string name="yt_consent_line">ההפעלה משמעותה הסכמה ל%1$s ול%2$s. חלים גם %3$s ו%4$s.</string>
     <string name="yt_consent_link_yt_terms">תנאי השימוש של YouTube</string>
     <string name="yt_consent_link_google_privacy">מדיניות הפרטיות של Google</string>
     <string name="yt_consent_link_pane_privacy">מדיניות הפרטיות של Pane</string>
-    <string name="a11y_yt_consent_button">הפעלה ב-YouTube. הסכמה לתנאי השימוש של YouTube, למדיניות הפרטיות של Google ולמדיניות הפרטיות של Pane</string>
-    <string name="private_group_title">הפוסט הזה גר בקבוצה סגורה</string>
+    <string name="a11y_yt_consent_button">הפעלה ב-YouTube. הסכמה לתנאי השימוש ולמדיניות הפרטיות של Pane</string>
+    <string name="private_group_title">הפוסט הזה נמצא בקבוצה סגורה</string>
     <string name="private_group_body">Pane רואה רק פוסטים ציבוריים. אם יש לך גישה לקבוצה, %1$s יראה לך אותו.</string>
     <string name="settings_group_sources">מקורות</string>
     <string name="settings_sources_footer">\u200FPane מציגה את הקישורים האלה בעצמה. אחרי כיבוי, הקישורים של המקור ייפתחו באפליקציה שלו.</string>

@@ -151,35 +151,42 @@ class YouTubeConsentTest {
 
     @Test
     fun agreementLineKeepsHebrewPrefixesOutsideTheLinkText() {
+        val paneTerms = "Pane's Terms"
+        val panePrivacy = "Pane's Privacy Policy"
         val terms = "YouTube's Terms"
         val google = "Google's Privacy Policy"
-        val pane = "Pane's Privacy Policy"
         val english = consentPieces(
-            "Tapping plays this video with YouTube's player and means you agree to \u0001, \u0002 and \u0003.",
-            links(terms, google, pane),
+            "By playing, you agree to \u0001 and \u0002. \u0003 and \u0004 also apply.",
+            fourLinks(paneTerms, panePrivacy, terms, google),
         )
+        assertEquals(paneTerms, english.first { it.url == "" }.label)
         assertEquals(terms, english.first { it.url == "https://www.youtube.com/t/terms" }.label)
-        assertTrue(english.last().label.endsWith("."))
+        assertEquals(google, english.first { it.url == "https://www.google.com/policies/privacy" }.label)
+        assertTrue(english.any { it.label.contains("also apply") })
 
+        val hePaneTerms = "תנאי השימוש של Pane"
+        val hePanePrivacy = "מדיניות הפרטיות של Pane"
         val heTerms = "תנאי השימוש של YouTube"
         val heGoogle = "מדיניות הפרטיות של Google"
-        val hePane = "מדיניות הפרטיות של Pane"
         val hebrew = consentPieces(
-            "הקשה תפעיל את הסרטון בנגן של YouTube, ומשמעותה הסכמה ל\u0001, ל\u0002 ול\u0003.",
-            links(heTerms, heGoogle, hePane),
+            "ההפעלה משמעותה הסכמה ל\u0001 ול\u0002. חלים גם \u0003 ו\u0004.",
+            fourLinks(hePaneTerms, hePanePrivacy, heTerms, heGoogle),
         )
-        assertEquals("הקשה תפעיל את הסרטון בנגן של YouTube, ומשמעותה הסכמה ל", hebrew.first().label)
-        assertEquals(heTerms, hebrew[1].label)
-        assertEquals(", ל", hebrew[2].label)
-        assertEquals(heGoogle, hebrew[3].label)
-        assertEquals(" ול", hebrew[4].label)
-        assertEquals(hePane, hebrew[5].label)
+        assertEquals("ההפעלה משמעותה הסכמה ל", hebrew.first().label)
+        assertEquals(hePaneTerms, hebrew[1].label)
+        assertEquals(" ול", hebrew[2].label)
+        assertEquals(hePanePrivacy, hebrew[3].label)
+        assertEquals(". חלים גם ", hebrew[4].label)
+        assertEquals(heTerms, hebrew[5].label)
+        assertEquals(" ו", hebrew[6].label)
+        assertEquals(heGoogle, hebrew[7].label)
     }
 
-    private fun links(terms: String, google: String, pane: String) = listOf(
-        "\u0001" to (terms to "https://www.youtube.com/t/terms"),
-        "\u0002" to (google to "http://www.google.com/policies/privacy"),
-        "\u0003" to (pane to ""),
+    private fun fourLinks(paneTerms: String, panePrivacy: String, terms: String, google: String) = listOf(
+        "\u0001" to (paneTerms to ""),
+        "\u0002" to (panePrivacy to "https://pane.example/privacy"),
+        "\u0003" to (terms to "https://www.youtube.com/t/terms"),
+        "\u0004" to (google to "https://www.google.com/policies/privacy"),
     )
 
     private fun session(

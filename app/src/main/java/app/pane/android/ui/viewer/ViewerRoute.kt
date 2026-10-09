@@ -41,6 +41,7 @@ import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.domain.tiktok.TikTokLinkKind
 import app.pane.android.domain.tiktok.TikTokLinks
 import app.pane.android.domain.tiktok.TikTokPlayback
+import app.pane.android.domain.model.YouTubeRowCopy
 import app.pane.android.domain.youtube.YouTubeLinkKind
 import app.pane.android.domain.youtube.YouTubePlayback
 import app.pane.android.ui.tiktok.TikTokFrame
@@ -178,6 +179,7 @@ fun ViewerRoute(
             ageRestricted = consented && ageRestricted,
             portrait = false,
             title = content?.post?.title.orEmpty(),
+            hostLine = YouTubeRowCopy.hostLine(id),
             onPlay = {
                 acceptedYouTube = true
                 onAcceptYouTube(id)

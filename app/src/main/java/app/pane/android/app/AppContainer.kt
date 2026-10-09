@@ -19,6 +19,7 @@ import app.pane.android.data.instagram.AndroidInstagramPageLoader
 import app.pane.android.data.instagram.InstagramDirectPageLoader
 import app.pane.android.data.instagram.InstagramLinkContentRepository
 import app.pane.android.data.media.AndroidMediaRepository
+import app.pane.android.data.net.AndroidNetworkStatus
 import app.pane.android.data.recent.DataStoreRecentLinksRepository
 import app.pane.android.data.recent.RecentLinksDocument
 import app.pane.android.data.recent.RecentLinksSerializer
@@ -195,17 +196,20 @@ class DefaultAppContainer(
         contentRepository = contentRepository,
         recentLinksRepository = recentLinksStore,
     )
+    private val networkStatus = AndroidNetworkStatus(context)
     override val openLink = OpenLinkUseCase(
         contentRepository = contentRepository,
         recentLinksRepository = recentLinksStore,
         historyRepository = historyRepository,
         clock = clock,
+        network = networkStatus,
     )
     override val refreshLink = RefreshLinkUseCase(
         contentRepository = contentRepository,
         recentLinksRepository = recentLinksStore,
         historyRepository = historyRepository,
         clock = clock,
+        network = networkStatus,
     )
     override val loadMoreComments = LoadMoreCommentsUseCase(contentRepository)
     override val prepareMediaForSharing = PrepareMediaForSharingUseCase(mediaRepository)

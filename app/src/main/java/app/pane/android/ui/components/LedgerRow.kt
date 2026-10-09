@@ -82,6 +82,7 @@ import app.pane.android.ui.text.BidiText
 import app.pane.android.ui.text.userContent
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneBorder
+import app.pane.android.domain.model.RowTitles
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneMuted
@@ -129,9 +130,7 @@ fun LedgerSwipeRow(
     }
     val starLabel = if (row.starred) stringResource(R.string.remove_star) else stringResource(R.string.star)
     val removeLabel = if (recents) stringResource(R.string.remove_from_recents) else stringResource(R.string.remove_from_history)
-    val title = row.title.ifBlank {
-        if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
-    }
+    val title = ledgerTitle(row)
     val description = listOf(title, row.identity, row.timeLabel)
         .filter { it.isNotBlank() }
         .joinToString(", ")
@@ -282,9 +281,7 @@ private fun LedgerBody(
     onActionStar: () -> Unit,
     onActionRemove: () -> Unit,
 ) {
-    val title = row.title.ifBlank {
-        if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
-    }
+    val title = ledgerTitle(row)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val wash = lerp(PaneGround, PaneTile, 0.85f)
@@ -333,7 +330,7 @@ private fun LedgerBody(
                 )
             }
         }
-        Poster(row.pfp, row.identity, row.sourceMark, ring, row.globe)
+        Poster(row.pfp, row.identity, row.sourceMark, ring, row.globe, row.markAsAvatar)
         Column(
             modifier = Modifier.padding(start = 12.dp).weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -371,12 +368,27 @@ private fun LedgerBody(
 }
 
 @Composable
-private fun Poster(pfp: UiImage?, identity: String, sourceMark: Int?, ring: Color, globe: Boolean) {
-    val letter = identity.trim().removePrefix("@").removePrefix("r/").firstOrNull()?.uppercase() ?: "·"
+private fun ledgerTitle(row: LedgerRowUi): String {
+    if (row.title.isBlank() && row.identity == "bsky.app") return stringResource(R.string.bs_gone_title)
+    return RowTitles.display(row.title, "", row.url)
+}
+
+@Composable
+private fun Poster(
+    pfp: UiImage?,
+    identity: String,
+    sourceMark: Int?,
+    ring: Color,
+    globe: Boolean,
+    markAsAvatar: Boolean,
+) {
+    val letter = identity.trim().removePrefix("@").removePrefix("r/").firstOrNull { it.isLetterOrDigit() }?.uppercase()
     var failed by remember(pfp) { mutableStateOf(false) }
-    val showGlobe = globe && (pfp == null || failed)
+    val showPhoto = pfp != null && !failed
+    val showGlobe = globe && !showPhoto
+    val showBadge = markAsAvatar && sourceMark != null && !showPhoto && !showGlobe
     Box(Modifier.size(30.dp)) {
-        if (pfp != null && !failed) {
+        if (showPhoto) {
             PeekImage(
                 pfp,
                 contentDescription = null,
@@ -387,21 +399,27 @@ private fun Poster(pfp: UiImage?, identity: String, sourceMark: Int?, ring: Colo
             Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Public, contentDescription = null, tint = PaneMuted, modifier = Modifier.size(16.dp))
             }
+        } else if (showBadge) {
+            Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
+                Icon(painterResource(sourceMark), contentDescription = null, tint = PaneMuted, modifier = Modifier.size(16.dp))
+            }
         } else {
             Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
-                Text(letter, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                if (letter != null) {
+                    Text(letter, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                }
             }
         }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .size(14.dp)
-                .clip(CircleShape)
-                .background(ring)
-                .padding(2.dp),
-        ) {
-            Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
-                if (sourceMark != null) {
+        if (sourceMark != null && !showBadge) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(ring)
+                    .padding(2.dp),
+            ) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(PaneTile), contentAlignment = Alignment.Center) {
                     Icon(painterResource(sourceMark), contentDescription = null, tint = PaneMuted, modifier = Modifier.size(8.dp))
                 }
             }
@@ -435,9 +453,7 @@ fun LedgerMenuSheet(
         LedgerBody(
             row = row,
             held = false,
-            description = row.title.ifBlank {
-                if (row.identity == "bsky.app") stringResource(R.string.bs_gone_title) else row.url
-            },
+            description = ledgerTitle(row),
             starLabel = "",
             removeLabel = "",
             onOpen = {},

@@ -32,7 +32,7 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class AndroidFacebookPageLoader(
     context: Context,
-    private val timeoutMillis: Long = 20_000L,
+    private val timeoutMillis: Long = 10_000L,
 ) : FacebookPageLoader {
     private val applicationContext = context.applicationContext
     private val json = Json { isLenient = true }

@@ -261,17 +261,18 @@
     <string name="history_all">All</string>
     <string name="history_starred">Starred</string>
     <string name="history_app">App</string>
+    <string name="history_filter_app_all">All</string>
     <plurals name="media_saved_count">
         <item quantity="one">Saved to Downloads</item>
         <item quantity="other">Saved %1$d items</item>
     </plurals>
     <!-- TODO: counsel review — draft consent copy, not legal advice. -->
     <string name="yt_consent_button">Play on YouTube</string>
-    <string name="yt_consent_line">Tapping plays this video with YouTube\'s player and means you agree to %1$s, %2$s and %3$s.</string>
+    <string name="yt_consent_line">By playing, you agree to %1$s and %2$s. %3$s and %4$s also apply.</string>
     <string name="yt_consent_link_yt_terms">YouTube\'s Terms</string>
     <string name="yt_consent_link_google_privacy">Google\'s Privacy Policy</string>
     <string name="yt_consent_link_pane_privacy">Pane\'s Privacy Policy</string>
-    <string name="a11y_yt_consent_button">Play on YouTube. Agrees to YouTube\'s Terms, Google\'s Privacy Policy and Pane\'s Privacy Policy</string>
+    <string name="a11y_yt_consent_button">Play on YouTube. Agrees to Pane\'s Terms and Privacy Policy</string>
     <string name="tt_comments_live_on_tiktok">Comments live on TikTok</string>
     <string name="tt_embed_off_title">This one plays only on TikTok</string>
     <string name="tt_embed_off_body">TikTok didn\'t let it play here.</string>
