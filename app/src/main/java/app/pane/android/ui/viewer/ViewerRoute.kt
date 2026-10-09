@@ -37,7 +37,9 @@ import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.mediaItemsOrPrimary
 import app.pane.android.data.youtube.YouTubeUrls
-import app.pane.android.domain.youtube.YouTubePlayer
+import app.pane.android.domain.youtube.YouTubeLinkKind
+import app.pane.android.domain.youtube.YouTubePlayback
+import app.pane.android.domain.youtube.YouTubeShorts
 import app.pane.android.ui.youtube.YouTubeFrame
 
 @Composable
@@ -85,24 +87,50 @@ fun ViewerRoute(
     val viewportHeight = configuration.screenHeightDp * density.density
     val content = viewerUiState as? ViewerUiState.Content
     val sourceUrl = content?.post?.sourceUrl.orEmpty()
-    val youtubeId = remember(sourceUrl) { YouTubeUrls.videoId(sourceUrl) }
+    val youtubeLink = remember(sourceUrl) { YouTubeUrls.parse(sourceUrl) }
+    val youtubeId = youtubeLink?.videoId
     var acceptedYouTube by remember(sourceUrl) { mutableStateOf(false) }
-    val playingYouTube = youtubeId != null && (youTubeConsented || acceptedYouTube)
-    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube) {
-        if (youtubeId != null && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
+    val consented = youTubeConsented || acceptedYouTube
+    val playShorts = YouTubeShorts.PLAY_IN_PANE
+    val embedOff = content?.post?.youtubeEmbedOff == true
+    val ageRestricted = content?.post?.youtubeAgeRestricted == true
+    val shortsBlocked = youtubeLink?.kind == YouTubeLinkKind.Short && !playShorts
+    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube, shortsBlocked) {
+        if (youtubeId != null && !shortsBlocked && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
     }
-    val youtubeFrame = youtubeId?.let { id ->
+    val youtubeFrame = youtubeLink?.takeIf { it.videoId != null }?.let { link ->
+        val id = link.videoId ?: return@let null
+        val kind = link.kind
         YouTubeFrame(
-            embedUrl = if (playingYouTube) YouTubePlayer.embedUrl(id) else null,
+            embedHtml = YouTubePlayback.iframeHtml(
+                videoId = id,
+                startSeconds = link.startSeconds,
+                kind = kind,
+                consented = consented,
+                playShorts = playShorts,
+                embeddable = !embedOff,
+                ageRestricted = ageRestricted,
+            ),
+            blocked = shortsBlocked,
+            embedOff = consented && embedOff && !shortsBlocked,
+            ageRestricted = consented && ageRestricted && !shortsBlocked,
+            portrait = kind == YouTubeLinkKind.Short && playShorts,
+            title = content?.post?.title.orEmpty(),
             onPlay = {
                 acceptedYouTube = true
                 onAcceptYouTube(id)
+                viewModel.onYouTubeAccepted()
             },
             onOpenLink = { link ->
                 val started = openExternally(context, link, finishAfter = false)
                 if (!started) {
                     Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
                 }
+            },
+            onLeave = onBack,
+            onOpenInYouTube = {
+                val started = openExternally(context, sourceUrl, finishAfter = true)
+                if (shouldFinishAfterExternalOpen(started, finishAfter = true)) onBack()
             },
         )
     }

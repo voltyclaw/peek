@@ -264,8 +264,8 @@ private fun ColumnScope.ViewerContent(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (youtube != null) {
-                YouTubeConsentSurface(youtube)
                 ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
+                YouTubeConsentSurface(youtube)
             } else if (overMedia) {
                 Box(Modifier.fillMaxWidth()) {
                     MediaCanvas(
@@ -294,7 +294,30 @@ private fun ColumnScope.ViewerContent(
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
-                if (reddit) {
+                if (youtube != null) {
+                    if (post.title.isNotBlank()) {
+                        Text(
+                            text = post.title,
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp),
+                        )
+                    }
+                    if (post.metaLine.isNotBlank()) {
+                        Text(
+                            text = post.metaLine,
+                            color = PaneMuted,
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+                        )
+                    }
+                    if (showAuthor) AuthorCaption(post, onOpenLinked)
+                    if (post.description.isNotBlank()) {
+                        Text(
+                            text = post.description,
+                            color = PaneInk,
+                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
+                        )
+                    }
+                } else if (reddit) {
                     RedditBody(post, onOpenLinked)
                     if (outbound != null && linkCard && post.linkCards.isEmpty()) {
                         LinkPreviewCard(outbound, currentItem, onOpenLinked)

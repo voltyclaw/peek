@@ -1,8 +1,8 @@
 package app.pane.android.domain.model
 
 /** One history row. The primary key is the canonical post URL. */
-/** Normalized app chip. YouTube, TikTok, and anything else land in [SourceApp.Other]. */
-enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, Other }
+/** Normalized app chip. TikTok and anything else land in [SourceApp.Other]. */
+enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, YouTube, Other }
 
 enum class HistoryScope { All, Starred }
 
@@ -132,6 +132,10 @@ fun LinkContent.toHistoryView(recordUrl: String, viewedAtEpochMillis: Long): His
 
 private fun LinkContent.historyHandle(): String {
     when (source) {
+        LinkSource.YouTube -> {
+            val handle = (sourceMetadata as? YouTubeMetadata)?.handle
+            if (!handle.isNullOrBlank()) return handle.removePrefix("@").trim()
+        }
         LinkSource.Instagram -> {
             val user = (sourceMetadata as? InstagramMetadata)?.authorUsername
             if (!user.isNullOrBlank()) return user.removePrefix("@").trim()
@@ -158,6 +162,7 @@ private fun LinkContent.historyMediaType(): String {
         is RedditMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() }
         is InstagramMetadata -> meta.videoVariants.isNotEmpty() || meta.mediaItems.any { it.videoVariants.isNotEmpty() }
         is ExternalPostMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() }
+        is YouTubeMetadata -> false
         else -> false
     }
     if (video) return HistoryLedger.VIDEO

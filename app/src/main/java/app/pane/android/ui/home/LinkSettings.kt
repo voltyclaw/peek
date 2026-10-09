@@ -61,6 +61,7 @@ object LinkSettings {
         "youtube.com",
         "m.youtube.com",
         "youtu.be",
+        "music.youtube.com",
     )
 
     enum class LinkHandlingReport {

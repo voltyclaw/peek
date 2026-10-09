@@ -114,10 +114,12 @@ class DefaultAppContainer(
         pageLoaders = listOf(XDirectPageLoader()),
         cacheStore = linkContentCacheStore,
     )
-    private val youtubeRepository = YouTubeLinkContentRepository()
+    private val youtubeStore = AndroidYouTubeConsentStore(context)
+    private val youtubeApi = YouTubeDataApiClient(BuildConfig.YOUTUBE_API_KEY)
+    private val youtubeRepository = YouTubeLinkContentRepository(youtubeStore, youtubeApi)
     override val youtube = YouTubeSession(
-        store = AndroidYouTubeConsentStore(context),
-        api = YouTubeDataApiClient(),
+        store = youtubeStore,
+        api = youtubeApi,
         siteData = AndroidYouTubeSiteData(),
     )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(

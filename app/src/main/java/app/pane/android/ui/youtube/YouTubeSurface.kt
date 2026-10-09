@@ -1,5 +1,6 @@
 package app.pane.android.ui.youtube
 
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,13 +9,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,13 +62,21 @@ internal object YouTubeConsentLinks {
 }
 
 data class YouTubeFrame(
-    val embedUrl: String?,
-    val onPlay: () -> Unit,
-    val onOpenLink: (String) -> Unit,
+    val embedHtml: String? = null,
+    val blocked: Boolean = false,
+    val embedOff: Boolean = false,
+    val ageRestricted: Boolean = false,
+    val portrait: Boolean = false,
+    val title: String = "",
+    val onPlay: () -> Unit = {},
+    val onOpenLink: (String) -> Unit = {},
+    val onLeave: () -> Unit = {},
+    val onOpenInYouTube: () -> Unit = {},
 )
 
 /**
- * Poster until [YouTubeFrame.embedUrl] is set. The WebView is not created before that.
+ * Poster until [YouTubeFrame.embedHtml] is set. The WebView is not created before that.
+ * A Shorts block, an embed-off panel, or an age panel also keeps the IFrame unloaded.
  */
 @Composable
 internal fun YouTubeConsentSurface(
@@ -70,16 +84,29 @@ internal fun YouTubeConsentSurface(
     modifier: Modifier = Modifier,
     language: String = Locale.getDefault().language,
 ) {
-    if (frame.embedUrl == null) {
-        YouTubeConsentPoster(frame.onPlay, frame.onOpenLink, language, modifier)
-    } else {
-        YouTubeEmbed(frame.embedUrl, modifier)
+    when {
+        frame.blocked -> YouTubeShortsBlock(frame.onOpenInYouTube, modifier)
+        frame.ageRestricted -> YouTubeNotice(
+            stringResource(R.string.yt_age_title),
+            stringResource(R.string.yt_age_body),
+            frame.onOpenInYouTube,
+            modifier,
+        )
+        frame.embedOff -> YouTubeNotice(
+            stringResource(R.string.yt_embed_off_title),
+            stringResource(R.string.yt_embed_off_body),
+            frame.onOpenInYouTube,
+            modifier,
+        )
+        frame.embedHtml == null -> YouTubeConsentPoster(frame.title, frame.onPlay, frame.onOpenLink, language, modifier)
+        else -> YouTubeEmbed(frame.embedHtml, frame.portrait, frame.onLeave, modifier)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun YouTubeConsentPoster(
+    title: String,
     onPlay: () -> Unit,
     onOpenLink: (String) -> Unit,
     language: String,
@@ -100,6 +127,20 @@ private fun YouTubeConsentPoster(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(PaneTile),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (title.isNotBlank()) {
+                Text(
+                    text = title,
+                    color = PaneInk,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                )
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,19 +212,126 @@ internal fun consentPieces(template: String, links: List<Pair<String, Pair<Strin
 }
 
 @Composable
-private fun YouTubeEmbed(url: String, modifier: Modifier = Modifier) {
+private fun YouTubeShortsBlock(onOpenInYouTube: () -> Unit, modifier: Modifier = Modifier) {
+    YouTubeNotice(
+        stringResource(R.string.yt_shorts_title),
+        stringResource(R.string.yt_shorts_body),
+        onOpenInYouTube,
+        modifier,
+    )
+}
+
+@Composable
+private fun YouTubeNotice(
+    title: String,
+    body: String,
+    onOpenInYouTube: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().background(PaneGround).padding(horizontal = 20.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = title,
+            color = PaneInk,
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium),
+        )
+        Text(
+            text = body,
+            color = PaneMuted,
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(PaneInk)
+                .clickable(role = Role.Button, onClick = onOpenInYouTube)
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.open_in_named_app, stringResource(R.string.source_youtube)),
+                color = PaneOnFill,
+                style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+            )
+        }
+    }
+}
+
+/**
+ * Official IFrame player. Nothing from Pane is drawn on top of the WebView.
+ * When the video ends, the WebView is replaced by a leave/replay card.
+ */
+@Composable
+private fun YouTubeEmbed(
+    html: String,
+    portrait: Boolean,
+    onLeave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var ended by remember(html) { mutableStateOf(false) }
+    var generation by remember(html) { mutableIntStateOf(0) }
+    val ratio = if (portrait) 4f / 5f else 16f / 9f
+    if (ended) {
+        Column(
+            modifier = modifier.fillMaxWidth().aspectRatio(ratio).background(PaneTile).padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        ) {
+            Text(
+                text = stringResource(R.string.yt_replay),
+                color = PaneInk,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button) {
+                        ended = false
+                        generation += 1
+                    }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+            )
+            Text(
+                text = stringResource(R.string.yt_leave),
+                color = PaneMuted,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClick = onLeave)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                style = TextStyle(fontFamily = Inter, fontSize = 16.sp),
+            )
+        }
+        return
+    }
     AndroidView(
-        modifier = modifier.fillMaxWidth().height(220.dp).background(PaneTile),
+        modifier = modifier.fillMaxWidth().aspectRatio(ratio).background(PaneTile),
         factory = { context ->
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.mediaPlaybackRequiresUserGesture = true
-                loadUrl(url)
+                settings.mediaPlaybackRequiresUserGesture = false
+                addJavascriptInterface(
+                    object {
+                        @JavascriptInterface
+                        fun onEnded() {
+                            post { ended = true }
+                        }
+                    },
+                    "Pane",
+                )
+                loadDataWithBaseURL("https://app.pane.android", html, "text/html", "UTF-8", null)
             }
         },
         update = { view ->
-            if (view.url != url) view.loadUrl(url)
+            if (view.tag != generation) {
+                view.tag = generation
+                view.loadDataWithBaseURL("https://app.pane.android", html, "text/html", "UTF-8", null)
+            }
         },
         onRelease = { view ->
             view.stopLoading()

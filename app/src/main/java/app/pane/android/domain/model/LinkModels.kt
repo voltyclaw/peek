@@ -139,6 +139,26 @@ data class ExternalPostMetadata(
 ) : SourceMetadata
 
 @Serializable
+enum class YouTubeCommentsState { Ready, Unavailable, Off, Failed }
+
+/** YouTube page kept in memory for the viewer session. Comments are not written to disk. */
+@Serializable
+data class YouTubeMetadata(
+    val videoId: String,
+    val description: String = "",
+    val metaLine: String = "",
+    val channelUrl: String = "",
+    val handle: String = "",
+    val commentPageToken: String? = null,
+    val commentPagesLoaded: Int = 0,
+    val commentsHardWall: Boolean = false,
+    val commentsState: YouTubeCommentsState = YouTubeCommentsState.Ready,
+    val embeddable: Boolean = true,
+    val ageRestricted: Boolean = false,
+    val isShort: Boolean = false,
+) : SourceMetadata
+
+@Serializable
 data class RedditMetadata(
     val postId: String,
     val subreddit: String,

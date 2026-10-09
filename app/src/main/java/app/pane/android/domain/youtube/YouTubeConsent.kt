@@ -1,5 +1,7 @@
 package app.pane.android.domain.youtube
 
+import app.pane.android.domain.model.YouTubeCommentsState
+
 /**
  * Device record of YouTube consent.
  * [policyVersion] is the copy the person accepted. [acceptedAtEpochMillis] is when they tapped Play on YouTube.
@@ -60,14 +62,51 @@ sealed interface YouTubeSurface {
     data class Player(override val videoId: String, val embedUrl: String) : YouTubeSurface
 }
 
-data class YouTubeVideo(val videoId: String)
+data class YouTubeVideo(
+    val videoId: String,
+    val title: String = "",
+    val description: String = "",
+    val channelId: String = "",
+    val channelName: String = "",
+    val handle: String = "",
+    val channelUrl: String = "",
+    val avatarUrl: String = "",
+    val thumbnailUrl: String = "",
+    val viewCount: String = "",
+    val publishedLabel: String = "",
+    val embeddable: Boolean = true,
+    val ageRestricted: Boolean = false,
+    val commentsUnavailable: Boolean = false,
+)
+
+data class YouTubeComment(
+    val id: String,
+    val author: String,
+    val body: String,
+    val avatarUrl: String,
+    val publishedAt: String,
+)
+
+data class YouTubeCommentPage(
+    val comments: List<YouTubeComment>,
+    val nextPageToken: String?,
+    val hardWall: Boolean,
+    val pagesLoaded: Int,
+    val state: YouTubeCommentsState,
+)
 
 /**
- * The YouTube Data API. Callers must go through [YouTubeSession], which does not call this
- * until Play on YouTube has been tapped or a stored consent already allows playback.
+ * The YouTube Data API and the no-key oEmbed fallback.
+ * Callers must go through [YouTubeSession] or a repository that has already seen consent.
+ * Neither opens a connection until Play on YouTube has been tapped or stored consent allows it.
  */
 interface YouTubeDataApi {
     fun fetch(videoId: String): YouTubeVideo
+
+    fun commentPage(videoId: String, pageToken: String?, pagesLoaded: Int): YouTubeCommentPage =
+        YouTubeCommentPage(emptyList(), null, hardWall = false, pagesLoaded = pagesLoaded, state = YouTubeCommentsState.Ready)
+
+    fun invalidate(videoId: String) = Unit
 }
 
 /** Clears cookies and site storage the YouTube player left in this app's WebView. */
@@ -76,7 +115,51 @@ interface YouTubeSiteData {
 }
 
 object YouTubePlayer {
+    /** Identity URL only. The viewer loads [iframeHtml] in a WebView, never an ExoPlayer stream. */
     fun embedUrl(videoId: String): String = "https://www.youtube-nocookie.com/embed/$videoId"
+
+    /**
+     * Official IFrame Player API document.
+     * controls, fs, and rel stay at YouTube's own player. Pane does not draw on top of it.
+     */
+    fun iframeHtml(videoId: String, startSeconds: Int): String {
+        val start = startSeconds.coerceAtLeast(0)
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="referrer" content="strict-origin-when-cross-origin">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>html,body,#player{margin:0;padding:0;height:100%;width:100%;background:#0E0B0A;overflow:hidden}</style>
+            </head>
+            <body>
+              <div id="player"></div>
+              <script src="https://www.youtube.com/iframe_api"></script>
+              <script>
+                var player;
+                function onYouTubeIframeAPIReady() {
+                  player = new YT.Player('player', {
+                    videoId: '$videoId',
+                    playerVars: {
+                      controls: 1,
+                      fs: 1,
+                      playsinline: 1,
+                      rel: 0,
+                      start: $start,
+                      origin: 'https://app.pane.android'
+                    },
+                    events: {
+                      onStateChange: function(event) {
+                        if (event.data === 0 && window.Pane) Pane.onEnded();
+                      }
+                    }
+                  });
+                }
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
+    }
 }
 
 /**

@@ -4,6 +4,7 @@ import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
+import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.LinkShims
 import java.net.URI
 import java.util.Locale
@@ -47,6 +48,7 @@ internal fun profileLink(raw: String): ProfileLink? {
         ?: instagramProfile(host, segments)
         ?: redditProfile(host, segments)
         ?: threadsProfile(host, segments)
+        ?: youtubeProfile(host, segments, uri)
 }
 
 internal fun isXHost(url: String): Boolean {
@@ -60,6 +62,7 @@ internal fun isXHost(url: String): Boolean {
 
 private fun isRenderablePost(url: String): Boolean {
     if (XUrls.supports(url) || FacebookUrls.supports(url) || FacebookUrls.isMarketplace(url)) return true
+    if (YouTubeUrls.supports(url)) return true
     if (RedditUrls.supports(url)) return true
     if (InstagramStories.parse(url) != null) return true
     return isInstagramPost(url)
@@ -118,6 +121,20 @@ private fun redditProfile(host: String, segments: List<String>): ProfileLink? {
     return ProfileLink(open, listOf(REDDIT_PACKAGE))
 }
 
+private fun youtubeProfile(host: String, segments: List<String>, uri: URI): ProfileLink? {
+    if (host !in YOUTUBE_HOSTS) return null
+    if (YouTubeUrls.supports(uri.toString()) || segments.isEmpty()) return null
+    val head = segments.first()
+    val open = when {
+        head.startsWith("@") && head.length > 1 -> "https://www.youtube.com/$head"
+        head == "channel" -> segments.getOrNull(1)?.let { "https://www.youtube.com/channel/$it" }
+        head == "c" -> segments.getOrNull(1)?.let { "https://www.youtube.com/c/$it" }
+        head == "user" -> segments.getOrNull(1)?.let { "https://www.youtube.com/user/$it" }
+        else -> null
+    } ?: return null
+    return ProfileLink(open, listOf(YOUTUBE_PACKAGE))
+}
+
 private fun threadsProfile(host: String, segments: List<String>): ProfileLink? {
     if (host !in THREADS_HOSTS) return null
     val raw = segments.firstOrNull() ?: return null
@@ -162,6 +179,7 @@ private val REDDIT_HOSTS = setOf(
     "new.reddit.com",
 )
 private val THREADS_HOSTS = setOf("threads.net", "www.threads.net")
+private val YOUTUBE_HOSTS = setOf("youtube.com", "m.youtube.com", "music.youtube.com")
 
 private val X_RESERVED = setOf(
     "home",
@@ -233,3 +251,5 @@ internal const val FB_LITE = "com.facebook.lite"
 internal const val IG_PACKAGE = "com.instagram.android"
 internal const val REDDIT_PACKAGE = "com.reddit.frontpage"
 internal const val THREADS_PACKAGE = "com.instagram.barcelona"
+internal const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+internal const val YOUTUBE_MUSIC_PACKAGE = "com.google.android.apps.youtube.music"

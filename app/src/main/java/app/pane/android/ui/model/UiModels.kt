@@ -112,7 +112,14 @@ data class ViewerPostUiModel(
     val article: ViewerArticleUiModel? = null,
     val quote: ViewerQuoteUiModel? = null,
     val linkCards: List<ViewerLinkCardUiModel> = emptyList(),
+    val description: String = "",
+    val metaLine: String = "",
+    val commentsNotice: ViewerCommentsNotice = ViewerCommentsNotice.None,
+    val youtubeEmbedOff: Boolean = false,
+    val youtubeAgeRestricted: Boolean = false,
 )
+
+enum class ViewerCommentsNotice { None, Unavailable, Off, Failed }
 
 @Immutable
 data class ViewerArticleUiModel(

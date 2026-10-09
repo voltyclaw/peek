@@ -20,6 +20,7 @@ import app.pane.android.domain.model.StarCopy
 import app.pane.android.domain.model.StarImageBytes
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
+import app.pane.android.domain.youtube.YouTubeCopyExpiry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -378,7 +379,23 @@ internal class SqliteHistoryRepository(
         sql.query("$SELECT_ROW WHERE url = ?", listOf(url)).firstOrNull()?.toEntry()
 
     private fun reload() {
+        stripStaleYouTube(System.currentTimeMillis())
         entries.value = sql.query("$SELECT_ROW ORDER BY last_viewed_at DESC, url ASC").map { it.toEntry() }
+    }
+
+    /** YouTube API fields older than 30 days are cleared. Pane-owned star, note, and view time stay. */
+    private fun stripStaleYouTube(now: Long) {
+        val cutoff = now - YouTubeCopyExpiry.WINDOW_MILLIS
+        sql.exec(
+            """
+            UPDATE history SET
+              title = '', author_name = '', handle = '', caption = '',
+              thumb_url = NULL, pfp_url = NULL, pinned_thumb_path = NULL, pinned_pfp_path = NULL,
+              media_type = 'none'
+            WHERE source_app = ? AND last_viewed_at > 0 AND last_viewed_at < ?
+            """.trimIndent(),
+            listOf(SourceApp.YouTube.name, cutoff),
+        )
     }
 
     private fun insert(entry: HistoryEntry) {
