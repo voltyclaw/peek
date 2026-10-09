@@ -22,6 +22,7 @@ import android.net.Uri
 import android.widget.Toast
 import app.pane.android.R
 import app.pane.android.ui.actions.openExternally
+import app.pane.android.ui.actions.shouldFinishAfterExternalOpen
 import app.pane.android.domain.usecase.DownloadMediaUseCase
 import app.pane.android.domain.usecase.PrepareMediaForSharingUseCase
 import app.pane.android.ui.actions.rememberPostActionCallbacks
@@ -41,6 +42,7 @@ fun ViewerRoute(
     videoQuality: VideoQuality = VideoQuality.Auto,
     startMuted: () -> Boolean = { true },
     onMutedChange: (Boolean) -> Unit = {},
+    onOpenLinked: ((String) -> Unit)? = null,
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val callbacks = rememberPostActionCallbacks(prepareMediaForSharing, downloadMedia)
@@ -91,8 +93,9 @@ fun ViewerRoute(
         onShare = callbacks.onShare,
         onSharePost = callbacks.onSharePost,
         onOpenInApp = { url ->
-            if (openExternally(context, url)) onBack()
-            else Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+            val started = openExternally(context, url, finishAfter = true)
+            if (shouldFinishAfterExternalOpen(started, finishAfter = true)) onBack()
+            else if (!started) Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
         },
         videoQuality = videoQuality,
         startMuted = startMuted,
@@ -104,8 +107,14 @@ fun ViewerRoute(
             if (noteUrl.isNotBlank()) PostNotes.write(context, noteUrl, saved)
         },
         onOpenOutbound = { target ->
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val openInPane = onOpenLinked
+            if (openInPane != null) {
+                openInPane(target)
+            } else {
+                val started = openExternally(context, target, finishAfter = false)
+                if (!started) {
+                    Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+                }
             }
         },
         onMediaMeasured = { width, height ->

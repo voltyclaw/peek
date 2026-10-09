@@ -80,10 +80,22 @@ class BrowserTrampolineTest {
             "https://benamiartgallery.com/",
             "https://notfacebook.com/post",
             "https://www.reddit.com/",
-            "https://x.com/AexodusCapital",
+            "https://x.com/home",
         ).forEach { url ->
             assertEquals(url, BrowserTrampoline.Decision.HandOff(url), BrowserTrampoline.decide(url, enabled = true))
         }
+        assertEquals(
+            BrowserTrampoline.Decision.OpenInSource("https://x.com/AexodusCapital"),
+            BrowserTrampoline.decide("https://x.com/AexodusCapital", enabled = true),
+        )
+        assertEquals(
+            BrowserTrampoline.Decision.OpenInSource("https://www.facebook.com/zuck"),
+            BrowserTrampoline.decide("https://www.facebook.com/zuck", enabled = true),
+        )
+        assertEquals(
+            BrowserTrampoline.Decision.OpenInSource("https://www.instagram.com/nasa/"),
+            BrowserTrampoline.decide("https://www.instagram.com/nasa/", enabled = true),
+        )
         listOf("reddit.com", "www.reddit.com", "x.com", "twitter.com", "notfacebook.com", "facebook.com.evil.test", "").forEach { host ->
             assertFalse(host, BrowserTrampoline.isMetaHost(host))
         }

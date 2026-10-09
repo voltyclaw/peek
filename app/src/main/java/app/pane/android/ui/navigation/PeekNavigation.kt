@@ -47,6 +47,12 @@ import app.pane.android.ui.home.HomeViewModel
 import app.pane.android.ui.player.PlayerRoute
 import app.pane.android.ui.player.PlayerViewModel
 import app.pane.android.ui.theme.ThemeMode
+import android.widget.Toast
+import app.pane.android.R
+import app.pane.android.data.links.PaneEntry
+import app.pane.android.data.links.paneEntry
+import app.pane.android.data.links.profileHandoffFinishes
+import app.pane.android.ui.actions.openExternally
 import app.pane.android.ui.viewer.ViewerRoute
 import app.pane.android.ui.viewer.ViewerViewModel
 
@@ -154,10 +160,41 @@ fun PeekNavigation(
         }
     }
 
+    fun openFromHub(url: String) {
+        if (paneEntry(url) == PaneEntry.ProfileHandoff) {
+            val started = openExternally(context, url, finishAfter = false)
+            if (!started) {
+                Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            backStack.add(ViewerKey(url))
+        }
+    }
+
+    fun openLinked(url: String) {
+        if (paneEntry(url) == PaneEntry.ProfileHandoff || BrowserTrampoline.openablePost(url) == null) {
+            val started = openExternally(context, url, finishAfter = false)
+            if (!started) {
+                Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            backStack.add(ViewerKey(url))
+        }
+    }
+
     LaunchedEffect(viewIntentUrl.value) {
         val url = viewIntentUrl.value ?: return@LaunchedEffect
         viewIntentUrl.value = null
-        backStack.add(ViewerKey(url))
+        if (paneEntry(url) == PaneEntry.ProfileHandoff) {
+            val started = openExternally(context, url, finishAfter = true)
+            if (profileHandoffFinishes(fromExternal = launchedFromViewLink, started = started)) {
+                activity?.finish()
+            } else if (!started) {
+                Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            backStack.add(ViewerKey(url))
+        }
     }
 
     NavDisplay(
@@ -182,7 +219,7 @@ fun PeekNavigation(
             entry<HomeKey> {
                 HomeRoute(
                     uiState = homeUiState,
-                    onOpenLink = { url -> backStack.add(ViewerKey(url)) },
+                    onOpenLink = { url -> openFromHub(url) },
                     themeMode = themeMode,
                     onThemeMode = onThemeMode,
                     videoQuality = videoQuality,
@@ -225,7 +262,7 @@ fun PeekNavigation(
                         showSamples = enabled
                         if (BuildConfig.DEBUG) SampleRecentsPreferences.write(context, enabled)
                     },
-                    onOpenSample = { url -> backStack.add(ViewerKey(url)) },
+                    onOpenSample = { url -> openFromHub(url) },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
@@ -243,6 +280,7 @@ fun PeekNavigation(
                     onBack = ::handleBack,
                     onLeave = { while (backStack.size > 1) backStack.removeLastOrNull() },
                     onOpenMedia = { mediaIndex -> backStack.add(PlayerKey(key.url, mediaIndex)) },
+                    onOpenLinked = { url -> openLinked(url) },
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

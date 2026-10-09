@@ -12,6 +12,7 @@ class ManifestQueriesTest {
             "com.facebook.katana",
             "com.facebook.lite",
             "com.instagram.android",
+            "com.instagram.barcelona",
             "com.twitter.android",
             "com.reddit.frontpage",
         ).forEach { packageName ->

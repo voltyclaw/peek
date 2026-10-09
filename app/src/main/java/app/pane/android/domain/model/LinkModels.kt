@@ -126,6 +126,16 @@ data class ExternalPostMetadata(
     val authorThreadPartial: Boolean = false,
     val repliesCursor: String? = null,
     val replyContinuation: XReplyContinuation? = null,
+    val articleTitle: String? = null,
+    val articlePreview: String? = null,
+    val articleBody: String? = null,
+    val articleCoverUrl: String? = null,
+    val articleUrl: String? = null,
+    val quoteAuthor: String? = null,
+    val quoteHandle: String? = null,
+    val quoteText: String? = null,
+    val quoteUrl: String? = null,
+    val linkCards: List<ExternalLinkCard> = emptyList(),
 ) : SourceMetadata
 
 @Serializable
@@ -144,6 +154,13 @@ data class RedditMetadata(
 ) : SourceMetadata
 
 @Serializable
+data class ExternalLinkCard(
+    val url: String,
+    val label: String,
+    val title: String = "",
+)
+
+@Serializable
 data class Comment(
     val id: String,
     val author: String,
@@ -154,6 +171,9 @@ data class Comment(
     val replies: List<Comment> = emptyList(),
     val avatarUrl: String? = null,
     val handle: String? = null,
+    val cardTitle: String? = null,
+    val cardBody: String? = null,
+    val cardUrl: String? = null,
 )
 
 @Serializable

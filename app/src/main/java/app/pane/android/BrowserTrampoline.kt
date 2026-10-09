@@ -1,6 +1,7 @@
 package app.pane.android
 
 import app.pane.android.data.facebook.FacebookUrls
+import app.pane.android.data.links.profileLink
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
 import app.pane.android.domain.model.LinkShims
@@ -18,6 +19,7 @@ internal object BrowserTrampoline {
     sealed class Decision {
         data object Ignore : Decision()
         data class OpenInPane(val url: String) : Decision()
+        data class OpenInSource(val url: String) : Decision()
         data class HandOff(val url: String) : Decision()
     }
 
@@ -46,6 +48,7 @@ internal object BrowserTrampoline {
         if (!enabled) return Decision.HandOff(raw)
         val unwrapped = LinkShims.unwrap(raw)
         openablePost(unwrapped)?.let { return Decision.OpenInPane(it) }
+        if (profileLink(unwrapped) != null) return Decision.OpenInSource(unwrapped)
         if (FacebookUrls.isMarketplace(unwrapped)) return Decision.HandOff(raw)
         val host = hostOf(unwrapped) ?: return Decision.HandOff(raw)
         return if (isMetaHost(host)) Decision.OpenInPane(unwrapped) else Decision.HandOff(raw)

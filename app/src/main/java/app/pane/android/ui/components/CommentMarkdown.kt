@@ -12,6 +12,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import app.pane.android.ui.text.MentionNetwork
+import app.pane.android.ui.text.mentionAt
 
 /** How far a nested reply sits past its parent. Depth is capped so a long chain stays readable. */
 internal const val MAX_COMMENT_DEPTH = 8
@@ -19,9 +21,13 @@ internal const val MAX_COMMENT_DEPTH = 8
 internal fun commentBranchExpanded(collapsedIds: Set<String>, commentId: String): Boolean =
     commentId !in collapsedIds
 
-/** Caption and comment text with bare http(s) URLs marked as links. */
-internal fun autolinkedCaption(source: String, linkColor: Color): AnnotatedString =
-    buildAnnotatedString { appendWithAutolinks(source, linkColor) }
+/** Caption and comment text. Handles, subreddit names, and URLs open through [onOpen]. */
+internal fun autolinkedCaption(
+    source: String,
+    linkColor: Color,
+    network: MentionNetwork = MentionNetwork.Other,
+    onOpen: (String) -> Unit = {},
+): AnnotatedString = buildAnnotatedString { appendWithAutolinks(source, linkColor, network, onOpen) }
 
 internal fun commentNestingStepDp(depth: Int): Int =
     if (depth in 1..MAX_COMMENT_DEPTH) 12 else 0
@@ -35,6 +41,8 @@ internal fun redditCommentAnnotated(
     linkColor: Color,
     quoteColor: Color,
     codeFont: FontFamily,
+    network: MentionNetwork = MentionNetwork.Reddit,
+    onOpen: (String) -> Unit = {},
 ): AnnotatedString = buildAnnotatedString {
     val lines = source.split('\n')
     lines.forEachIndexed { index, line ->
@@ -43,10 +51,10 @@ internal fun redditCommentAnnotated(
         val quote = trimmed.startsWith(">") && !trimmed.startsWith(">!")
         if (quote) {
             withStyle(SpanStyle(color = quoteColor, fontStyle = FontStyle.Italic)) {
-                appendMarkdown(trimmed.removePrefix(">").trimStart(), linkColor, codeFont)
+                appendMarkdown(trimmed.removePrefix(">").trimStart(), linkColor, codeFont, network, onOpen)
             }
         } else {
-            appendMarkdown(line, linkColor, codeFont)
+            appendMarkdown(line, linkColor, codeFont, network, onOpen)
         }
     }
 }
@@ -55,6 +63,8 @@ private fun AnnotatedString.Builder.appendMarkdown(
     text: String,
     linkColor: Color,
     codeFont: FontFamily,
+    network: MentionNetwork,
+    onOpen: (String) -> Unit,
 ) {
     var index = 0
     while (index < text.length) {
@@ -63,24 +73,19 @@ private fun AnnotatedString.Builder.appendMarkdown(
             index += 2
             continue
         }
-        val url = plainUrlAt(text, index)
-        if (url != null) {
-            withLink(
-                LinkAnnotation.Url(
-                    url,
-                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
-                ),
-            ) {
-                append(url)
+        val mention = mentionAt(text, index, network)
+        if (mention != null) {
+            withLink(openLink(mention.url, linkColor, onOpen)) {
+                append(text.substring(mention.start, mention.end))
             }
-            index += url.length
+            index = mention.end
             continue
         }
         if (text.startsWith(">!", index)) {
             val end = text.indexOf("!<", index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(fontStyle = FontStyle.Italic, background = quoteTint(linkColor))) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
                 }
                 index = end + 2
                 continue
@@ -93,12 +98,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
                 val label = text.substring(index + 1, labelEnd)
                 val url = text.substring(labelEnd + 2, urlEnd)
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    withLink(
-                        LinkAnnotation.Url(
-                            url,
-                            TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
-                        ),
-                    ) {
+                    withLink(openLink(url, linkColor, onOpen)) {
                         append(label)
                     }
                     index = urlEnd + 1
@@ -120,7 +120,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
             val end = text.indexOf("~~", index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
                 }
                 index = end + 2
                 continue
@@ -135,7 +135,7 @@ private fun AnnotatedString.Builder.appendMarkdown(
             val end = text.indexOf(boldMarker, index + 2)
             if (end > index + 2) {
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont)
+                    appendMarkdown(text.substring(index + 2, end), linkColor, codeFont, network, onOpen)
                 }
                 index = end + 2
                 continue
@@ -184,20 +184,20 @@ private fun closingItalic(text: String, from: Int): Int {
     return -1
 }
 
-private fun AnnotatedString.Builder.appendWithAutolinks(text: String, linkColor: Color) {
+private fun AnnotatedString.Builder.appendWithAutolinks(
+    text: String,
+    linkColor: Color,
+    network: MentionNetwork,
+    onOpen: (String) -> Unit,
+) {
     var index = 0
     while (index < text.length) {
-        val url = plainUrlAt(text, index)
-        if (url != null) {
-            withLink(
-                LinkAnnotation.Url(
-                    url,
-                    TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
-                ),
-            ) {
-                append(url)
+        val mention = mentionAt(text, index, network)
+        if (mention != null) {
+            withLink(openLink(mention.url, linkColor, onOpen)) {
+                append(text.substring(mention.start, mention.end))
             }
-            index += url.length
+            index = mention.end
             continue
         }
         append(text[index])
@@ -205,27 +205,18 @@ private fun AnnotatedString.Builder.appendWithAutolinks(text: String, linkColor:
     }
 }
 
-private fun plainUrlAt(text: String, index: Int): String? {
-    val rest = text.substring(index)
-    val marker = when {
-        rest.startsWith("https://", ignoreCase = true) -> "https://"
-        rest.startsWith("http://", ignoreCase = true) -> "http://"
-        else -> return null
-    }
-    if (index > 0) {
-        val previous = text[index - 1]
-        if (previous.isLetterOrDigit() || previous == '@' || previous == '/') return null
-        if (previous == '(' && text.getOrNull(index - 2) == ']') return null
-    }
-    val end = rest.indexOfAny(charArrayOf(' ', '\n', '\t', '<', '>', '"', '\'')).let { if (it < 0) rest.length else it }
-    var url = rest.substring(0, end)
-    while (url.length > marker.length && url.last() in TRAILING_URL_PUNCTUATION) {
-        url = url.dropLast(1)
-    }
-    if (url.length <= marker.length) return null
-    return url
-}
-
-private const val TRAILING_URL_PUNCTUATION = ".,);:!?]}"
+private fun openLink(url: String, ink: Color, onOpen: (String) -> Unit): LinkAnnotation.Clickable =
+    LinkAnnotation.Clickable(
+        tag = url,
+        styles = TextLinkStyles(
+            style = SpanStyle(fontWeight = FontWeight.Medium),
+            pressedStyle = SpanStyle(
+                fontWeight = FontWeight.Medium,
+                textDecoration = TextDecoration.Underline,
+                background = ink.copy(alpha = 0.08f),
+            ),
+        ),
+        linkInteractionListener = { onOpen(url) },
+    )
 
 private fun quoteTint(color: Color): Color = color.copy(alpha = 0.12f)

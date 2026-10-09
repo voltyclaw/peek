@@ -25,6 +25,16 @@
     <string name="author_unknown">Author</string>
     <string name="try_again">Try again</string>
     <string name="pane_cant_show">This one won\'t fit in Pane</string>
+    <string name="open_mention_x">Open @%1$s on X</string>
+    <string name="open_mention_instagram">Open @%1$s on Instagram</string>
+    <string name="open_mention_threads">Open @%1$s on Threads</string>
+    <string name="open_mention_reddit_user">Open u/%1$s on Reddit</string>
+    <string name="open_mention_reddit_sub">Open r/%1$s on Reddit</string>
+    <string name="open_mention_browser">Open @%1$s in browser</string>
+    <string name="open_mention_reddit_user_browser">Open u/%1$s in browser</string>
+    <string name="open_mention_reddit_sub_browser">Open r/%1$s in browser</string>
+    <string name="open_profile_on_source">Open profile on %1$s</string>
+    <string name="open_text_link">Open link</string>
     <string name="link_isnt_public_post">This one lives on %1$s</string>
     <string name="cant_show_link_here">Outside Pane\'s map</string>
     <string name="open_it_in_app">Pane can\'t preview it — open in %1$s.</string>

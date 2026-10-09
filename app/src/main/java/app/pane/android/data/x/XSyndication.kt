@@ -18,6 +18,9 @@ data class ParsedXReply(
     val createdAtEpochMillis: Long,
     val screenName: String? = null,
     val avatarUrl: String? = null,
+    val cardTitle: String? = null,
+    val cardBody: String? = null,
+    val cardUrl: String? = null,
 )
 
 /** One post in the author's own chain, in reading order from the root. */
@@ -59,6 +62,9 @@ data class ParsedXPost(
     val avatarUrl: String? = null,
     /** Bottom cursor from the public conversation, when the document includes one. */
     val repliesCursor: String? = null,
+    val article: XArticle? = null,
+    val quote: XQuote? = null,
+    val linkCards: List<XLinkPreview> = emptyList(),
 )
 
 /**
@@ -82,13 +88,17 @@ object XSyndication {
         val root = runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
         val type = root.string("__typename")
         if (type == "TweetTombstone" || root.containsKey("tombstone")) return null
+        val rich = XRichText.present(root)
         val preview = root.string("text")
         val note = root.obj("note_tweet")?.string("text")
-        val text = when {
+        val raw = when {
             preview != null -> XConversation.longerCaption(preview, note)
             else -> note
-        } ?: return null
-        if (text.isBlank()) return null
+        }.orEmpty()
+        // Keep the source text here. The page loader still compares it with the note tweet,
+        // and the short link is expanded once the longer body has been chosen.
+        val text = raw.ifBlank { rich.article?.title ?: rich.quote?.text.orEmpty() }
+        if (text.isBlank() && rich.article == null && rich.quote == null) return null
         val user = root.obj("user")
         val author = user?.string("name") ?: user?.string("screen_name") ?: "X"
         val screenName = user?.string("screen_name")
@@ -115,6 +125,9 @@ object XSyndication {
             screenName = screenName,
             videos = videos,
             avatarUrl = avatarUrl,
+            article = rich.article,
+            quote = rich.quote,
+            linkCards = rich.links,
         )
     }
 
@@ -138,6 +151,7 @@ object XSyndication {
             .replace(Regex("\\s+"), " ")
             .substringBefore("—")
             .trim()
+            .let(XRichText::expandShortLinks)
             .ifBlank { return null }
         return ParsedXPost(
             id = id,

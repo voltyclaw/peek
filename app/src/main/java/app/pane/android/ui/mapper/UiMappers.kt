@@ -22,8 +22,11 @@ import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
 import app.pane.android.ui.model.UiImage
 import app.pane.android.ui.model.VideoSourceUiModel
+import app.pane.android.ui.model.ViewerArticleUiModel
+import app.pane.android.ui.model.ViewerLinkCardUiModel
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
+import app.pane.android.ui.model.ViewerQuoteUiModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.TextStyle
@@ -204,7 +207,7 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             authorName = author.name,
             authorMetadata = author.metadata,
             commentCount = content.commentCount,
-            comments = comments.map(::mapComment),
+            comments = comments.map { mapComment(it, content.source) },
             canLoadMoreComments = when {
                 sourceMetadata is InstagramMetadata -> sourceMetadata.commentsEndCursor != null
                 sourceMetadata is RedditMetadata -> sourceMetadata.moreCommentIds.isNotEmpty()
@@ -231,6 +234,29 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
             authorAvatar = content.author.avatarUrl
                 ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
                 ?.let { UiImage.Url(it) },
+            authorProfileUrl = authorProfileUrl(content),
+            article = external?.articleTitle?.takeIf { it.isNotBlank() }?.let { title ->
+                external.articleUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                    ViewerArticleUiModel(
+                        title = title,
+                        preview = external.articlePreview.orEmpty(),
+                        body = external.articleBody.orEmpty(),
+                        coverUrl = external.articleCoverUrl,
+                        url = url,
+                    )
+                }
+            },
+            quote = external?.quoteUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                ViewerQuoteUiModel(
+                    authorName = external.quoteAuthor.orEmpty(),
+                    handle = external.quoteHandle.orEmpty(),
+                    text = external.quoteText.orEmpty(),
+                    url = url,
+                )
+            },
+            linkCards = external?.linkCards.orEmpty().map { card ->
+                ViewerLinkCardUiModel(url = card.url, label = card.label, title = card.title)
+            },
         )
     }
 
@@ -259,17 +285,64 @@ class ViewerUiMapper(private val imageMapper: UiImageMapper) {
         variants: List<app.pane.android.domain.model.InstagramVideoVariant>,
     ): String? = variants.maxByOrNull { (it.width ?: 0) * (it.height ?: 0) }?.url
 
-    private fun mapComment(comment: Comment): CommentUiModel = CommentUiModel(
-        id = comment.id,
-        author = comment.author,
-        initial = comment.initial,
-        age = comment.age,
-        body = comment.body,
-        isCreator = comment.isCreator,
-        replies = comment.replies.map(::mapComment),
-        avatarUrl = comment.avatarUrl?.takeIf { it.startsWith("http") },
-        handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() },
-    )
+    private fun mapComment(comment: Comment, source: LinkSource): CommentUiModel {
+        val handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() }
+        return CommentUiModel(
+            id = comment.id,
+            author = comment.author,
+            initial = comment.initial,
+            age = comment.age,
+            body = comment.body,
+            isCreator = comment.isCreator,
+            replies = comment.replies.map { mapComment(it, source) },
+            avatarUrl = comment.avatarUrl?.takeIf { it.startsWith("http") },
+            handle = handle,
+            profileUrl = commentProfileUrl(source, comment.author, handle),
+            cardTitle = comment.cardTitle,
+            cardBody = comment.cardBody,
+            cardUrl = comment.cardUrl,
+        )
+    }
+
+    private fun authorProfileUrl(content: LinkContent): String? = when (content.source) {
+        LinkSource.X -> xHandle(content.author.name, content.author.metadata)?.let { "https://x.com/$it" }
+        LinkSource.Instagram -> {
+            val user = (content.sourceMetadata as? InstagramMetadata)?.authorUsername ?: content.author.name
+            igUser(user)?.let { "https://www.instagram.com/$it/" }
+        }
+        LinkSource.Reddit -> {
+            val name = (content.sourceMetadata as? RedditMetadata)?.author ?: content.author.name
+            redditUser(name)?.let { "https://www.reddit.com/user/$it" }
+        }
+        else -> null
+    }
+
+    private fun commentProfileUrl(source: LinkSource, author: String, handle: String?): String? = when (source) {
+        LinkSource.X -> handle?.let { "https://x.com/$it" }
+        LinkSource.Instagram -> igUser(author)?.let { "https://www.instagram.com/$it/" }
+        LinkSource.Reddit -> redditUser(author)?.let { "https://www.reddit.com/user/$it" }
+        else -> null
+    }
+
+    private fun xHandle(name: String, metadata: String): String? {
+        val fromMeta = metadata.trim().removePrefix("@").substringBefore(' ')
+        if (metadata.trim().startsWith("@") && X_HANDLE.matches(fromMeta)) return fromMeta
+        val token = name.trim()
+        return token.takeIf { X_HANDLE.matches(it) }
+    }
+
+    private fun igUser(value: String): String? =
+        value.trim().takeIf { IG_USER.matches(it) }
+
+    private fun redditUser(value: String): String? {
+        val name = value.trim()
+        if (name.equals("[deleted]", ignoreCase = true) || name.equals("[removed]", ignoreCase = true)) return null
+        return name.takeIf { REDDIT_USER.matches(it) }
+    }
+
+    private val X_HANDLE = Regex("[A-Za-z0-9_]{1,15}")
+    private val IG_USER = Regex("[A-Za-z0-9._]{1,30}")
+    private val REDDIT_USER = Regex("[A-Za-z0-9_-]{2,21}")
 }
 
 /** THREAD replies are children. The opened status stays in the primary viewer only. */

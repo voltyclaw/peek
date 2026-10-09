@@ -169,9 +169,14 @@ class XLinkContentRepository(
         val primaryImage = images.firstOrNull().orEmpty()
         val isVideo = !video.isNullOrBlank()
         val replies = post.replies.filter { it.id != post.id }
+        val expanded = XRichText.expandShortLinks(post.text)
+        val withoutCard = listOfNotNull(post.article?.url, post.quote?.url)
+            .fold(expanded) { body, url -> body.replace(url, "") }
+            .trim()
+        val caption = withoutCard.ifBlank { post.article?.title ?: post.quote?.text ?: "X" }
         return LinkContent(
             url = requestedUrl,
-            title = post.text,
+            title = caption,
             source = LinkSource.X,
             kind = if (isVideo) LinkKind.Video else LinkKind.Post,
             thumbnail = MediaLocation.Remote(primaryImage),
@@ -201,6 +206,18 @@ class XLinkContentRepository(
                     loaded = replies.size,
                     cursor = post.repliesCursor,
                 ),
+                articleTitle = post.article?.title,
+                articlePreview = post.article?.preview,
+                articleBody = post.article?.body,
+                articleCoverUrl = post.article?.coverUrl,
+                articleUrl = post.article?.url,
+                quoteAuthor = post.quote?.authorName,
+                quoteHandle = post.quote?.handle,
+                quoteText = post.quote?.text,
+                quoteUrl = post.quote?.url,
+                linkCards = post.linkCards.map { card ->
+                    app.pane.android.domain.model.ExternalLinkCard(card.url, card.label, card.title)
+                },
             ),
         )
     }
@@ -241,6 +258,9 @@ class XLinkContentRepository(
             body = reply.text,
             avatarUrl = reply.avatarUrl?.takeIf { it.startsWith("http") },
             handle = reply.screenName?.removePrefix("@")?.takeIf { it.isNotEmpty() },
+            cardTitle = reply.cardTitle,
+            cardBody = reply.cardBody,
+            cardUrl = reply.cardUrl,
         )
 
     private fun formatAge(createdAtEpochMillis: Long): String {

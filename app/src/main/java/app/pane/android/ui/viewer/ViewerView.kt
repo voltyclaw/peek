@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,6 +61,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,7 +80,11 @@ import app.pane.android.ui.media.InlineVideoChrome
 import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
+import app.pane.android.ui.components.autolinkedCaption
+import app.pane.android.ui.components.ArticleCard
 import app.pane.android.ui.components.AuthorByline
+import app.pane.android.ui.components.ExternalLinkCard
+import app.pane.android.ui.components.QuoteCard
 import app.pane.android.ui.components.AuthorThreadSection
 import app.pane.android.ui.components.CaptionText
 import app.pane.android.ui.components.CommentsSection
@@ -103,6 +112,7 @@ import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
+import app.pane.android.ui.text.MentionNetwork
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
 import app.pane.android.ui.theme.PaneInk
@@ -180,6 +190,7 @@ fun ViewerView(
                     note = note,
                     onSaveNote = onSaveNote,
                     onOpenOutbound = onOpenOutbound,
+                    onOpenLinked = onOpenOutbound,
                 )
             }
         }
@@ -208,6 +219,7 @@ private fun ColumnScope.ViewerContent(
     note: String,
     onSaveNote: (String) -> Unit,
     onOpenOutbound: (String) -> Unit,
+    onOpenLinked: (String) -> Unit,
 ) {
     val host = displayHost(post.sourceUrl)
     val affordance = rememberOpenAffordance(post.sourceUrl)
@@ -268,24 +280,27 @@ private fun ColumnScope.ViewerContent(
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
                 if (reddit) {
-                    RedditBody(post)
-                    if (outbound != null && linkCard) {
-                        LinkPreviewCard(outbound, currentItem, onOpenOutbound)
+                    RedditBody(post, onOpenLinked)
+                    if (outbound != null && linkCard && post.linkCards.isEmpty()) {
+                        LinkPreviewCard(outbound, currentItem, onOpenLinked)
                     }
                 } else {
-                    if (showAuthor) AuthorCaption(post)
+                    if (showAuthor) AuthorCaption(post, onOpenLinked)
                     if (post.authorThread.size >= 2) {
-                        AuthorThreadSection(post, if (hasMedia) currentItem?.image else null)
-                    } else if (outbound != null && linkCard) {
-                        CaptionText(post)
-                        LinkPreviewCard(outbound, currentItem, onOpenOutbound)
-                    } else if (textOnly) {
+                        AuthorThreadSection(post, if (hasMedia) currentItem?.image else null, onOpenLinked)
+                    } else if (outbound != null && linkCard && post.linkCards.isEmpty() && post.article == null) {
+                        CaptionText(post, onOpen = onOpenLinked)
+                        LinkPreviewCard(outbound, currentItem, onOpenLinked)
+                    } else if (textOnly && post.article == null) {
                         Box(Modifier.padding(vertical = 8.dp).width(48.dp).height(1.dp).background(PaneBorder))
-                        CaptionText(post, large = true)
+                        CaptionText(post, large = true, onOpen = onOpenLinked)
                     } else {
-                        CaptionText(post)
+                        CaptionText(post, onOpen = onOpenLinked)
                     }
                 }
+                post.article?.let { ArticleCard(it, onOpenLinked) }
+                post.quote?.let { QuoteCard(it, onOpenLinked) }
+                post.linkCards.forEach { card -> ExternalLinkCard(card, onOpenLinked) }
                 if (overMedia && post.authorThread.size < 2 && !reddit) {
                     // caption already placed above for the image/video path
                 }
@@ -296,6 +311,7 @@ private fun ColumnScope.ViewerContent(
                     onLoadMore = onLoadMoreComments,
                     host = host,
                     onOpenSource = { scope.launch { onOpenInApp(post.sourceUrl) } },
+                    onOpen = onOpenLinked,
                 )
             }
         }
@@ -822,25 +838,62 @@ private fun ErrorShell(
 }
 
 @Composable
-private fun AuthorCaption(post: ViewerPostUiModel) {
+private fun AuthorCaption(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
     val name = post.authorName.ifBlank { stringResource(R.string.author_unknown) }
     val detail = post.authorMetadata.takeIf { post.authorName.isNotBlank() && it.isNotBlank() }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+    val handle = detail?.trim()?.removePrefix("@")?.takeIf { detail.trim().startsWith("@") }
+    val profile = post.authorProfileUrl
+    val label = if (profile != null) {
+        app.pane.android.ui.components.profileOpenLabel(profile, handle)
+    } else {
+        name
+    }
+    Row(
+        modifier = Modifier.then(
+            if (profile != null) {
+                Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClick = { onOpen(profile) })
+                    .clearAndSetSemantics {
+                        role = Role.Button
+                        contentDescription = label
+                        this.onClick { onOpen(profile); true }
+                    }
+            } else {
+                Modifier
+            },
+        ),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         ProfileAvatar(image = post.authorAvatar, label = name, size = 40.dp)
         Column {
             Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
             if (detail != null) {
-                Text(detail, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+                Text(
+                    detail,
+                    color = PaneMuted,
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RedditBody(post: ViewerPostUiModel) {
-    Text(post.authorMetadata.ifBlank { post.authorName }, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
+private fun RedditBody(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
+    if (post.authorName.isNotBlank() || !post.authorProfileUrl.isNullOrBlank()) {
+        AuthorCaption(post, onOpen)
+    }
+    if (post.authorMetadata.isNotBlank()) {
+        Text(
+            text = autolinkedCaption(post.authorMetadata, PaneMuted, MentionNetwork.Reddit, onOpen),
+            color = PaneMuted,
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+        )
+    }
     Text(
-        text = post.title,
+        text = autolinkedCaption(post.title, PaneInk, MentionNetwork.Reddit, onOpen),
         color = PaneInk,
         style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp),
     )

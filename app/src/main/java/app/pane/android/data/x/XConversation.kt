@@ -67,8 +67,10 @@ object XConversation {
             // That is the primary post, not a reply, even when the entry id is a different status.
             val subjectId = REST_ID.find(slice)?.groupValues?.get(1)
             if (subjectId == focalId || (subjectId != null && subjectId != tweetId)) continue
-            val text = firstJsString(slice, "full_text")?.trim().orEmpty()
-            if (text.isBlank()) continue
+            val rawText = firstJsString(slice, "full_text")?.trim().orEmpty()
+            val text = XRichText.expandShortLinks(rawText, slice)
+            val card = articleSnippet(slice)
+            if (text.isBlank() && card == null) continue
             val author = firstJsString(slice, "name")
                 ?: firstJsString(slice, "screen_name")
                 ?: "X"
@@ -76,10 +78,13 @@ object XConversation {
             replies += ParsedXReply(
                 id = tweetId,
                 author = author,
-                text = text,
+                text = text.ifBlank { card?.title.orEmpty() },
                 createdAtEpochMillis = created,
                 screenName = firstJsString(slice, "screen_name")?.trim()?.removePrefix("@")?.takeIf { it.isNotEmpty() },
                 avatarUrl = profileImage(slice),
+                cardTitle = card?.title,
+                cardBody = card?.body,
+                cardUrl = card?.url,
             )
             if (replies.size >= MAX_REPLIES) break
         }
@@ -294,7 +299,10 @@ object XConversation {
         if (screenName.isBlank()) return null
         val preview = firstJsString(slice, "full_text")?.trim().orEmpty()
         val note = parseNoteText(slice)
-        val text = longerCaption(preview, note).ifBlank { note?.trim().orEmpty() }
+        val text = XRichText.expandShortLinks(
+            longerCaption(preview, note).ifBlank { note?.trim().orEmpty() },
+            slice,
+        )
         if (text.isBlank()) return null
         return ThreadBlock(
             id = id,
@@ -325,6 +333,16 @@ object XConversation {
         if (at < 0) return null
         val window = slice.substring(at, minOf(slice.length, at + 500))
         return firstJsString(window, "screen_name")?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private data class ArticleSnippet(val title: String, val body: String, val url: String?)
+
+    private fun articleSnippet(slice: String): ArticleSnippet? {
+        if (!slice.contains("preview_text") && !slice.contains("article")) return null
+        val title = firstJsString(slice, "title")?.trim().orEmpty()
+        if (title.isBlank() || title.contains("t.co")) return null
+        val body = firstJsString(slice, "preview_text")?.trim().orEmpty()
+        return ArticleSnippet(title, body, null)
     }
 
     private data class ThreadBlock(

@@ -64,12 +64,17 @@ class XDirectPageLoader(
                     track("https://x.com/$learned/status/${status.id}", USER_AGENT)
                 }
                 if (slices.any { !it.isCompleted }) {
-                    coroutineContext[XPreviewElement]?.emit(parsed)
+                    coroutineContext[XPreviewElement]?.emit(
+                        parsed.copy(text = XRichText.expandShortLinks(parsed.text)),
+                    )
                     log("x preview ${elapsed(started)}ms id=${status.id}")
                 }
                 listener.onProgress(LoadProgress(0.72f, LoadStage.ExtractingContent))
                 val page = mergeSlices(slices.awaitAll().filterNotNull(), status.id)
-                val text = XConversation.longerCaption(parsed.text, page.note)
+                val text = XRichText.expandShortLinks(
+                    XConversation.longerCaption(parsed.text, page.note),
+                    page.note.orEmpty(),
+                )
                 log(
                     "x ready ${elapsed(started)}ms thread=${page.authorThread.size} " +
                         "replies=${page.replies.size} id=${status.id}",

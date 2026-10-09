@@ -40,8 +40,8 @@ class CommentMarkdownTest {
         assertTrue(text.spanStyles.any { it.item.textDecoration == TextDecoration.LineThrough })
         assertTrue(text.spanStyles.any { it.item.fontFamily == FontFamily.Monospace })
         val link = text.getLinkAnnotations(0, text.length).single().item
-        assertTrue(link is androidx.compose.ui.text.LinkAnnotation.Url)
-        assertEquals("https://reddit.com/r/test", (link as androidx.compose.ui.text.LinkAnnotation.Url).url)
+        assertTrue(link is LinkAnnotation.Clickable)
+        assertEquals("https://reddit.com/r/test", (link as LinkAnnotation.Clickable).tag)
     }
 
     @Test
@@ -66,11 +66,11 @@ class CommentMarkdownTest {
         assertEquals(source, caption.text)
         assertEquals(
             listOf("https://waze.com/ul/q", "https://maps.google.com/q=1"),
-            caption.getLinkAnnotations(0, caption.length).map { (it.item as LinkAnnotation.Url).url },
+            caption.getLinkAnnotations(0, caption.length).map { (it.item as LinkAnnotation.Clickable).tag },
         )
         assertEquals(
             listOf("https://waze.com/ul/q", "https://maps.google.com/q=1"),
-            comment.getLinkAnnotations(0, comment.length).map { (it.item as LinkAnnotation.Url).url },
+            comment.getLinkAnnotations(0, comment.length).map { (it.item as LinkAnnotation.Clickable).tag },
         )
     }
 

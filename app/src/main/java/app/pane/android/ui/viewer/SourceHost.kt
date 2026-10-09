@@ -31,7 +31,7 @@ internal fun outboundLink(text: String, sourceUrl: String): String? {
     val found = match.value.trimEnd('.', ',', ')', ']', '>')
     val sourceHost = displayHost(sourceUrl)
     val foundHost = displayHost(found)
-    if (foundHost.isBlank() || foundHost == sourceHost) return null
+    if (foundHost.isBlank() || foundHost == sourceHost || foundHost == "t.co") return null
     return found
 }
 

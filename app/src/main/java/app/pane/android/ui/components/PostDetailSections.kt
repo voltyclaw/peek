@@ -77,7 +77,14 @@ import app.pane.android.R
 import coil3.compose.AsyncImage
 import app.pane.android.ui.model.CommentUiModel
 import app.pane.android.ui.model.UiImage
+import app.pane.android.ui.model.ViewerArticleUiModel
+import app.pane.android.ui.model.ViewerLinkCardUiModel
 import app.pane.android.ui.model.ViewerPostUiModel
+import app.pane.android.ui.model.ViewerQuoteUiModel
+import app.pane.android.ui.text.MentionNetwork
+import app.pane.android.ui.text.mentionNetwork
+import app.pane.android.ui.actions.openInAppPackages
+import androidx.compose.ui.platform.LocalContext
 import app.pane.android.ui.theme.Geist
 import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
@@ -288,9 +295,15 @@ private fun UtilityActionButton(
 }
 
 @Composable
-fun CaptionText(post: ViewerPostUiModel, large: Boolean = false) {
+fun CaptionText(
+    post: ViewerPostUiModel,
+    large: Boolean = false,
+    onOpen: (String) -> Unit = {},
+) {
+    val caption = post.title
+    if (caption.isBlank() || caption == post.article?.title) return
     Text(
-        text = autolinkedCaption(post.title, PaneInk),
+        text = autolinkedCaption(caption, PaneInk, mentionNetwork(post.sourceUrl), onOpen),
         modifier = Modifier.fillMaxWidth(),
         color = PaneInk,
         style = TextStyle(
@@ -307,7 +320,11 @@ fun CaptionText(post: ViewerPostUiModel, large: Boolean = false) {
  * The reader scrolls the sequence; there is no separate jump control.
  */
 @Composable
-fun AuthorThreadSection(post: ViewerPostUiModel, inlineImage: UiImage? = null) {
+fun AuthorThreadSection(
+    post: ViewerPostUiModel,
+    inlineImage: UiImage? = null,
+    onOpen: (String) -> Unit = {},
+) {
     val posts = post.authorThread
     if (posts.size < 2) return
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -333,7 +350,7 @@ fun AuthorThreadSection(post: ViewerPostUiModel, inlineImage: UiImage? = null) {
                     )
                     Row(verticalAlignment = Alignment.Top) {
                         Text(
-                            text = autolinkedCaption(item.text, PaneInk),
+                            text = autolinkedCaption(item.text, PaneInk, mentionNetwork(post.sourceUrl), onOpen),
                             modifier = Modifier.weight(1f).padding(top = 4.dp),
                             color = PaneInk,
                             style = TextStyle(fontFamily = Inter, fontSize = 14.5.sp, lineHeight = 21.sp),
@@ -369,6 +386,7 @@ fun CommentsSection(
     onLoadMore: () -> Unit,
     host: String = "",
     onOpenSource: () -> Unit = {},
+    onOpen: (String) -> Unit = {},
 ) {
     val sourceHost = host.ifBlank { post.sourceUrl }
     val x = isXHost(sourceHost)
@@ -422,7 +440,7 @@ fun CommentsSection(
                 }
                 post.comments.forEachIndexed { index, comment ->
                     if (index > 0) Box(Modifier.padding(start = 52.dp).fillMaxWidth().height(1.dp).background(PaneBorder))
-                    CommentThread(comment, accentLine = false, profile = x)
+                    CommentThread(comment, accentLine = false, profile = x, onOpen = onOpen)
                 }
                 if (post.canLoadMoreComments) {
                     if (x) {
@@ -575,7 +593,13 @@ private fun CommentPaginationSentinel(
 }
 
 @Composable
-fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0, profile: Boolean = false) {
+fun CommentThread(
+    comment: CommentUiModel,
+    accentLine: Boolean,
+    depth: Int = 0,
+    profile: Boolean = false,
+    onOpen: (String) -> Unit = {},
+) {
     var collapsed by rememberSaveable(comment.id) { mutableStateOf(false) }
     val canFold = comment.replies.isNotEmpty()
     val expanded = commentBranchExpanded(
@@ -608,10 +632,11 @@ fun CommentThread(comment: CommentUiModel, accentLine: Boolean, depth: Int = 0, 
                 null
             },
             profile = profile,
+            onOpen = onOpen,
         )
         if (expanded) {
             comment.replies.forEach { reply ->
-                CommentThread(reply, accentLine = false, depth = depth + 1, profile = profile)
+                CommentThread(reply, accentLine = false, depth = depth + 1, profile = profile, onOpen = onOpen)
             }
         }
     }
@@ -623,33 +648,30 @@ fun CommentRow(
     folded: Boolean = false,
     onToggleFold: (() -> Unit)? = null,
     profile: Boolean = false,
+    onOpen: (String) -> Unit = {},
 ) {
     val toggleLabel = stringResource(if (folded) R.string.expand_replies else R.string.collapse_replies)
     if (profile) {
-        XReplyRow(comment, folded, toggleLabel, onToggleFold)
+        XReplyRow(comment, folded, toggleLabel, onToggleFold, onOpen)
         return
     }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (onToggleFold != null) {
-                    Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold)
-                } else {
-                    Modifier
-                },
-            ),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(28.dp).clip(CircleShape).background(PaneBorder), contentAlignment = Alignment.Center) {
-                Text(comment.initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f).profileTarget(comment.profileUrl, comment.handle, onOpen),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(28.dp).clip(CircleShape).background(PaneBorder), contentAlignment = Alignment.Center) {
+                    Text(comment.initial, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+                }
+                Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
             }
-            Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
             Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
-            if (folded) {
+            if (folded && onToggleFold != null) {
                 Text(
                     text = "+",
+                    modifier = Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold).padding(start = 6.dp),
                     color = PaneMuted,
                     style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium),
                 )
@@ -661,11 +683,16 @@ fun CommentRow(
                 linkColor = PaneInk,
                 quoteColor = PaneMuted,
                 codeFont = Inter,
+                network = MentionNetwork.Reddit,
+                onOpen = onOpen,
             ),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onToggleFold != null) Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold) else Modifier),
             color = PaneInk,
             style = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 19.sp),
         )
+        ReplyCard(comment, onOpen)
     }
 }
 
@@ -675,39 +702,42 @@ private fun XReplyRow(
     folded: Boolean,
     toggleLabel: String,
     onToggleFold: (() -> Unit)?,
+    onOpen: (String) -> Unit,
 ) {
     val handle = comment.handle?.removePrefix("@")?.takeIf { it.isNotEmpty() }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .then(
-                if (onToggleFold != null) {
-                    Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold)
-                } else {
-                    Modifier
-                },
-            ),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        ProfileAvatar(
-            image = comment.avatarUrl?.let { UiImage.Url(it) },
-            label = comment.author,
-            size = 32.dp,
-        )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+            Row(
+                modifier = Modifier.fillMaxWidth().profileTarget(comment.profileUrl, handle, onOpen),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProfileAvatar(
+                    image = comment.avatarUrl?.let { UiImage.Url(it) },
+                    label = comment.author,
+                    size = 32.dp,
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(comment.author, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+                    if (handle != null) {
+                        Text("@$handle", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+                    }
+                }
                 if (comment.age.isNotBlank()) {
                     Text(comment.age, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
                 }
-                if (folded) {
-                    Text("+", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                if (folded && onToggleFold != null) {
+                    Text(
+                        text = "+",
+                        modifier = Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold),
+                        color = PaneMuted,
+                        style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    )
                 }
-            }
-            if (handle != null) {
-                Text("@$handle", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp))
             }
             Text(
                 text = redditCommentAnnotated(
@@ -715,11 +745,155 @@ private fun XReplyRow(
                     linkColor = PaneInk,
                     quoteColor = PaneMuted,
                     codeFont = Inter,
+                    network = MentionNetwork.X,
+                    onOpen = onOpen,
                 ),
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+                    .then(if (onToggleFold != null) Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold) else Modifier),
                 color = PaneInk,
                 style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp),
             )
+            ReplyCard(comment, onOpen)
+        }
+    }
+}
+
+@Composable
+private fun Modifier.profileTarget(url: String?, handle: String?, onOpen: (String) -> Unit): Modifier {
+    if (url.isNullOrBlank()) return this
+    val label = profileOpenLabel(url, handle)
+    return this
+        .heightIn(min = 48.dp)
+        .clickable(role = Role.Button, onClick = { onOpen(url) })
+        .clearAndSetSemantics {
+            role = Role.Button
+            contentDescription = label
+            onClick { onOpen(url); true }
+        }
+}
+
+@Composable
+internal fun profileOpenLabel(url: String, handle: String?): String {
+    val context = LocalContext.current
+    val opens = remember(url) { openInAppPackages(url).any { packageInstalled(context, it) } }
+    val token = handle?.removePrefix("@").orEmpty()
+    return when (mentionNetwork(url)) {
+        MentionNetwork.X -> if (token.isEmpty()) {
+            stringResource(R.string.open_profile_on_source, stringResource(R.string.source_x))
+        } else if (opens) {
+            stringResource(R.string.open_mention_x, token)
+        } else {
+            stringResource(R.string.open_mention_browser, token)
+        }
+        MentionNetwork.Instagram -> if (token.isEmpty()) {
+            stringResource(R.string.open_profile_on_source, stringResource(R.string.source_instagram))
+        } else if (opens) {
+            stringResource(R.string.open_mention_instagram, token)
+        } else {
+            stringResource(R.string.open_mention_browser, token)
+        }
+        MentionNetwork.Threads -> if (opens) {
+            stringResource(R.string.open_mention_threads, token)
+        } else {
+            stringResource(R.string.open_mention_browser, token)
+        }
+        MentionNetwork.Reddit -> if (opens) {
+            stringResource(R.string.open_mention_reddit_user, token.ifBlank { url.substringAfterLast('/') })
+        } else {
+            stringResource(R.string.open_mention_reddit_user_browser, token.ifBlank { url.substringAfterLast('/') })
+        }
+        MentionNetwork.Other -> stringResource(R.string.open_text_link)
+    }
+}
+
+@Composable
+private fun ReplyCard(comment: CommentUiModel, onOpen: (String) -> Unit) {
+    val title = comment.cardTitle?.takeIf { it.isNotBlank() } ?: return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(PaneGround)
+            .border(1.dp, PaneBorder, RoundedCornerShape(12.dp))
+            .then(if (comment.cardUrl != null) Modifier.clickable(role = Role.Button) { onOpen(comment.cardUrl) } else Modifier)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(title, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+        if (!comment.cardBody.isNullOrBlank()) {
+            Text(comment.cardBody, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp))
+        }
+    }
+}
+
+@Composable
+fun ArticleCard(article: ViewerArticleUiModel, onOpen: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PaneTile)
+            .border(1.dp, PaneBorder, RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button, onClick = { onOpen(article.url) })
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val cover = article.coverUrl?.takeIf { it.startsWith("http") }
+        if (cover != null) {
+            AsyncImage(
+                model = cover,
+                contentDescription = article.title,
+                modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        Text(article.title, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 24.sp))
+        val body = article.body.ifBlank { article.preview }
+        if (body.isNotBlank() && body != article.title) {
+            Text(body, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp))
+        }
+    }
+}
+
+@Composable
+fun QuoteCard(quote: ViewerQuoteUiModel, onOpen: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, PaneBorder, RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button, onClick = { onOpen(quote.url) })
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val name = quote.authorName.ifBlank { quote.handle }
+        Text(name, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+        if (quote.handle.isNotBlank()) {
+            Text("@${quote.handle}", color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium))
+        }
+        if (quote.text.isNotBlank()) {
+            Text(quote.text, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, lineHeight = 20.sp))
+        }
+    }
+}
+
+@Composable
+fun ExternalLinkCard(card: ViewerLinkCardUiModel, onOpen: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PaneTile)
+            .clickable(role = Role.Button, onClick = { onOpen(card.url) })
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(card.label, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 12.sp))
+        if (card.title.isNotBlank()) {
+            Text(card.title, color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium))
         }
     }
 }

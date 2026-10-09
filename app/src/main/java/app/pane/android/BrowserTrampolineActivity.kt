@@ -8,6 +8,7 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
+import app.pane.android.ui.actions.openExternally
 
 /**
  * Catch-all http(s) entry. Disabled until Settings turns the browser trampoline on.
@@ -25,6 +26,11 @@ class BrowserTrampolineActivity : Activity() {
         when (val decision = BrowserTrampoline.decide(intent?.dataString, BrowserTrampolinePreferences.read(this))) {
             BrowserTrampoline.Decision.Ignore -> Unit
             is BrowserTrampoline.Decision.OpenInPane -> openInPane(decision.url)
+            is BrowserTrampoline.Decision.OpenInSource -> {
+                if (!openExternally(this, decision.url, finishAfter = true)) {
+                    Toast.makeText(this, R.string.browser_trampoline_no_browser, Toast.LENGTH_SHORT).show()
+                }
+            }
             is BrowserTrampoline.Decision.HandOff -> {
                 if (!handOff(decision.url)) {
                     Toast.makeText(this, R.string.browser_trampoline_no_browser, Toast.LENGTH_SHORT).show()

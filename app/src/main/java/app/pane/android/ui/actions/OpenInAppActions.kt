@@ -13,6 +13,8 @@ import app.pane.android.InstalledBrowsers
 import app.pane.android.R
 import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
+import app.pane.android.data.links.isXHost
+import app.pane.android.data.links.profileLink
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
 import app.pane.android.domain.model.LinkShims
@@ -100,10 +102,21 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(igStory.fetchUrl, null, handoffBrowser = true),
         )
     }
+    val profile = profileLink(unwrapped)
+    if (profile != null) {
+        return profile.packages.map { packageName -> OpenInAppTarget(profile.url, packageName) }
+    }
     if (isInstagramUrl(unwrapped)) {
         val https = instagramHttps(unwrapped)
         return listOf(
             OpenInAppTarget(https, "com.instagram.android"),
+            OpenInAppTarget(https, null),
+        )
+    }
+    if (isXHost(unwrapped)) {
+        val https = xHttps(unwrapped)
+        return listOf(
+            OpenInAppTarget(https, "com.twitter.android"),
             OpenInAppTarget(https, null),
         )
     }
@@ -159,11 +172,13 @@ internal fun performExternalLaunch(
     start: (ExternalLaunchAttempt) -> ExternalStart,
     openBrowser: (String) -> Boolean,
     openChooser: (String) -> Boolean,
+    allowChooser: Boolean = profileLink(url) == null,
 ): ExternalLaunchOutcome {
     val attempts = packagedAttempts(url)
     val openUrl = attempts.firstOrNull()?.url ?: externalOpenUrl(url)
     val labeledInApp = openAffordance(url, installed).opensInApp
     for (attempt in attempts) {
+        if (attempt.packageName.isBlank()) continue
         if (start(attempt) == ExternalStart.Started) {
             return ExternalLaunchOutcome(
                 started = true,
@@ -174,7 +189,7 @@ internal fun performExternalLaunch(
         }
     }
     val openedBrowser = openBrowser(openUrl)
-    val started = openedBrowser || openChooser(openUrl)
+    val started = openedBrowser || (allowChooser && openChooser(openUrl))
     return ExternalLaunchOutcome(
         started = started,
         usedPackage = null,
@@ -189,7 +204,12 @@ internal fun performExternalLaunch(
  * or getPackageInfo. Only a missing activity falls through to the next package, then the
  * handoff browser, then the chooser. A package-less VIEW is never started.
  */
-fun openExternally(context: Context, url: String): Boolean {
+/**
+ * [finishAfter] is the caller's finish decision. The launch itself never starts a
+ * package-less VIEW. A profile skips the chooser so Pane cannot catch the handoff.
+ * Call [shouldFinishAfterExternalOpen] before leaving the current screen.
+ */
+fun openExternally(context: Context, url: String, finishAfter: Boolean = true): Boolean {
     if (url.isBlank()) return false
     val outcome = performExternalLaunch(
         url = url,
@@ -211,11 +231,15 @@ fun openExternally(context: Context, url: String): Boolean {
     if (BuildConfig.DEBUG) {
         Log.i(
             "PaneOpen",
-            "open incoming=$url package=${outcome.usedPackage} fallback=${outcome.fellBackToBrowser}",
+            "open incoming=$url package=${outcome.usedPackage} fallback=${outcome.fellBackToBrowser} finish=$finishAfter",
         )
     }
     return outcome.started
 }
+
+/** Share-in and the Open button finish. A mention or hub profile tap does not. */
+internal fun shouldFinishAfterExternalOpen(started: Boolean, finishAfter: Boolean): Boolean =
+    started && finishAfter
 
 /** Best-effort install check once package visibility includes the source app. */
 internal fun packageInstalled(context: Context, packageName: String): Boolean {
@@ -355,6 +379,13 @@ private fun redditHttps(url: String): String {
     val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
     val query = uri.rawQuery?.let { "?$it" }.orEmpty()
     return "https://www.reddit.com$path$query"
+}
+
+private fun xHttps(url: String): String {
+    val uri = runCatching { URI(url) }.getOrNull() ?: return url
+    val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
+    val query = uri.rawQuery?.let { "?$it" }.orEmpty()
+    return "https://x.com$path$query"
 }
 
 private fun instagramHttps(url: String): String {

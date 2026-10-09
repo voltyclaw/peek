@@ -76,6 +76,34 @@ data class ViewerPostUiModel(
     val authorThread: List<AuthorThreadPostUiModel> = emptyList(),
     /** The public page is missing earlier posts by the same account. */
     val authorThreadPartial: Boolean = false,
+    val authorProfileUrl: String? = null,
+    val article: ViewerArticleUiModel? = null,
+    val quote: ViewerQuoteUiModel? = null,
+    val linkCards: List<ViewerLinkCardUiModel> = emptyList(),
+)
+
+@Immutable
+data class ViewerArticleUiModel(
+    val title: String,
+    val preview: String,
+    val body: String,
+    val coverUrl: String?,
+    val url: String,
+)
+
+@Immutable
+data class ViewerQuoteUiModel(
+    val authorName: String,
+    val handle: String,
+    val text: String,
+    val url: String,
+)
+
+@Immutable
+data class ViewerLinkCardUiModel(
+    val url: String,
+    val label: String,
+    val title: String = "",
 )
 
 @Immutable
@@ -134,4 +162,8 @@ data class CommentUiModel(
     val replies: List<CommentUiModel>,
     val avatarUrl: String? = null,
     val handle: String? = null,
+    val profileUrl: String? = null,
+    val cardTitle: String? = null,
+    val cardBody: String? = null,
+    val cardUrl: String? = null,
 )
