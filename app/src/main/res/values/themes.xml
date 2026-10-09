@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Peek" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">@font/inter_variable</item>
-        <item name="android:colorAccent">#2D5E3A</item>
-        <item name="android:windowLightStatusBar">true</item>
+    <style name="Theme.Pane" parent="android:Theme.Material.NoActionBar">
+        <item name="android:fontFamily">@font/inter_regular</item>
+        <item name="android:colorAccent">#D4886A</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#0E0B0A</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowActionModeOverlay">true</item>
