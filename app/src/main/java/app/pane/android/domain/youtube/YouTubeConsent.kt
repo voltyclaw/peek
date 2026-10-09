@@ -112,6 +112,12 @@ interface YouTubeDataApi {
 /** Clears cookies and site storage the YouTube player left in this app's WebView. */
 interface YouTubeSiteData {
     fun clear()
+
+    /**
+     * True after [clear] deleted a named WebView profile (cookies, IndexedDB, cache).
+     * False when withdraw used the per-origin fallback.
+     */
+    val withdrawClearsAllSiteData: Boolean get() = false
 }
 
 object YouTubePlayer {
@@ -172,6 +178,8 @@ class YouTubeSession(
     private val siteData: YouTubeSiteData,
 ) {
     fun hasConsent(): Boolean = matchesPolicy(store.read())
+
+    fun acceptedAtEpochMillis(): Long? = store.read()?.takeIf(::matchesPolicy)?.acceptedAtEpochMillis
 
     fun open(videoId: String, entry: YouTubeEntry): YouTubeSurface {
         if (!hasConsent()) return YouTubeSurface.Poster(videoId)

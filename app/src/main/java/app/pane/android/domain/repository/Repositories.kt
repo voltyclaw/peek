@@ -102,6 +102,23 @@ interface HistoryRepository {
         enabled: Boolean = HistoryRetention.ENFORCED,
         cap: Int = HistoryRetention.UNSTARRED_CAP,
     ): List<String>
+
+    /** Clears TikTok display-cache columns on one row. Star, note, tags, and view time stay. */
+    suspend fun stripDisplayCache(url: String) = Unit
+
+    /** Clears TikTok display-cache columns for every row of [source]. */
+    suspend fun stripSourceDisplayCache(source: SourceApp) = Unit
+
+    /** Writes a refreshed oEmbed cache without counting another view. */
+    suspend fun replaceDisplayCache(
+        url: String,
+        title: String,
+        authorName: String,
+        handle: String,
+        caption: String,
+        thumbUrl: String?,
+        fetchedAtEpochMillis: Long,
+    ) = Unit
 }
 
 object NoHistoryRepository : HistoryRepository {

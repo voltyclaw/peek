@@ -205,7 +205,9 @@ class XLinkContentRepository(
                 postId = post.id,
                 mediaItems = items,
                 authorThread = post.authorThread.map { item ->
-                    ExternalThreadPost(id = item.id, author = item.author, text = item.text)
+                    val parsed = item.media.mapIndexed { index, media -> media.toExternal(item.id, index, item.text) }
+                    val media = if (parsed.isEmpty() && item.id == post.id) items else parsed
+                    ExternalThreadPost(id = item.id, author = item.author, text = item.text, media = media)
                 },
                 authorThreadPartial = post.authorThreadPartial,
                 repliesCursor = post.repliesCursor,
@@ -269,7 +271,19 @@ class XLinkContentRepository(
             cardTitle = reply.cardTitle,
             cardBody = reply.cardBody,
             cardUrl = reply.cardUrl,
+            media = reply.media.mapIndexed { index, media -> media.toExternal(reply.id, index, reply.text) },
         )
+
+    private fun ParsedXMedia.toExternal(ownerId: String, index: Int, text: String) = ExternalMediaItem(
+        id = "$ownerId-$index",
+        imageUrl = imageUrl,
+        contentDescription = text.take(200),
+        videoUrl = videoUrl,
+        videos = videos.map { PlayableVideo(url = it.url, bitrate = it.bitrate) },
+        width = width,
+        height = height,
+        gif = gif,
+    )
 
     private fun formatAge(createdAtEpochMillis: Long): String {
         if (createdAtEpochMillis <= 0L) return ""

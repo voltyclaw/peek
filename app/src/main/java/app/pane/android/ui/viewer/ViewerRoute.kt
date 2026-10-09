@@ -37,9 +37,13 @@ import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.mediaItemsOrPrimary
 import app.pane.android.data.youtube.YouTubeUrls
+import app.pane.android.data.tiktok.TikTokUrls
+import app.pane.android.domain.tiktok.TikTokLinkKind
+import app.pane.android.domain.tiktok.TikTokLinks
+import app.pane.android.domain.tiktok.TikTokPlayback
 import app.pane.android.domain.youtube.YouTubeLinkKind
 import app.pane.android.domain.youtube.YouTubePlayback
-import app.pane.android.domain.youtube.YouTubeShorts
+import app.pane.android.ui.tiktok.TikTokFrame
 import app.pane.android.ui.youtube.YouTubeFrame
 
 @Composable
@@ -49,7 +53,7 @@ fun ViewerRoute(
     downloadMedia: DownloadMediaUseCase,
     onBack: () -> Unit,
     onLeave: () -> Unit = onBack,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     modifier: Modifier = Modifier,
     videoQuality: VideoQuality = VideoQuality.Auto,
     startMuted: () -> Boolean = { true },
@@ -58,6 +62,9 @@ fun ViewerRoute(
     youTubeConsented: Boolean = false,
     onAcceptYouTube: (String) -> Unit = {},
     onYouTubePlayerShown: (String) -> Unit = {},
+    tikTokConsented: Boolean = false,
+    onAcceptTikTok: () -> Unit = {},
+    onTikTokPlayerShown: (String) -> Unit = {},
 ) {
     val viewerUiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -87,16 +94,73 @@ fun ViewerRoute(
     val viewportHeight = configuration.screenHeightDp * density.density
     val content = viewerUiState as? ViewerUiState.Content
     val sourceUrl = content?.post?.sourceUrl.orEmpty()
+    val tiktokLink = remember(sourceUrl) { TikTokUrls.parse(sourceUrl) }
+    val tiktokPost = tiktokLink != null && TikTokLinks.supports(sourceUrl)
+    var acceptedTikTok by remember(sourceUrl) { mutableStateOf(false) }
+    var runtimeRemoved by remember(sourceUrl) { mutableStateOf(false) }
+    var runtimeBlocked by remember(sourceUrl) { mutableStateOf(false) }
+    val tiktokConsentedNow = tikTokConsented || acceptedTikTok
+    val tiktokVideoId = content?.post?.tiktokVideoId?.ifBlank { null } ?: tiktokLink?.videoId.orEmpty()
+    val tiktokRemoved = runtimeRemoved || content?.post?.tiktokRemoved == true
+    val tiktokBlocked = runtimeBlocked || content?.post?.tiktokEmbedOff == true
+    val tiktokLive = content?.post?.tiktokLive == true
+    val tiktokHtml = if (tiktokPost && tiktokConsentedNow && !tiktokRemoved && !tiktokBlocked && !tiktokLive) {
+        TikTokPlayback.iframeHtml(tiktokVideoId, consented = true)
+    } else {
+        null
+    }
+    LaunchedEffect(tiktokVideoId, tikTokConsented, acceptedTikTok) {
+        if (tiktokVideoId.isNotBlank() && tikTokConsented && !acceptedTikTok) onTikTokPlayerShown(tiktokVideoId)
+    }
+    val tiktokHandle = content?.post?.tiktokHandle?.ifBlank { null } ?: tiktokLink?.handle.orEmpty()
+    val shortUnresolved = tiktokLink?.kind == TikTokLinkKind.Short && tiktokVideoId.isBlank()
+    val tiktokHostLine = when {
+        shortUnresolved -> "tiktok.com · ${stringResource(R.string.short_link_label)}"
+        tiktokHandle.isNotBlank() -> "tiktok.com · @$tiktokHandle"
+        else -> "tiktok.com"
+    }
+    val tiktokFrame = if (!tiktokPost) {
+        null
+    } else {
+        TikTokFrame(
+            embedHtml = tiktokHtml,
+            embedOff = tiktokBlocked && tiktokConsentedNow,
+            removed = tiktokRemoved && tiktokConsentedNow,
+            live = tiktokLive,
+            hostLine = tiktokHostLine,
+            onPlay = {
+                acceptedTikTok = true
+                onAcceptTikTok()
+                viewModel.onTikTokAccepted()
+            },
+            onOpenLink = { link ->
+                val started = openExternally(context, link, finishAfter = false)
+                if (!started) {
+                    Toast.makeText(context, context.getString(R.string.action_failed), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onOpenInTikTok = {
+                val started = openExternally(context, sourceUrl, finishAfter = true)
+                if (shouldFinishAfterExternalOpen(started, finishAfter = true)) onBack()
+            },
+            onGone = {
+                runtimeRemoved = true
+                viewModel.onTikTokRemoved()
+            },
+            onEmbedOff = {
+                runtimeBlocked = true
+                viewModel.onTikTokEmbedOff()
+            },
+        )
+    }
     val youtubeLink = remember(sourceUrl) { YouTubeUrls.parse(sourceUrl) }
     val youtubeId = youtubeLink?.videoId
     var acceptedYouTube by remember(sourceUrl) { mutableStateOf(false) }
     val consented = youTubeConsented || acceptedYouTube
-    val playShorts = YouTubeShorts.PLAY_IN_PANE
     val embedOff = content?.post?.youtubeEmbedOff == true
     val ageRestricted = content?.post?.youtubeAgeRestricted == true
-    val shortsBlocked = youtubeLink?.kind == YouTubeLinkKind.Short && !playShorts
-    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube, shortsBlocked) {
-        if (youtubeId != null && !shortsBlocked && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
+    LaunchedEffect(youtubeId, youTubeConsented, acceptedYouTube) {
+        if (youtubeId != null && youTubeConsented && !acceptedYouTube) onYouTubePlayerShown(youtubeId)
     }
     val youtubeFrame = youtubeLink?.takeIf { it.videoId != null }?.let { link ->
         val id = link.videoId ?: return@let null
@@ -107,14 +171,12 @@ fun ViewerRoute(
                 startSeconds = link.startSeconds,
                 kind = kind,
                 consented = consented,
-                playShorts = playShorts,
                 embeddable = !embedOff,
                 ageRestricted = ageRestricted,
             ),
-            blocked = shortsBlocked,
-            embedOff = consented && embedOff && !shortsBlocked,
-            ageRestricted = consented && ageRestricted && !shortsBlocked,
-            portrait = kind == YouTubeLinkKind.Short && playShorts,
+            embedOff = consented && embedOff,
+            ageRestricted = consented && ageRestricted,
+            portrait = false,
             title = content?.post?.title.orEmpty(),
             onPlay = {
                 acceptedYouTube = true
@@ -139,7 +201,7 @@ fun ViewerRoute(
     val item = items.getOrNull(mediaIndex)
     val contentWidth = item?.width?.takeIf { it > 1 }?.toFloat() ?: measuredWidth
     val contentHeight = item?.height?.takeIf { it > 1 }?.toFloat() ?: measuredHeight
-    val openImmersive = youtubeId == null && VideoAutoplay.shouldOpen(
+    val openImmersive = youtubeId == null && !tiktokPost && VideoAutoplay.shouldOpen(
         alreadyOpened = handedToImmersive,
         contentWidthPx = contentWidth,
         contentHeightPx = contentHeight,
@@ -148,7 +210,7 @@ fun ViewerRoute(
     )
     LaunchedEffect(openImmersive, mediaIndex) {
         if (openImmersive) {
-            onOpenMedia(mediaIndex)
+            onOpenMedia("", mediaIndex)
             handedToImmersive = true
         }
     }
@@ -203,6 +265,7 @@ fun ViewerRoute(
             }
         },
         youtube = youtubeFrame,
+        tiktok = tiktokFrame,
         modifier = Modifier.fillMaxSize(),
     )
         PaneSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp))

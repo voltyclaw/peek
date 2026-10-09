@@ -4,6 +4,8 @@ import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.reddit.RedditUrls
 import app.pane.android.data.x.XUrls
+import app.pane.android.data.bluesky.BskyUrls
+import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.domain.model.LinkShims
 import java.net.URI
@@ -49,6 +51,8 @@ internal fun profileLink(raw: String): ProfileLink? {
         ?: redditProfile(host, segments)
         ?: threadsProfile(host, segments)
         ?: youtubeProfile(host, segments, uri)
+        ?: tiktokProfile(host, segments)
+        ?: blueskyProfile(url)
 }
 
 internal fun isXHost(url: String): Boolean {
@@ -63,6 +67,8 @@ internal fun isXHost(url: String): Boolean {
 private fun isRenderablePost(url: String): Boolean {
     if (XUrls.supports(url) || FacebookUrls.supports(url) || FacebookUrls.isMarketplace(url)) return true
     if (YouTubeUrls.supports(url)) return true
+    if (TikTokUrls.supports(url)) return true
+    if (BskyUrls.parsePost(url) != null) return true
     if (RedditUrls.supports(url)) return true
     if (InstagramStories.parse(url) != null) return true
     return isInstagramPost(url)
@@ -135,6 +141,20 @@ private fun youtubeProfile(host: String, segments: List<String>, uri: URI): Prof
     return ProfileLink(open, listOf(YOUTUBE_PACKAGE))
 }
 
+private fun tiktokProfile(host: String, segments: List<String>): ProfileLink? {
+    if (host !in TIKTOK_HOSTS) return null
+    val head = segments.firstOrNull() ?: return null
+    if (!head.startsWith("@") || segments.size != 1) return null
+    val handle = head.removePrefix("@")
+    if (handle.isBlank()) return null
+    return ProfileLink("https://www.tiktok.com/@$handle", listOf(TIKTOK_PACKAGE, TIKTOK_TRILL_PACKAGE))
+}
+
+private fun blueskyProfile(url: String): ProfileLink? {
+    if (!BskyUrls.isProfile(url)) return null
+    return ProfileLink(url, listOf(BskyUrls.PACKAGE))
+}
+
 private fun threadsProfile(host: String, segments: List<String>): ProfileLink? {
     if (host !in THREADS_HOSTS) return null
     val raw = segments.firstOrNull() ?: return null
@@ -180,6 +200,7 @@ private val REDDIT_HOSTS = setOf(
 )
 private val THREADS_HOSTS = setOf("threads.net", "www.threads.net")
 private val YOUTUBE_HOSTS = setOf("youtube.com", "m.youtube.com", "music.youtube.com")
+private val TIKTOK_HOSTS = setOf("tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com", "live.tiktok.com")
 
 private val X_RESERVED = setOf(
     "home",
@@ -253,3 +274,5 @@ internal const val REDDIT_PACKAGE = "com.reddit.frontpage"
 internal const val THREADS_PACKAGE = "com.instagram.barcelona"
 internal const val YOUTUBE_PACKAGE = "com.google.android.youtube"
 internal const val YOUTUBE_MUSIC_PACKAGE = "com.google.android.apps.youtube.music"
+internal const val TIKTOK_PACKAGE = "com.zhiliaoapp.musically"
+internal const val TIKTOK_TRILL_PACKAGE = "com.ss.android.ugc.trill"

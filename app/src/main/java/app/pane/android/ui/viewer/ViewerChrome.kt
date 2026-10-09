@@ -115,6 +115,7 @@ internal fun ViewerTopBar(
     modifier: Modifier = Modifier,
     starred: Boolean = false,
     onStar: () -> Unit = {},
+    showRefresh: Boolean = true,
 ) {
     val controls = viewerTopChrome()
     Row(
@@ -126,7 +127,7 @@ internal fun ViewerTopBar(
         if (ViewerChromeControl.Star in controls || ViewerChromeControl.Refresh in controls) {
             StarRefreshCapsule(
                 showStar = ViewerChromeControl.Star in controls,
-                showRefresh = ViewerChromeControl.Refresh in controls,
+                showRefresh = showRefresh && ViewerChromeControl.Refresh in controls,
                 starred = starred,
                 overMedia = overMedia,
                 onStar = onStar,
@@ -195,6 +196,7 @@ internal fun ViewerBottomBar(
     sourceMark: Int? = null,
     useGlobe: Boolean = false,
     showOpen: Boolean = true,
+    openWord: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().background(PaneGround)) {
@@ -206,7 +208,20 @@ internal fun ViewerBottomBar(
             QuietIconButton(Icons.Rounded.Share, stringResource(R.string.share), onShare)
             QuietIconButton(Icons.Rounded.MoreHoriz, stringResource(R.string.more_options), onOverflow)
             Box(Modifier.weight(1f))
-            if (showOpen) Box(
+            if (showOpen && openWord != null) Row(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(PaneAccent)
+                    .clickable(role = Role.Button, onClick = onOpen)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = openLabel, tint = PaneGround, modifier = Modifier.size(18.dp))
+                Text(openWord, color = PaneGround, style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+            } else if (showOpen) Box(
                 modifier = Modifier
                     .padding(end = 8.dp)
                     .size(48.dp)
@@ -406,7 +421,18 @@ internal fun OpenRecovery(
         }
     }
     val appName = presentation.appNameRes?.let { stringResource(it) }.orEmpty()
-    val headline = when (presentation.headline) {
+    val privateGroup = reason == OpenFailureKind.PrivateGroup
+    val blueskyCopy = when (reason) {
+        OpenFailureKind.BlueskyGone -> R.string.bs_gone_title to R.string.bs_gone_body
+        OpenFailureKind.BlueskyHidden -> R.string.bs_hidden_title to R.string.bs_hidden_body
+        OpenFailureKind.BlueskySignedIn -> R.string.bs_signed_in_title to R.string.bs_signed_in_body
+        else -> null
+    }
+    val headline = if (blueskyCopy != null) {
+        stringResource(blueskyCopy.first)
+    } else if (privateGroup) {
+        stringResource(R.string.private_group_title)
+    } else when (presentation.headline) {
         RecoveryHeadline.NotPublic -> if (presentation.appNameRes != null) {
             stringResource(R.string.link_isnt_public_post, appName)
         } else {
@@ -416,7 +442,11 @@ internal fun OpenRecovery(
         RecoveryHeadline.Offline -> stringResource(R.string.youre_offline)
         RecoveryHeadline.CouldntLoad -> stringResource(R.string.couldnt_load_post)
     }
-    val body = when (presentation.body) {
+    val body = if (blueskyCopy != null) {
+        stringResource(blueskyCopy.second)
+    } else if (privateGroup) {
+        stringResource(R.string.private_group_body, appName.ifBlank { stringResource(R.string.source_facebook) })
+    } else when (presentation.body) {
         RecoveryBody.NamedApp -> stringResource(R.string.open_in_app_body, appName)
         RecoveryBody.Browser -> stringResource(R.string.open_it_in_browser_instead)
         RecoveryBody.CheckConnection -> stringResource(R.string.check_connection)
@@ -444,7 +474,7 @@ internal fun OpenRecovery(
             textAlign = TextAlign.Center,
             style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
         )
-        if (presentation.retryPrimary) {
+        if (presentation.retryPrimary && !privateGroup && blueskyCopy == null) {
             RecoveryButton(
                 label = stringResource(R.string.try_again),
                 filled = true,

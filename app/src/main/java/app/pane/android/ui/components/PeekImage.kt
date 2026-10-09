@@ -15,6 +15,7 @@ fun PeekImage(
     contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.Center,
     onIntrinsicSize: ((width: Float, height: Float) -> Unit)? = null,
+    onError: (() -> Unit)? = null,
 ) {
     val model = when (image) {
         is UiImage.Resource -> image.id
@@ -32,5 +33,6 @@ fun PeekImage(
                 onIntrinsicSize?.invoke(size.width, size.height)
             }
         },
+        onError = { onError?.invoke() },
     )
 }

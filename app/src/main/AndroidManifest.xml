@@ -18,8 +18,11 @@
         <package android:name="com.reddit.frontpage" />
         <package android:name="com.google.android.youtube" />
         <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.zhiliaoapp.musically" />
+        <package android:name="com.ss.android.ugc.trill" />
         <package android:name="com.instagram.android" />
         <package android:name="com.instagram.barcelona" />
+        <package android:name="xyz.blueskyweb.app" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -46,6 +49,8 @@
     <application
         android:name=".PaneApplication"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -384,6 +389,53 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/watch" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.tiktok.com" android:pathPattern="/.*/video/.*" />
+                <data android:scheme="https" android:host="www.tiktok.com" android:pathPattern="/.*/photo/.*" />
+                <data android:scheme="https" android:host="www.tiktok.com" android:pathPattern="/.*/live" />
+                <data android:scheme="https" android:host="www.tiktok.com" android:pathPattern="/t/.*" />
+                <data android:scheme="https" android:host="www.tiktok.com" android:pathPattern="/embed/v2/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tiktok.com" android:pathPattern="/.*/video/.*" />
+                <data android:scheme="https" android:host="tiktok.com" android:pathPattern="/.*/photo/.*" />
+                <data android:scheme="https" android:host="tiktok.com" android:pathPattern="/.*/live" />
+                <data android:scheme="https" android:host="tiktok.com" android:pathPattern="/t/.*" />
+                <data android:scheme="https" android:host="tiktok.com" android:pathPattern="/embed/v2/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="m.tiktok.com" android:pathPattern="/.*/video/.*" />
+                <data android:scheme="https" android:host="m.tiktok.com" android:pathPattern="/.*/photo/.*" />
+                <data android:scheme="https" android:host="m.tiktok.com" android:pathPattern="/v/.*" />
+                <data android:scheme="https" android:host="m.tiktok.com" android:pathPattern="/t/.*" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="vm.tiktok.com" android:pathPattern="/.+" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="vt.tiktok.com" android:pathPattern="/.+" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="live.tiktok.com" android:pathPattern="/.+" />
             </intent-filter>
         </activity>
         <!--

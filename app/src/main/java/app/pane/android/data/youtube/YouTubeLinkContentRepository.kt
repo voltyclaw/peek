@@ -17,7 +17,6 @@ import app.pane.android.domain.youtube.YouTubeConsentPolicy
 import app.pane.android.domain.youtube.YouTubeConsentStore
 import app.pane.android.domain.youtube.YouTubeDataApi
 import app.pane.android.domain.youtube.YouTubeLinkKind
-import app.pane.android.domain.youtube.YouTubeShorts
 import app.pane.android.domain.youtube.YouTubeVideo
 
 /**
@@ -28,7 +27,6 @@ import app.pane.android.domain.youtube.YouTubeVideo
 class YouTubeLinkContentRepository(
     private val consent: YouTubeConsentStore = MapYouTubeConsentStore(),
     private val api: YouTubeDataApi = InertYouTubeDataApi,
-    private val playShorts: Boolean = YouTubeShorts.PLAY_IN_PANE,
 ) : LinkContentRepository {
     private val pages = mutableMapOf<String, LinkContent>()
 
@@ -38,9 +36,6 @@ class YouTubeLinkContentRepository(
         val link = YouTubeUrls.parse(url) ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
         val videoId = link.videoId ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
         val canonical = link.canonicalUrl ?: url
-        if (link.kind == YouTubeLinkKind.Short && !playShorts) {
-            return Result.success(stub(url, canonical, videoId, blockedShort = true))
-        }
         if (!hasConsent()) return Result.success(stub(url, canonical, videoId, blockedShort = false))
         val video = api.fetch(videoId)
         val comments = if (video.commentsUnavailable) {
@@ -174,7 +169,7 @@ class YouTubeLinkContentRepository(
         val parts = listOfNotNull(
             video.publishedLabel.takeIf { it.isNotBlank() },
             views?.let { "$it views" },
-            "Short".takeIf { kind == YouTubeLinkKind.Short && playShorts },
+            "Short".takeIf { kind == YouTubeLinkKind.Short },
         )
         return parts.joinToString(" · ")
     }

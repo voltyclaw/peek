@@ -10,6 +10,7 @@ import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.domain.model.HistoryQuery
 import app.pane.android.domain.model.HistoryScope
 import app.pane.android.domain.model.SourceApp
+import app.pane.android.domain.tiktok.TikTokLinks
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
 import java.time.ZoneId
@@ -76,16 +77,36 @@ object HistoryPresenter {
         val stamp = HistoryLedger.stamp(entry, query.scope)
         val video = HistoryLedger.isVideo(entry.mediaType)
         val thumb = entry.thumbUrl?.takeIf { HistoryLedger.showsThumb(entry.mediaType) && it.isNotBlank() }
+        val tiktokId = if (entry.sourceApp == SourceApp.TikTok) {
+            TikTokLinks.parse(entry.url)?.videoId.orEmpty()
+        } else {
+            ""
+        }
         return LedgerRowUi(
             url = entry.url,
-            title = entry.title.ifBlank { entry.caption }.ifBlank { entry.url },
-            identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName),
+            title = if (entry.sourceApp == SourceApp.Bluesky && entry.title.isBlank() && entry.caption.isBlank()) {
+                ""
+            } else if (entry.sourceApp == SourceApp.Other || app.pane.android.domain.model.looksLikeUrl(entry.title) || app.pane.android.domain.model.looksLikeUrl(entry.caption)) {
+                app.pane.android.domain.model.OtherTitles.displayTitle(entry.title, entry.caption, entry.url)
+            } else {
+                entry.title.ifBlank { entry.caption }.ifBlank { entry.url }
+            },
+            identity = HistoryLedger.identity(entry.sourceApp, entry.handle, entry.authorName)
+                .ifBlank { if (entry.sourceApp == SourceApp.Bluesky) "bsky.app" else "" },
             timeLabel = HistoryLedger.relTime(stamp, now, zone, locale),
-            pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url),
+            pfp = entry.pfpUrl?.takeIf { it.isNotBlank() }?.let(UiImage::Url)
+                ?: if (entry.sourceApp == SourceApp.Other) {
+                    app.pane.android.domain.model.OtherTitles.faviconUrl(entry.url)?.let(UiImage::Url)
+                } else {
+                    null
+                },
             sourceMark = sourceMark(entry.sourceApp),
             thumb = thumb?.let(UiImage::Url),
             video = video,
             starred = entry.starredAt != null,
+            tiktokId = tiktokId,
+            tiktokThumbUrl = if (tiktokId.isBlank()) null else entry.thumbUrl,
+            globe = entry.sourceApp == SourceApp.Other && entry.pfpUrl.isNullOrBlank(),
         )
     }
 }
@@ -96,5 +117,5 @@ fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.Instagram -> R.drawable.ic_source_instagram
     SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
-    SourceApp.YouTube, SourceApp.Threads, SourceApp.Other -> null
+    SourceApp.YouTube, SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
 }

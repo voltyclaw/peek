@@ -15,23 +15,23 @@ fun HomePreview() {
 @Preview(name = "Post 390×844", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable
 fun PostPreview() {
-    PaneTheme { ViewerView(PeekPreviewFixtures.post, onBack = {}, onRefresh = {}, onOpenMedia = {}) }
+    PaneTheme { ViewerView(PeekPreviewFixtures.post, onBack = {}, onRefresh = {}, onOpenMedia = { _, _ -> }) }
 }
 
 @Preview(name = "Video 390×844", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable
 fun VideoPreview() {
-    PaneTheme { ViewerView(PeekPreviewFixtures.video, onBack = {}, onRefresh = {}, onOpenMedia = {}) }
+    PaneTheme { ViewerView(PeekPreviewFixtures.video, onBack = {}, onRefresh = {}, onOpenMedia = { _, _ -> }) }
 }
 
 @Preview(name = "Loading 390×844", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable
 fun LoadingPreview() {
-    PaneTheme { ViewerView(PeekPreviewFixtures.loading, onBack = {}, onRefresh = {}, onOpenMedia = {}) }
+    PaneTheme { ViewerView(PeekPreviewFixtures.loading, onBack = {}, onRefresh = {}, onOpenMedia = { _, _ -> }) }
 }
 
 @Preview(name = "Unsupported link 390×844", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable
 fun UnsupportedLinkPreview() {
-    PaneTheme { ViewerView(PeekPreviewFixtures.unavailable, onBack = {}, onRefresh = {}, onOpenMedia = {}) }
+    PaneTheme { ViewerView(PeekPreviewFixtures.unavailable, onBack = {}, onRefresh = {}, onOpenMedia = { _, _ -> }) }
 }

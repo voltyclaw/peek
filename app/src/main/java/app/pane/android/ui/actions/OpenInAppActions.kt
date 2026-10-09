@@ -14,8 +14,12 @@ import app.pane.android.R
 import app.pane.android.data.facebook.FacebookUrls
 import app.pane.android.data.instagram.InstagramStories
 import app.pane.android.data.links.isXHost
+import app.pane.android.data.links.TIKTOK_PACKAGE
+import app.pane.android.data.links.TIKTOK_TRILL_PACKAGE
 import app.pane.android.data.links.YOUTUBE_MUSIC_PACKAGE
 import app.pane.android.data.links.YOUTUBE_PACKAGE
+import app.pane.android.data.bluesky.BskyUrls
+import app.pane.android.data.tiktok.TikTokUrls
 import app.pane.android.data.links.profileLink
 import app.pane.android.data.youtube.YouTubeUrls
 import app.pane.android.data.reddit.RedditUrls
@@ -123,6 +127,17 @@ internal fun openInAppTargets(url: String): List<OpenInAppTarget> {
             OpenInAppTarget(https, null),
         )
     }
+    if (BskyUrls.isHost(unwrapped) || BskyUrls.parsePost(unwrapped) != null) {
+        val open = BskyUrls.parsePost(unwrapped)?.https() ?: unwrapped
+        return listOf(OpenInAppTarget(open, BskyUrls.PACKAGE))
+    }
+    if (TikTokUrls.isHost(unwrapped)) {
+        val open = TikTokUrls.parse(unwrapped)?.canonicalUrl ?: unwrapped
+        return listOf(
+            OpenInAppTarget(open, TIKTOK_PACKAGE),
+            OpenInAppTarget(open, TIKTOK_TRILL_PACKAGE),
+        )
+    }
     val youtube = YouTubeUrls.parse(unwrapped)
     if (youtube?.videoId != null) {
         val open = youtube.canonicalUrl ?: unwrapped
@@ -181,7 +196,7 @@ internal fun performExternalLaunch(
     start: (ExternalLaunchAttempt) -> ExternalStart,
     openBrowser: (String) -> Boolean,
     openChooser: (String) -> Boolean,
-    allowChooser: Boolean = profileLink(url) == null && YouTubeUrls.parse(url) == null,
+    allowChooser: Boolean = profileLink(url) == null && YouTubeUrls.parse(url) == null && !TikTokUrls.isHost(url),
 ): ExternalLaunchOutcome {
     val attempts = packagedAttempts(url)
     val openUrl = attempts.firstOrNull()?.url ?: externalOpenUrl(url)
@@ -329,6 +344,7 @@ internal fun sourceNameRes(host: String): Int? {
         normalized == "youtube.com" || normalized.endsWith(".youtube.com") || normalized == "youtu.be" -> R.string.source_youtube
         normalized == "tiktok.com" || normalized.endsWith(".tiktok.com") -> R.string.source_tiktok
         normalized == "threads.net" || normalized.endsWith(".threads.net") -> R.string.source_threads
+        normalized == "bsky.app" || normalized.endsWith(".bsky.app") -> R.string.source_bluesky
         else -> null
     }
 }

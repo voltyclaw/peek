@@ -1,8 +1,8 @@
 package app.pane.android.domain.model
 
 /** One history row. The primary key is the canonical post URL. */
-/** Normalized app chip. TikTok and anything else land in [SourceApp.Other]. */
-enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, YouTube, Other }
+/** Normalized app chip. Anything unrecognized lands in [SourceApp.Other]. */
+enum class SourceApp { X, Reddit, Facebook, Instagram, Threads, YouTube, TikTok, Bluesky, Other }
 
 enum class HistoryScope { All, Starred }
 
@@ -136,6 +136,10 @@ private fun LinkContent.historyHandle(): String {
             val handle = (sourceMetadata as? YouTubeMetadata)?.handle
             if (!handle.isNullOrBlank()) return handle.removePrefix("@").trim()
         }
+        LinkSource.TikTok -> {
+            val handle = (sourceMetadata as? TikTokMetadata)?.handle
+            if (!handle.isNullOrBlank()) return handle.removePrefix("@").trim()
+        }
         LinkSource.Instagram -> {
             val user = (sourceMetadata as? InstagramMetadata)?.authorUsername
             if (!user.isNullOrBlank()) return user.removePrefix("@").trim()
@@ -163,6 +167,9 @@ private fun LinkContent.historyMediaType(): String {
         is InstagramMetadata -> meta.videoVariants.isNotEmpty() || meta.mediaItems.any { it.videoVariants.isNotEmpty() }
         is ExternalPostMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() }
         is YouTubeMetadata -> false
+        is TikTokMetadata -> false
+        is BlueskyMetadata -> meta.mediaItems.any { !it.videoUrl.isNullOrBlank() || it.videos.isNotEmpty() } ||
+            meta.authorThread.any { post -> post.media.any { !it.videoUrl.isNullOrBlank() } }
         else -> false
     }
     if (video) return HistoryLedger.VIDEO

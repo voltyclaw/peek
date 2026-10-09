@@ -11,6 +11,15 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
+data class ParsedXMedia(
+    val imageUrl: String,
+    val videoUrl: String?,
+    val width: Int?,
+    val height: Int?,
+    val gif: Boolean,
+    val videos: List<ParsedXVideo> = emptyList(),
+)
+
 data class ParsedXReply(
     val id: String,
     val author: String,
@@ -21,6 +30,7 @@ data class ParsedXReply(
     val cardTitle: String? = null,
     val cardBody: String? = null,
     val cardUrl: String? = null,
+    val media: List<ParsedXMedia> = emptyList(),
 )
 
 /** One post in the author's own chain, in reading order from the root. */
@@ -29,6 +39,7 @@ data class ParsedXThreadPost(
     val author: String,
     val screenName: String,
     val text: String,
+    val media: List<ParsedXMedia> = emptyList(),
 )
 
 /**

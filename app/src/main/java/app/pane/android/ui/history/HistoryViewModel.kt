@@ -3,6 +3,7 @@ package app.pane.android.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.pane.android.data.history.HistoryUrls
 import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.HistoryEntry
 import app.pane.android.domain.model.HistoryGesture
@@ -15,6 +16,8 @@ import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.model.StarCopy
 import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
+import app.pane.android.domain.tiktok.TikTokScrollRefresh
+import app.pane.android.domain.tiktok.TikTokVisibleRow
 import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +27,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface HistoryNotice {
     data object Starred : HistoryNotice
@@ -38,11 +44,17 @@ class HistoryViewModel(
     private val persist: (HistoryQuery) -> Unit,
     private val clock: Clock = SystemClock,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val refreshTikTok: (suspend (id: String, pageUrl: String) -> Unit)? = null,
+    private val canRefreshTikTok: () -> Boolean = { false },
 ) : ViewModel() {
     private val query = MutableStateFlow(initial)
     private val notices = MutableSharedFlow<HistoryNotice>(extraBufferCapacity = 1)
     val notice: SharedFlow<HistoryNotice> = notices.asSharedFlow()
     private var latest = emptyList<HistoryEntry>()
+    private var visibleTikTok = emptyList<TikTokVisibleRow>()
+    private val refreshedTikTok = mutableSetOf<String>()
+    private var refreshingTikTok = false
+    private val writes = Mutex()
 
     val uiState: StateFlow<HistoryListUi> = combine(historyRepository.observeHistory(), query) { rows, filter ->
         latest = rows
@@ -65,13 +77,42 @@ class HistoryViewModel(
 
     fun clearApps() = update(query.value.copy(apps = emptySet()))
 
+    /** One expired TikTok thumbnail at a time, through the shared oEmbed bucket. */
+    fun noteVisibleTikTok(rows: List<TikTokVisibleRow>) {
+        visibleTikTok = rows
+        refreshedTikTok.retainAll(rows.map { it.id }.toSet())
+        pumpTikTok()
+    }
+
+    private fun pumpTikTok() {
+        val refresh = refreshTikTok ?: return
+        if (refreshingTikTok || !canRefreshTikTok()) return
+        val now = clock.nowEpochMillis() / 1000L
+        val pending = visibleTikTok.filter { it.id !in refreshedTikTok }
+        val next = TikTokScrollRefresh.next(pending, now) ?: return
+        refreshedTikTok.add(next.id)
+        refreshingTikTok = true
+        viewModelScope.launch {
+            try {
+                refresh(next.id, next.pageUrl)
+            } finally {
+                refreshingTikTok = false
+                pumpTikTok()
+            }
+        }
+    }
+
     /** Swipes unstar a starred row first. A second swipe removes it. */
     fun swipe(url: String, left: Boolean) {
-        val row = latest.firstOrNull { it.url == url } ?: return
-        when (HistoryLedger.gesture(left, row.starredAt != null)) {
-            HistoryGesture.Star -> star(row)
-            HistoryGesture.RemoveStar -> unstar(url)
-            HistoryGesture.Remove -> remove(url)
+        viewModelScope.launch {
+            writes.withLock {
+                val row = rowFor(url) ?: return@withLock
+                when (HistoryLedger.gesture(left, row.starredAt != null)) {
+                    HistoryGesture.Star -> star(row)
+                    HistoryGesture.RemoveStar -> unstar(row.url)
+                    HistoryGesture.Remove -> remove(row.url)
+                }
+            }
         }
     }
 
@@ -80,41 +121,45 @@ class HistoryViewModel(
      * That is not a swipe: the unstar-first rule does not apply here.
      */
     fun menu(url: String, action: HistoryRowAction) {
-        val row = latest.firstOrNull { it.url == url } ?: return
-        when (action) {
-            HistoryRowAction.Star -> star(row)
-            HistoryRowAction.RemoveStar -> unstar(url)
-            HistoryRowAction.Remove -> remove(url)
-            else -> Unit
+        viewModelScope.launch {
+            writes.withLock {
+                val row = rowFor(url) ?: return@withLock
+                when (action) {
+                    HistoryRowAction.Star -> star(row)
+                    HistoryRowAction.RemoveStar -> unstar(row.url)
+                    HistoryRowAction.Remove -> remove(row.url)
+                    else -> Unit
+                }
+            }
         }
+    }
+
+    private suspend fun rowFor(url: String): HistoryEntry? {
+        val key = HistoryUrls.canonical(url)
+        return historyRepository.observeHistory().first()
+            .firstOrNull { HistoryUrls.canonical(it.url) == key || it.url == url }
     }
 
     fun undo(undo: HistoryUndo) {
         viewModelScope.launch { historyRepository.undo(undo) }
     }
 
-    private fun star(row: HistoryEntry) {
-        viewModelScope.launch {
-            historyRepository.star(
-                row.url,
-                StarCopy(row.title, row.authorName, row.handle, row.caption, row.thumbUrl, row.pfpUrl),
-            )
-            notices.emit(HistoryNotice.Starred)
-        }
+    private suspend fun star(row: HistoryEntry) {
+        historyRepository.star(
+            row.url,
+            StarCopy(row.title, row.authorName, row.handle, row.caption, row.thumbUrl, row.pfpUrl),
+        )
+        notices.emit(HistoryNotice.Starred)
     }
 
-    private fun unstar(url: String) {
-        viewModelScope.launch {
-            val undo = historyRepository.applySwipe(url) ?: return@launch
-            notices.emit(HistoryNotice.Unstarred(undo))
-        }
+    private suspend fun unstar(url: String) {
+        val undo = historyRepository.applySwipe(url) ?: return
+        notices.emit(HistoryNotice.Unstarred(undo))
     }
 
-    private fun remove(url: String) {
-        viewModelScope.launch {
-            val undo = historyRepository.remove(url) ?: return@launch
-            notices.emit(HistoryNotice.Removed(undo))
-        }
+    private suspend fun remove(url: String) {
+        val undo = historyRepository.remove(url) ?: return
+        notices.emit(HistoryNotice.Removed(undo))
     }
 
     private fun update(next: HistoryQuery) {
@@ -128,9 +173,11 @@ class HistoryViewModel(
         private val persist: (HistoryQuery) -> Unit,
         private val clock: Clock = SystemClock,
         private val zone: ZoneId = ZoneId.systemDefault(),
+        private val refreshTikTok: (suspend (id: String, pageUrl: String) -> Unit)? = null,
+        private val canRefreshTikTok: () -> Boolean = { false },
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            HistoryViewModel(historyRepository, initial, persist, clock, zone) as T
+            HistoryViewModel(historyRepository, initial, persist, clock, zone, refreshTikTok, canRefreshTikTok) as T
     }
 }

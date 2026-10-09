@@ -50,7 +50,7 @@ import java.util.Locale
  */
 internal object YouTubeConsentLinks {
     const val YOUTUBE_TERMS = "https://www.youtube.com/t/terms"
-    const val GOOGLE_PRIVACY = "http://www.google.com/policies/privacy"
+    const val GOOGLE_PRIVACY = "https://www.google.com/policies/privacy"
     const val PANE_PRIVACY = ""
     const val PANE_PRIVACY_HEBREW = ""
     const val ISRAELI_NOTICE = ""
@@ -85,7 +85,6 @@ internal fun YouTubeConsentSurface(
     language: String = Locale.getDefault().language,
 ) {
     when {
-        frame.blocked -> YouTubeShortsBlock(frame.onOpenInYouTube, modifier)
         frame.ageRestricted -> YouTubeNotice(
             stringResource(R.string.yt_age_title),
             stringResource(R.string.yt_age_body),
@@ -212,16 +211,6 @@ internal fun consentPieces(template: String, links: List<Pair<String, Pair<Strin
 }
 
 @Composable
-private fun YouTubeShortsBlock(onOpenInYouTube: () -> Unit, modifier: Modifier = Modifier) {
-    YouTubeNotice(
-        stringResource(R.string.yt_shorts_title),
-        stringResource(R.string.yt_shorts_body),
-        onOpenInYouTube,
-        modifier,
-    )
-}
-
-@Composable
 private fun YouTubeNotice(
     title: String,
     body: String,
@@ -312,6 +301,7 @@ private fun YouTubeEmbed(
         modifier = modifier.fillMaxWidth().aspectRatio(ratio).background(PaneTile),
         factory = { context ->
             WebView(context).apply {
+                app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.YOUTUBE)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.mediaPlaybackRequiresUserGesture = false

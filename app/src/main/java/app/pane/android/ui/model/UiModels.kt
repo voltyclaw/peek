@@ -52,7 +52,23 @@ data class LedgerRowUi(
     val thumb: UiImage?,
     val video: Boolean,
     val starred: Boolean,
+    val tiktokId: String = "",
+    val tiktokThumbUrl: String? = null,
+    val globe: Boolean = false,
 )
+
+fun ViewerPostUiModel.gallery(ownerId: String): List<ViewerMediaItemUiModel> {
+    if (ownerId.isBlank()) return mediaItemsOrPrimary()
+    authorThread.firstOrNull { it.id == ownerId }?.media?.takeIf { it.isNotEmpty() }?.let { return it }
+    fun walk(comments: List<CommentUiModel>): List<ViewerMediaItemUiModel>? {
+        comments.forEach { comment ->
+            if (comment.id == ownerId && comment.media.isNotEmpty()) return comment.media
+            walk(comment.replies)?.let { return it }
+        }
+        return null
+    }
+    return walk(comments) ?: mediaItemsOrPrimary()
+}
 
 fun RecentLinkUiModel.asLedgerRow(): LedgerRowUi = LedgerRowUi(
     url = url,
@@ -117,6 +133,21 @@ data class ViewerPostUiModel(
     val commentsNotice: ViewerCommentsNotice = ViewerCommentsNotice.None,
     val youtubeEmbedOff: Boolean = false,
     val youtubeAgeRestricted: Boolean = false,
+    val tiktok: Boolean = false,
+    val tiktokEmbedOff: Boolean = false,
+    val tiktokRemoved: Boolean = false,
+    val tiktokLive: Boolean = false,
+    val tiktokDetailsFailed: Boolean = false,
+    val tiktokVideoId: String = "",
+    val tiktokHandle: String = "",
+    val tiktokPostedAtEpochSeconds: Long? = null,
+    val tiktokShortLink: Boolean = false,
+    val bluesky: Boolean = false,
+    val blueskyAvatarHidden: Boolean = false,
+    val blueskyWarning: Boolean = false,
+    val blueskySpans: List<TextSpanUi> = emptyList(),
+    val replyingTo: String? = null,
+    val replyingToUrl: String? = null,
 )
 
 enum class ViewerCommentsNotice { None, Unavailable, Off, Failed }
@@ -136,6 +167,8 @@ data class ViewerQuoteUiModel(
     val handle: String,
     val text: String,
     val url: String,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
+    val stub: String? = null,
 )
 
 @Immutable
@@ -143,6 +176,7 @@ data class ViewerLinkCardUiModel(
     val url: String,
     val label: String,
     val title: String = "",
+    val thumbUrl: String? = null,
 )
 
 @Immutable
@@ -151,6 +185,16 @@ data class AuthorThreadPostUiModel(
     val author: String,
     val text: String,
     val opened: Boolean,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
+    val spans: List<TextSpanUi> = emptyList(),
+    val warning: Boolean = false,
+)
+
+@Immutable
+data class TextSpanUi(
+    val start: Int,
+    val end: Int,
+    val url: String? = null,
 )
 
 @Immutable
@@ -171,6 +215,8 @@ data class ViewerMediaItemUiModel(
     val width: Int? = null,
     val height: Int? = null,
     val videoSources: List<VideoSourceUiModel> = emptyList(),
+    val gif: Boolean = false,
+    val cover: String? = null,
 )
 
 fun ViewerMediaItemUiModel.hasDownloadableMedia(): Boolean {
@@ -205,4 +251,5 @@ data class CommentUiModel(
     val cardTitle: String? = null,
     val cardBody: String? = null,
     val cardUrl: String? = null,
+    val media: List<ViewerMediaItemUiModel> = emptyList(),
 )

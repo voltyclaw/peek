@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import app.pane.android.domain.text.LinkLabels
 import app.pane.android.ui.text.MentionNetwork
 import app.pane.android.ui.text.mentionAt
 
@@ -102,9 +103,9 @@ private fun AnnotatedString.Builder.appendMarkdown(
         if (text[index] == '[') {
             val labelEnd = text.indexOf("](", index + 1)
             val urlEnd = if (labelEnd > index) text.indexOf(')', labelEnd + 2) else -1
-            if (labelEnd > index + 1 && urlEnd > labelEnd + 2) {
-                val label = text.substring(index + 1, labelEnd)
+            if (labelEnd >= index + 1 && urlEnd > labelEnd + 2) {
                 val url = text.substring(labelEnd + 2, urlEnd)
+                val label = LinkLabels.display(text.substring(index + 1, labelEnd), url)
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     withLink(openLink(url, linkColor, onOpen)) {
                         append(label)
@@ -205,9 +206,9 @@ private fun AnnotatedString.Builder.appendWithAutolinks(
         if (text[index] == '[') {
             val labelEnd = text.indexOf("](", index + 1)
             val urlEnd = if (labelEnd > index) text.indexOf(')', labelEnd + 2) else -1
-            if (labelEnd > index + 1 && urlEnd > labelEnd + 2) {
-                val label = text.substring(index + 1, labelEnd)
+            if (labelEnd >= index + 1 && urlEnd > labelEnd + 2) {
                 val url = text.substring(labelEnd + 2, urlEnd)
+                val label = LinkLabels.display(text.substring(index + 1, labelEnd), url)
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     withLink(openLink(url, linkColor, onOpen)) {
                         append(label)

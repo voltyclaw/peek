@@ -113,7 +113,11 @@ import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
 import app.pane.android.ui.theme.PaneFill
 import app.pane.android.ui.text.MentionNetwork
+import app.pane.android.ui.text.userContent
 import app.pane.android.ui.youtube.YouTubeConsentSurface
+import app.pane.android.ui.tiktok.TikTokConsentSurface
+import app.pane.android.ui.tiktok.TikTokDetails
+import app.pane.android.ui.tiktok.TikTokFrame
 import app.pane.android.ui.youtube.YouTubeFrame
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneOnFill
@@ -132,7 +136,7 @@ fun ViewerView(
     uiState: ViewerUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     modifier: Modifier = Modifier,
     onLoadMoreComments: () -> Unit = {},
     onCopyLink: suspend (String) -> Unit = {},
@@ -151,6 +155,7 @@ fun ViewerView(
     onOpenOutbound: (String) -> Unit = {},
     onStar: () -> Unit = {},
     youtube: YouTubeFrame? = null,
+    tiktok: TikTokFrame? = null,
 ) {
     val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(PaneGround), contentAlignment = Alignment.TopCenter) {
@@ -200,6 +205,7 @@ fun ViewerView(
                     onOpenOutbound = onOpenOutbound,
                     onOpenLinked = onOpenOutbound,
                     youtube = youtube,
+                    tiktok = tiktok,
                 )
             }
         }
@@ -215,7 +221,7 @@ private fun ColumnScope.ViewerContent(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onLoadMoreComments: () -> Unit,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     onCopyLink: suspend (String) -> Unit,
     onCopyMedia: suspend (ViewerMediaItemUiModel) -> Unit,
     onDownload: suspend (List<ViewerMediaItemUiModel>) -> Unit,
@@ -232,8 +238,14 @@ private fun ColumnScope.ViewerContent(
     onOpenOutbound: (String) -> Unit,
     onOpenLinked: (String) -> Unit,
     youtube: YouTubeFrame? = null,
+    tiktok: TikTokFrame? = null,
 ) {
     val host = displayHost(post.sourceUrl)
+    val play = app.pane.android.ui.media.rememberThreadPlay(startMuted())
+    val playback = app.pane.android.ui.media.rememberPlaybackSession()
+    androidx.compose.runtime.LaunchedEffect(play.winner) {
+        if (play.reports.isNotEmpty() && play.winner == null) playback.park()
+    }
     val affordance = rememberOpenAffordance(post.sourceUrl)
     val appName = affordance.appNameRes?.let { stringResource(it) }.orEmpty()
     val openLabel = if (affordance.opensInApp && affordance.appNameRes != null) {
@@ -245,6 +257,7 @@ private fun ColumnScope.ViewerContent(
     var overflow by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf(false) }
     var videoPaused by remember { mutableStateOf(false) }
+    var showWarned by remember(post.sourceUrl) { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val items = post.mediaItemsOrPrimary()
     val pagerState = rememberPagerState(
@@ -257,13 +270,23 @@ private fun ColumnScope.ViewerContent(
     val linkCard = outbound != null && hasMedia && currentItem?.videoUrl == null && post.authorThread.size < 2
     val reddit = host.contains("reddit.com")
     val textOnly = !hasMedia && post.authorThread.size < 2 && !reddit
-    val overMedia = hasMedia && !linkCard && post.authorThread.size < 2
+    val overMedia = hasMedia && !linkCard && post.authorThread.size < 2 && !post.bluesky
     Box(Modifier.fillMaxWidth().weight(1f)) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (youtube != null) {
+            if (tiktok != null) {
+                ViewerTopBar(
+                    onBack,
+                    onRefresh,
+                    overMedia = false,
+                    starred = starred,
+                    onStar = onStar,
+                    showRefresh = tiktok.embedHtml != null,
+                )
+                TikTokConsentSurface(tiktok)
+            } else if (youtube != null) {
                 ViewerTopBar(onBack, onRefresh, overMedia = false, starred = starred, onStar = onStar)
                 YouTubeConsentSurface(youtube)
             } else if (overMedia) {
@@ -294,19 +317,34 @@ private fun ColumnScope.ViewerContent(
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val showAuthor = post.authorName.isNotBlank() || post.authorMetadata.isNotBlank()
-                if (youtube != null) {
+                if (tiktok != null) {
+                    TikTokDetails(
+                        authorName = post.authorName,
+                        handle = post.tiktokHandle.ifBlank { post.authorMetadata },
+                        caption = post.title,
+                        postedAtEpochSeconds = post.tiktokPostedAtEpochSeconds,
+                        detailsFailed = post.tiktokDetailsFailed,
+                        removed = tiktok.removed,
+                        live = tiktok.live,
+                        embedOff = tiktok.embedOff,
+                        onOpenProfile = onOpenLinked,
+                        onOpenMention = onOpenLinked,
+                        onOpenComments = { scope.launch { onOpenInApp(post.sourceUrl) } },
+                        onRetry = onRefresh,
+                    )
+                } else if (youtube != null) {
                     if (post.title.isNotBlank()) {
                         Text(
                             text = post.title,
                             color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp).userContent(),
                         )
                     }
                     if (post.metaLine.isNotBlank()) {
                         Text(
                             text = post.metaLine,
                             color = PaneMuted,
-                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 13.sp).userContent(),
                         )
                     }
                     if (showAuthor) AuthorCaption(post, onOpenLinked)
@@ -314,9 +352,11 @@ private fun ColumnScope.ViewerContent(
                         Text(
                             text = post.description,
                             color = PaneInk,
-                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp),
+                            style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 22.sp).userContent(),
                         )
                     }
+                } else if (post.bluesky) {
+                    BlueskyBody(post, play, onOpenLinked, onOpenMedia, showWarned) { showWarned = true }
                 } else if (reddit) {
                     RedditBody(post, onOpenLinked)
                     if (outbound != null && linkCard && post.linkCards.isEmpty()) {
@@ -325,7 +365,7 @@ private fun ColumnScope.ViewerContent(
                 } else {
                     if (showAuthor) AuthorCaption(post, onOpenLinked)
                     if (post.authorThread.size >= 2) {
-                        AuthorThreadSection(post, if (hasMedia) currentItem?.image else null, onOpenLinked)
+                        AuthorThreadSection(post, onOpenLinked, play, onOpenMedia)
                     } else if (outbound != null && linkCard && post.linkCards.isEmpty() && post.article == null) {
                         CaptionText(post, onOpen = onOpenLinked)
                         LinkPreviewCard(outbound, currentItem, onOpenLinked)
@@ -336,13 +376,16 @@ private fun ColumnScope.ViewerContent(
                         CaptionText(post, onOpen = onOpenLinked)
                     }
                 }
-                post.article?.let { ArticleCard(it, onOpenLinked) }
-                post.quote?.let { QuoteCard(it, onOpenLinked) }
-                post.linkCards.forEach { card -> ExternalLinkCard(card, onOpenLinked) }
+                val hideWarned = post.blueskyWarning && !showWarned
+                if (!hideWarned) {
+                    post.article?.let { ArticleCard(it, onOpenLinked) }
+                    post.quote?.let { QuoteCard(it, onOpenLinked, maxLines = if (post.bluesky) 6 else Int.MAX_VALUE) }
+                    post.linkCards.forEach { card -> ExternalLinkCard(card, onOpenLinked) }
+                }
                 if (overMedia && post.authorThread.size < 2 && !reddit) {
                     // caption already placed above for the image/video path
                 }
-                CommentsSection(
+                if (tiktok == null) CommentsSection(
                     post = post,
                     isLoadingMore = isLoadingMoreComments,
                     scrollOffset = scrollState.value,
@@ -350,6 +393,8 @@ private fun ColumnScope.ViewerContent(
                     host = host,
                     onOpenSource = { scope.launch { onOpenInApp(post.sourceUrl) } },
                     onOpen = onOpenLinked,
+                    play = play,
+                    onOpenMedia = onOpenMedia,
                 )
             }
         }
@@ -360,8 +405,14 @@ private fun ColumnScope.ViewerContent(
         onShare = { scope.launch { onSharePost(post.sourceUrl, post.title) } },
         onOverflow = { overflow = true },
         onOpen = { scope.launch { onOpenInApp(post.sourceUrl) } },
-        sourceMark = affordance.markRes,
-        useGlobe = affordance.useGlobe,
+        sourceMark = if (post.bluesky) null else affordance.markRes,
+        useGlobe = affordance.useGlobe && !post.bluesky,
+        showOpen = tiktok == null || (!tiktok.embedOff && !tiktok.removed && !tiktok.live),
+        openWord = when {
+            post.bluesky -> stringResource(R.string.source_bluesky)
+            tiktok != null && affordance.opensInApp -> stringResource(R.string.source_tiktok)
+            else -> null
+        },
     )
     if (overflow) {
         OverflowSheet(
@@ -445,7 +496,7 @@ private fun MediaCanvas(
     post: ViewerPostUiModel,
     items: List<ViewerMediaItemUiModel>,
     pagerState: PagerState,
-    onOpenMedia: (Int) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
     onMediaMeasured: (Float, Float) -> Unit,
     videoQuality: VideoQuality,
     startMuted: () -> Boolean,
@@ -533,11 +584,11 @@ private fun MediaCanvas(
                     .fillMaxSize()
                     .then(
                         if (videoUrl == null) {
-                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
                         } else {
                             Modifier.confirmedMediaTaps(
                                 onSingleTapConfirmed = { showControls = !showControls },
-                                onDoubleTap = { onOpenMedia(page) },
+                                onDoubleTap = { onOpenMedia("", page) },
                             )
                         },
                     ),
@@ -548,7 +599,7 @@ private fun MediaCanvas(
                     contentDescription = if (videoUrl == null) item.contentDescription else null,
                     modifier = mediaModifier.then(
                         if (videoUrl == null) {
-                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia(page) })
+                            Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
                         } else {
                             Modifier
                         },
@@ -585,7 +636,7 @@ private fun MediaCanvas(
                             inlineMuted = !inlineMuted
                             onMutedChange(inlineMuted)
                         },
-                        onEnterFullscreen = { onOpenMedia(page) },
+                        onEnterFullscreen = { onOpenMedia("", page) },
                         onScrubbing = { scrubbing = it },
                     )
                 }
@@ -876,6 +927,122 @@ private fun ErrorShell(
 }
 
 @Composable
+private fun BlueskyBody(
+    post: ViewerPostUiModel,
+    play: app.pane.android.ui.media.ThreadPlayController,
+    onOpen: (String) -> Unit,
+    onOpenMedia: (String, Int) -> Unit,
+    showWarned: Boolean,
+    onShowPost: () -> Unit,
+) {
+    if (!post.replyingTo.isNullOrBlank()) {
+        val line = stringResource(R.string.bs_replying_to, post.replyingTo)
+        Text(
+            text = line,
+            color = PaneMuted,
+            modifier = Modifier.then(
+                if (post.replyingToUrl != null) {
+                    Modifier.clickable(role = Role.Button) { onOpen(post.replyingToUrl) }
+                } else {
+                    Modifier
+                },
+            ),
+            style = TextStyle(fontFamily = Inter, fontSize = 14.sp).userContent(),
+        )
+    }
+    if (post.authorName.isNotBlank() || post.authorMetadata.isNotBlank() || post.blueskyAvatarHidden) {
+        AuthorCaption(post, onOpen)
+    }
+    if (post.blueskyWarning && !showWarned) {
+        Column(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PaneTile).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.bs_cover_warn), color = PaneInk, style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.SemiBold))
+            Text(
+                stringResource(R.string.bs_show_post),
+                color = PaneInk,
+                modifier = Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onShowPost).padding(vertical = 12.dp),
+                style = TextStyle(fontFamily = Inter, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+            )
+        }
+        return
+    }
+    if (post.authorThread.size < 2) {
+        if (post.title.isNotBlank()) BskyRichText(post.title, post.blueskySpans, onOpen)
+        BlueskyMedia(post.sourceUrl, post.mediaItemsOrPrimary().filter { hasVisualMedia(it) || !it.cover.isNullOrBlank() }, play, onOpenMedia)
+    }
+}
+
+@Composable
+private fun BlueskyMedia(
+    postUrl: String,
+    items: List<app.pane.android.ui.model.ViewerMediaItemUiModel>,
+    play: app.pane.android.ui.media.ThreadPlayController,
+    onOpenMedia: (String, Int) -> Unit,
+) {
+    if (items.isEmpty()) return
+    if (items.size >= 5) {
+        val pager = rememberPagerState(pageCount = { items.size })
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
+            app.pane.android.ui.media.ThreadMediaBlock(
+                postUrl = postUrl,
+                items = listOf(items[page]),
+                playingId = play.winner,
+                muted = play.muted,
+                userPaused = play.userPaused,
+                onVisible = { id, fraction, top -> play.report(id, fraction, top) },
+                onTogglePlay = { id -> play.togglePlay(id) },
+                onToggleMute = { play.toggleMute() },
+                onOpen = { onOpenMedia("", page) },
+            )
+        }
+        return
+    }
+    app.pane.android.ui.media.ThreadMediaBlock(
+        postUrl = postUrl,
+        items = items,
+        playingId = play.winner,
+        muted = play.muted,
+        userPaused = play.userPaused,
+        onVisible = { id, fraction, top -> play.report(id, fraction, top) },
+        onTogglePlay = { id -> play.togglePlay(id) },
+        onToggleMute = { play.toggleMute() },
+        onOpen = { index -> onOpenMedia("", index) },
+    )
+}
+
+@Composable
+private fun BskyRichText(text: String, spans: List<app.pane.android.ui.model.TextSpanUi>, onOpen: (String) -> Unit) {
+    val annotated = androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        spans.forEach { span ->
+            val start = span.start.coerceIn(0, text.length)
+            val end = span.end.coerceIn(start, text.length)
+            val url = span.url
+            if (end <= start || url.isNullOrBlank()) return@forEach
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    tag = url,
+                    linkInteractionListener = { onOpen(url) },
+                ),
+                start,
+                end,
+            )
+            addStyle(
+                androidx.compose.ui.text.SpanStyle(color = PaneHandle, fontWeight = FontWeight.Medium),
+                start,
+                end,
+            )
+        }
+    }
+    Text(
+        text = annotated,
+        style = TextStyle(fontFamily = Inter, fontSize = 16.sp, lineHeight = 22.sp, color = PaneInk).userContent(),
+    )
+}
+
+@Composable
 private fun AuthorCaption(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
     val name = post.authorName.ifBlank { stringResource(R.string.author_unknown) }
     val detail = post.authorMetadata.takeIf { post.authorName.isNotBlank() && it.isNotBlank() }
@@ -904,24 +1071,25 @@ private fun AuthorCaption(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProfileAvatar(image = post.authorAvatar, label = name, size = 40.dp)
+        ProfileAvatar(image = post.authorAvatar, label = name, size = 40.dp, empty = post.blueskyAvatarHidden)
         Column {
             val redditAccount = profile?.contains("reddit.com") == true
+            val handleAsName = post.bluesky && post.authorMetadata.isBlank() && name.startsWith("@")
             Text(
                 name,
-                color = if (redditAccount && profile != null) PaneHandle else PaneInk,
+                color = if (handleAsName || (redditAccount && profile != null)) PaneHandle else PaneInk,
                 style = TextStyle(
                     fontFamily = Inter,
                     fontSize = 15.sp,
                     fontWeight = if (redditAccount && profile != null) FontWeight.Medium else FontWeight.SemiBold,
-                ),
+                ).userContent(),
             )
             if (detail != null) {
                 val handleLine = detail.trim().startsWith("@")
                 Text(
                     detail,
                     color = if (handleLine) PaneHandle else PaneMuted,
-                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium).userContent(),
                 )
             }
         }
@@ -937,13 +1105,13 @@ private fun RedditBody(post: ViewerPostUiModel, onOpen: (String) -> Unit) {
         Text(
             text = autolinkedCaption(post.authorMetadata, PaneMuted, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
             color = PaneMuted,
-            style = TextStyle(fontFamily = Inter, fontSize = 13.sp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp).userContent(),
         )
     }
     Text(
         text = autolinkedCaption(post.title, PaneInk, MentionNetwork.Reddit, onOpen, PaneHandle, PaneHandlePressed),
         color = PaneInk,
-        style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp),
+        style = TextStyle(fontFamily = app.pane.android.ui.theme.PaneDisplay, fontSize = 23.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 28.sp).userContent(),
     )
 }
 

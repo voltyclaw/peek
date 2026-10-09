@@ -31,6 +31,16 @@ class CommentMarkdownTest {
     }
 
     @Test
+    fun anEmptyOrPunctuationLabelShowsTheDomain() {
+        val empty = autolinkedCaption("see [](https://example.com/notes).", linkColor)
+        val dots = redditCommentAnnotated("see [...](https://example.com/notes).", linkColor, bodyColor, FontFamily.Monospace)
+        assertEquals("see example.com.", empty.text)
+        assertEquals("see example.com.", dots.text)
+        val kept = autolinkedCaption("[example.com/notes](https://example.com/notes)", linkColor)
+        assertEquals("example.com/notes", kept.text)
+    }
+
+    @Test
     fun plainTextIsUnchanged() {
         val text = redditCommentAnnotated("Just a sentence.", linkColor, bodyColor, FontFamily.Monospace)
         assertEquals("Just a sentence.", text.text)

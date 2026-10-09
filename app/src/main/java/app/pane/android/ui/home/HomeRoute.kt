@@ -29,6 +29,7 @@ import app.pane.android.R
 import app.pane.android.domain.model.HistoryUndo
 import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.usecase.ExtractUrlFromTextUseCase
+import app.pane.android.ui.actions.openExternally
 import app.pane.android.ui.actions.sharePostIntent
 import app.pane.android.ui.components.PaneSnackbarHost
 import app.pane.android.ui.components.showForFiveSeconds
@@ -73,8 +74,9 @@ fun HomeRoute(
     showSamplesInRecents: Boolean = false,
     onShowSamplesInRecents: (Boolean) -> Unit = {},
     onOpenSample: (String) -> Unit = {},
-    youTubeConsent: Boolean = false,
-    onWithdrawYouTubeConsent: () -> Unit = {},
+    sourceRows: List<SourceRowUi> = emptyList(),
+    onSourceShown: (String, Boolean) -> Unit = { _, _ -> },
+    onWithdrawSource: (String) -> Unit = {},
 ) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
@@ -91,7 +93,6 @@ fun HomeRoute(
     val linksPartialMessage = stringResource(R.string.link_settings_partial)
     val linksStillOffMessage = stringResource(R.string.link_settings_still_off)
     val linksHandlingOffMessage = stringResource(R.string.link_settings_handling_off)
-    val youTubeWithdrawnMessage = stringResource(R.string.settings_yt_consent_done)
     val lifecycleOwner = LocalLifecycleOwner.current
     var openedLinkSettings by remember { mutableStateOf(false) }
     var showFirstLaunchHint by remember { mutableStateOf(!FirstLaunchPreferences.isDismissed(context)) }
@@ -256,11 +257,24 @@ fun HomeRoute(
             showSamplesInRecents = showSamplesInRecents,
             onShowSamplesInRecents = onShowSamplesInRecents,
             onOpenSample = onOpenSample,
-            youTubeConsent = youTubeConsent,
-            onWithdrawYouTubeConsent = {
-                onWithdrawYouTubeConsent()
-                scope.launch { snackbarHostState.showForFiveSeconds(youTubeWithdrawnMessage) }
+            sourceRows = sourceRows,
+            onSourceShown = onSourceShown,
+            onWithdrawSource = { id ->
+                onWithdrawSource(id)
+                val name = when (id) {
+                    "YouTube" -> context.getString(R.string.source_youtube)
+                    "TikTok" -> context.getString(R.string.source_tiktok)
+                    else -> null
+                }
+                if (name != null) {
+                    scope.launch {
+                        snackbarHostState.showForFiveSeconds(
+                            context.getString(R.string.consent_withdrawn_snackbar, name),
+                        )
+                    }
+                }
             },
+            onOpenExternal = { url -> openExternally(context, url, finishAfter = false) },
         )
         PaneSnackbarHost(
             hostState = snackbarHostState,

@@ -13,4 +13,4 @@ data object HistoryKey : NavKey
 data class ViewerKey(val url: String) : NavKey
 
 @Serializable
-data class PlayerKey(val url: String, val mediaIndex: Int) : NavKey
+data class PlayerKey(val url: String, val mediaIndex: Int, val ownerId: String = "") : NavKey

@@ -1,6 +1,8 @@
 package app.pane.android.ui.viewer
 
 import app.pane.android.R
+import app.pane.android.domain.model.BlueskyPostException
+import app.pane.android.domain.model.PrivateGroupException
 import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.ui.model.ViewerUiState
 import java.io.IOException
@@ -15,6 +17,10 @@ enum class OpenFailureKind {
     Network,
     Offline,
     Story,
+    PrivateGroup,
+    BlueskyGone,
+    BlueskyHidden,
+    BlueskySignedIn,
 }
 
 fun openFailureKind(message: String?): OpenFailureKind {
@@ -64,11 +70,27 @@ fun failureCopyRes(reason: String): Int {
         OpenFailureKind.Network -> R.string.reason_network
         OpenFailureKind.Offline -> R.string.youre_offline
         OpenFailureKind.Story -> R.string.reason_story
+        OpenFailureKind.PrivateGroup -> R.string.private_group_title
+        OpenFailureKind.BlueskyGone -> R.string.bs_gone_title
+        OpenFailureKind.BlueskyHidden -> R.string.bs_hidden_title
+        OpenFailureKind.BlueskySignedIn -> R.string.bs_signed_in_title
     }
 }
 
 /** Unsupported URLs keep the existing screen. Fetch and parse failures stay separate. */
 fun viewerStateFor(url: String, error: Throwable): ViewerUiState = when {
+    error is BlueskyPostException -> ViewerUiState.LoadFailed(
+        url = url,
+        reason = when (error.kind) {
+            BlueskyPostException.Kind.Gone -> OpenFailureKind.BlueskyGone.name
+            BlueskyPostException.Kind.Hidden -> OpenFailureKind.BlueskyHidden.name
+            BlueskyPostException.Kind.SignedIn -> OpenFailureKind.BlueskySignedIn.name
+        },
+    )
+    error is PrivateGroupException -> ViewerUiState.LoadFailed(
+        url = url,
+        reason = OpenFailureKind.PrivateGroup.name,
+    )
     error is StoryUnavailableException -> ViewerUiState.LoadFailed(
         url = url,
         reason = OpenFailureKind.Story.name,
@@ -89,7 +111,11 @@ fun viewerStateFor(url: String, error: Throwable): ViewerUiState = when {
 }
 
 /** True when the error screen should offer Retry. Classification misses do not. */
-fun failureOffersRetry(state: ViewerUiState): Boolean = state is ViewerUiState.LoadFailed
+fun failureOffersRetry(state: ViewerUiState): Boolean =
+    state is ViewerUiState.LoadFailed && state.reason != OpenFailureKind.PrivateGroup.name &&
+        state.reason != OpenFailureKind.BlueskyGone.name &&
+        state.reason != OpenFailureKind.BlueskyHidden.name &&
+        state.reason != OpenFailureKind.BlueskySignedIn.name
 
 private fun containsAny(text: String, vararg needles: String): Boolean =
     needles.any { it in text }
