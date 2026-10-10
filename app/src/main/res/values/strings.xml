@@ -240,6 +240,7 @@
     <string name="history">History</string>
     <string name="history_door">History ›</string>
     <string name="star">Star</string>
+    <string name="star_post">Star post</string>
     <string name="unstar">Unstar</string>
     <string name="remove_star">Remove star</string>
     <string name="swipe_remove">Remove</string>
@@ -276,6 +277,14 @@
     </plurals>
     <string name="a11y_filter_chip_remove">%1$s filter, remove</string>
     <string name="a11y_filter_app_none">%1$s, no posts in History</string>
+    <string name="a11y_filter_app_disabled">%1$s, no starred posts</string>
+    <string name="a11y_filter_show_all">Double-tap to show all</string>
+    <string name="filter_empty_starred_app_title">No starred %1$s posts yet</string>
+    <string name="filter_empty_body">Tap All to see everything.</string>
+    <plurals name="a11y_filter_results">
+        <item quantity="one">%d post</item>
+        <item quantity="other">%d posts</item>
+    </plurals>
     <string name="share_message_line">You were sent a post, not an afternoon.</string>
     <plurals name="media_saved_count">
         <item quantity="one">Saved to Downloads</item>

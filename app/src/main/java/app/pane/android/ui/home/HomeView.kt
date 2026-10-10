@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -829,7 +830,7 @@ private fun RecentLinks(
     onCopyRecent: (String) -> Unit,
 ) {
     var menu by remember { mutableStateOf<RecentLinkUiModel?>(null) }
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth().testTag(app.pane.android.ui.PaneTestTags.RECENTS)) {
         RecentHeader(count = links.size, onOpenHistory = onOpenHistory)
         links.forEach { link ->
             LedgerSwipeRow(

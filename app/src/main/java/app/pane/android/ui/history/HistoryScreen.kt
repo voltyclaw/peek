@@ -40,8 +40,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,6 +59,7 @@ import app.pane.android.domain.model.HistoryRowAction
 import app.pane.android.domain.model.HistoryRowActions
 import app.pane.android.domain.model.SourceApp
 import app.pane.android.domain.tiktok.TikTokVisibleRow
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.actions.sharePostIntent
 import app.pane.android.ui.components.LedgerMenuLine
 import app.pane.android.ui.components.LedgerMenuSheet
@@ -229,21 +235,44 @@ fun HistoryView(
             onClearApp = onClearApp,
         )
         if (ui.hairline) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(PaneBorder))
+            Box(
+                Modifier
+                    .testTag(PaneTestTags.FILTER_HAIRLINE)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(PaneBorder),
+            )
         }
+        val resultCount = ui.sections.sumOf { it.rows.size }
+        Text(
+            text = pluralStringResource(R.plurals.a11y_filter_results, resultCount, resultCount),
+            modifier = Modifier
+                .testTag(PaneTestTags.RESULTS_ANNOUNCER)
+                .semantics { liveRegion = LiveRegionMode.Polite }
+                .height(1.dp),
+            color = PaneGround,
+            style = TextStyle(fontFamily = Inter, fontSize = 1.sp),
+        )
         if (filtersOpen) {
             HistoryFilterSheet(
                 counts = ui.appCounts,
                 scopeCount = ui.scopeCount,
                 selected = ui.selectedApp,
+                starredScope = ui.scopeStarred,
                 onApply = onApplyApp,
                 onDismiss = onDismissFilters,
             )
         }
         if (ui.empty != HistoryEmptyKind.None) {
-            HistoryEmpty(ui.empty, Modifier.weight(1f))
+            val appName = ui.selectedApp?.let { stringResource(historySourceName(it)) }
+            HistoryEmpty(ui.empty, Modifier.weight(1f), appName = appName)
         } else {
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .testTag(PaneTestTags.HISTORY_LIST)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 ui.sections.forEach { section ->
                     Text(
                         text = section.title,
@@ -293,14 +322,16 @@ fun HistoryView(
  * An app-filter miss uses this same block, because a filter is something to clear.
  */
 @Composable
-fun HistoryEmpty(kind: HistoryEmptyKind, modifier: Modifier = Modifier) {
+fun HistoryEmpty(kind: HistoryEmptyKind, modifier: Modifier = Modifier, appName: String? = null) {
     val title = when (kind) {
         HistoryEmptyKind.Starred -> stringResource(R.string.starred_empty_title)
+        HistoryEmptyKind.StarredApp -> stringResource(R.string.filter_empty_starred_app_title, appName.orEmpty())
         HistoryEmptyKind.Search -> stringResource(R.string.search_empty_title)
         HistoryEmptyKind.History, HistoryEmptyKind.None -> stringResource(R.string.history_empty_title)
     }
     val body = when (kind) {
         HistoryEmptyKind.Starred -> stringResource(R.string.starred_empty_body)
+        HistoryEmptyKind.StarredApp -> stringResource(R.string.filter_empty_body)
         HistoryEmptyKind.Search -> stringResource(R.string.search_empty_body)
         HistoryEmptyKind.History, HistoryEmptyKind.None -> stringResource(R.string.history_empty_body)
     }

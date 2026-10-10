@@ -1,6 +1,7 @@
 package app.pane.android
 
 import app.pane.android.data.history.FileStarImageStore
+import app.pane.android.testing.BudgetCompressor
 import app.pane.android.data.history.HistoryPreferenceCodec
 import app.pane.android.data.history.HistoryPreferenceKeys
 import app.pane.android.data.history.HistoryQueries

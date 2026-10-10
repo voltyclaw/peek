@@ -4,10 +4,13 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +28,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,8 +44,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,21 +79,33 @@ internal fun HistoryFilterBar(
     onClearApp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scroll = rememberScrollState()
+    val showAllLabel = stringResource(R.string.a11y_filter_show_all)
+    LaunchedEffect(app) {
+        if (app != null) scroll.animateScrollTo(scroll.maxValue)
+    }
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scroll)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FilterTextChip(
             label = stringResource(R.string.history_all),
             selected = allSelected,
-            tag = PaneTestTags.HistoryFilterAll,
+            tag = PaneTestTags.CHIP_ALL,
+            role = Role.RadioButton,
+            onClickLabel = if (allSelected) showAllLabel else null,
             onClick = onAll,
         )
         FilterTextChip(
             label = stringResource(R.string.history_starred),
             selected = starred,
-            tag = PaneTestTags.HistoryFilterStarred,
+            tag = PaneTestTags.CHIP_STARRED,
+            role = Role.Checkbox,
+            onClickLabel = if (starred) showAllLabel else null,
             leading = { tint ->
                 Icon(Icons.Rounded.Star, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
             },
@@ -98,14 +118,17 @@ internal fun HistoryFilterBar(
                 stringResource(R.string.history_filters_chip_count, 1)
             },
             selected = app != null,
-            tag = PaneTestTags.HistoryFilterFilters,
+            tag = PaneTestTags.CHIP_FILTERS,
+            role = Role.Button,
+            heading = true,
+            onClickLabel = if (app != null) showAllLabel else null,
             leading = { tint ->
                 Icon(Icons.Rounded.Tune, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
             },
             onClick = onOpenFilters,
         )
         if (app != null) {
-            FilterAppChip(app = app, onClear = onClearApp)
+            FilterAppChip(app = app, onClear = onClearApp, showAllLabel = showAllLabel)
         }
     }
 }
@@ -116,6 +139,7 @@ internal fun HistoryFilterSheet(
     counts: List<HistoryAppCount>,
     scopeCount: Int,
     selected: SourceApp?,
+    starredScope: Boolean,
     onApply: (SourceApp?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -160,6 +184,7 @@ internal fun HistoryFilterSheet(
                         FilterAppTile(
                             tile = tile,
                             picked = staged == tile.app,
+                            starredScope = starredScope,
                             onClick = {
                                 if (tile.count == 0) return@FilterAppTile
                                 staged = if (staged == tile.app) null else tile.app
@@ -197,7 +222,10 @@ private fun FilterTextChip(
     label: String,
     selected: Boolean,
     tag: String,
+    role: Role,
     onClick: () -> Unit,
+    onClickLabel: String? = null,
+    heading: Boolean = false,
     leading: @Composable ((Color) -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(20.dp)
@@ -206,10 +234,17 @@ private fun FilterTextChip(
         modifier = Modifier
             .height(36.dp)
             .testTag(tag)
-            .semantics { this.selected = selected }
+            .semantics {
+                this.selected = selected
+                this.role = role
+                if (role == Role.Checkbox) {
+                    toggleableState = if (selected) ToggleableState.On else ToggleableState.Off
+                }
+                if (heading) heading()
+            }
             .clip(shape)
             .then(if (selected) Modifier.background(PaneInk) else Modifier.border(1.dp, PaneBorder, shape))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(role = role, onClickLabel = onClickLabel, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -224,7 +259,7 @@ private fun FilterTextChip(
 }
 
 @Composable
-private fun FilterAppChip(app: SourceApp, onClear: () -> Unit) {
+private fun FilterAppChip(app: SourceApp, onClear: () -> Unit, showAllLabel: String) {
     val name = sourceLabel(app)
     val description = stringResource(R.string.a11y_filter_chip_remove, name)
     val shape = RoundedCornerShape(20.dp)
@@ -232,21 +267,42 @@ private fun FilterAppChip(app: SourceApp, onClear: () -> Unit) {
         modifier = Modifier
             .width(60.dp)
             .height(36.dp)
-            .testTag(PaneTestTags.HistoryFilterAppChip)
-            .semantics { contentDescription = description }
+            .testTag(PaneTestTags.CHIP_APP)
+            .semantics {
+                contentDescription = description
+                role = Role.Checkbox
+                toggleableState = ToggleableState.On
+                selected = true
+            }
             .clip(shape)
             .background(PaneInk)
-            .clickable(role = Role.Button, onClick = onClear),
+            .clickable(role = Role.Checkbox, onClickLabel = showAllLabel, onClick = onClear),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
     ) {
-        FilterMark(app = app, tint = PaneGround, modifier = Modifier.size(18.dp))
-        Icon(
-            Icons.Rounded.Close,
-            contentDescription = null,
-            tint = PaneGround,
-            modifier = Modifier.padding(start = 8.dp).size(10.dp),
-        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clickable(role = Role.Checkbox, onClickLabel = showAllLabel, onClick = onClear),
+            contentAlignment = Alignment.Center,
+        ) {
+            FilterMark(app = app, tint = PaneGround, modifier = Modifier.size(18.dp))
+        }
+        Box(
+            modifier = Modifier
+                .testTag(PaneTestTags.CHIP_APP_CLEAR)
+                .fillMaxHeight()
+                .clickable(role = Role.Button, onClickLabel = showAllLabel, onClick = onClear)
+                .padding(end = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.Close,
+                contentDescription = null,
+                tint = PaneGround,
+                modifier = Modifier.size(10.dp),
+            )
+        }
     }
 }
 
@@ -254,18 +310,23 @@ private fun FilterAppChip(app: SourceApp, onClear: () -> Unit) {
 private fun FilterAppTile(
     tile: HistoryAppCount,
     picked: Boolean,
+    starredScope: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val enabled = tile.count > 0
     val name = sourceLabel(tile.app)
-    val description = if (enabled) name else stringResource(R.string.a11y_filter_app_none, name)
+    val description = when {
+        enabled -> name
+        starredScope -> stringResource(R.string.a11y_filter_app_disabled, name)
+        else -> stringResource(R.string.a11y_filter_app_none, name)
+    }
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
             .padding(bottom = 8.dp)
             .height(72.dp)
-            .testTag(PaneTestTags.historyFilterTile(tile.app.name))
+            .testTag(PaneTestTags.appTile(tile.app))
             .semantics {
                 contentDescription = description
                 selected = picked
@@ -314,20 +375,20 @@ private fun FilterMark(app: SourceApp, tint: Color, modifier: Modifier = Modifie
     }
 }
 
+internal fun historySourceName(app: SourceApp): Int = when (app) {
+    SourceApp.X -> R.string.source_x
+    SourceApp.Reddit -> R.string.source_reddit
+    SourceApp.Facebook -> R.string.source_facebook
+    SourceApp.Instagram -> R.string.source_instagram
+    SourceApp.YouTube -> R.string.source_youtube
+    SourceApp.TikTok -> R.string.source_tiktok
+    SourceApp.Bluesky -> R.string.source_bluesky
+    SourceApp.Threads -> R.string.source_threads
+    SourceApp.Other -> R.string.source_other
+}
+
 @Composable
-private fun sourceLabel(app: SourceApp): String = stringResource(
-    when (app) {
-        SourceApp.X -> R.string.source_x
-        SourceApp.Reddit -> R.string.source_reddit
-        SourceApp.Facebook -> R.string.source_facebook
-        SourceApp.Instagram -> R.string.source_instagram
-        SourceApp.YouTube -> R.string.source_youtube
-        SourceApp.TikTok -> R.string.source_tiktok
-        SourceApp.Bluesky -> R.string.source_bluesky
-        SourceApp.Threads -> R.string.source_threads
-        SourceApp.Other -> R.string.source_other
-    },
-)
+private fun sourceLabel(app: SourceApp): String = stringResource(historySourceName(app))
 
 /** Logo chips stay glyphs. Name-only apps use a letter disc. */
 @DrawableRes

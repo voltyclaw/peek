@@ -148,7 +148,7 @@ private class RecordingHistoryRepository : HistoryRepository {
         views += view
     }
     override suspend fun star(url: String, copy: StarCopy, images: StarImageBytes) = Unit
-    override suspend fun unstar(url: String) = Unit
+    override suspend fun unstar(url: String): app.pane.android.domain.model.HistoryUndo? = null
     override suspend fun seedFromRecents(recents: List<RecentLink>) = Unit
     override suspend fun pruneUnstarred(enabled: Boolean, cap: Int): List<String> = emptyList()
 }

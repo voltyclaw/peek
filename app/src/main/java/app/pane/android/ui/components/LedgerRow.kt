@@ -5,7 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.draw.clipToBounds
@@ -54,6 +54,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +65,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -69,6 +74,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
 import app.pane.android.domain.model.HistoryGesture
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.domain.model.HistoryLedger
 import app.pane.android.ui.model.LedgerRowUi
 import app.pane.android.ui.model.UiImage
@@ -114,22 +122,34 @@ fun LedgerSwipeRow(
     held: Boolean = false,
     recents: Boolean = false,
     showDivider: Boolean = true,
+    previewOffsetFraction: Float? = null,
 ) {
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     val scope = rememberCoroutineScope()
     var offsetPx by remember(row.url) { mutableFloatStateOf(0f) }
     var settle by remember(row.url) { mutableStateOf<Job?>(null) }
     var width by remember(row.url) { mutableStateOf(1f) }
     var past by remember(row.url) { mutableStateOf(false) }
+    LaunchedEffect(previewOffsetFraction, width) {
+        val fraction = previewOffsetFraction ?: return@LaunchedEffect
+        offsetPx = fraction * width
+        past = abs(fraction) >= LedgerSwipe.COMMIT_FRACTION
+    }
     val dragging = abs(offsetPx) > 1f
-    val left = offsetPx < 0f
-    val kind = if (recents) HistoryLedger.hubGesture(left, row.starred) else HistoryLedger.gesture(left, row.starred)
+    val removeDirection = LedgerSwipe.isRemoveDirection(offsetPx, layoutDirection)
+    val revealedOnRight = offsetPx < 0f
+    val kind = if (recents) {
+        HistoryLedger.hubGesture(removeDirection, row.starred)
+    } else {
+        HistoryLedger.gesture(removeDirection, row.starred)
+    }
     val removeFull = lerp(PaneTile, PaneMuted, 0.30f)
     val starFull = lerp(PaneTile, PaneInk, 0.11f)
     val background = when {
         !past -> PaneTile
-        left -> removeFull
+        removeDirection -> removeFull
         else -> starFull
     }
     val starLabel = if (row.starred) stringResource(R.string.remove_star) else stringResource(R.string.star)
@@ -149,9 +169,16 @@ fun LedgerSwipeRow(
         Box(
             Modifier
                 .fillMaxWidth()
+                .testTag(PaneTestTags.row(row.url))
+                .semantics {
+                    this[LedgerSwipeFraction] = if (width <= 0f) 0f else offsetPx / width
+                    this[LedgerSwipePast] = past
+                    this[LedgerSwipeKind] = kind
+                }
                 .clipToBounds()
                 .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
-                .pointerInput(row.url, row.starred) {
+                .pointerInput(row.url, row.starred, layoutDirection, previewOffsetFraction) {
+                    if (previewOffsetFraction != null) return@pointerInput
                     val slop = viewConfiguration.touchSlop
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -166,11 +193,12 @@ fun LedgerSwipeRow(
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            tracker.addPosition(change.uptimeMillis, change.position)
                             if (!change.pressed) {
+                                // The lift sits at the last point. Adding it with a later
+                                // timestamp zeroes a fling that already happened.
                                 val velocity = tracker.calculateVelocity().x
                                 val commit = LedgerSwipe.commits(offsetPx, width, velocity, density.density)
-                                if (commit) onSwipe(offsetPx < 0f)
+                                if (commit) onSwipe(LedgerSwipe.isRemoveDirection(offsetPx, layoutDirection))
                                 past = false
                                 val releasedAt = offsetPx
                                 settle = scope.launch {
@@ -178,6 +206,7 @@ fun LedgerSwipeRow(
                                 }
                                 break
                             }
+                            tracker.addPosition(change.uptimeMillis, change.position)
                             val dx = change.position.x - last.x
                             val dy = change.position.y - last.y
                             totalX += dx
@@ -203,11 +232,11 @@ fun LedgerSwipeRow(
             SwipeBackground(
                 kind = kind,
                 past = past,
-                left = left,
+                revealedOnRight = revealedOnRight,
                 color = background,
                 modifier = Modifier.matchParentSize(),
             )
-            Box(Modifier.fillMaxWidth().offset { IntOffset(offsetPx.roundToInt(), 0) }) {
+            Box(Modifier.fillMaxWidth().absoluteOffset { IntOffset(offsetPx.roundToInt(), 0) }) {
                 LedgerBody(
                     row = row,
                     held = held,
@@ -235,7 +264,7 @@ fun LedgerSwipeRow(
 private fun SwipeBackground(
     kind: HistoryGesture,
     past: Boolean,
-    left: Boolean,
+    revealedOnRight: Boolean,
     color: Color,
     modifier: Modifier = Modifier,
 ) {
@@ -252,26 +281,29 @@ private fun SwipeBackground(
     val iconSize = if (past) 26.dp else 18.dp
     val inset = if (past) 46.dp else 40.dp
     val tint = if (past) PaneInk else PaneMuted
-    Box(modifier.background(color)) {
-        Row(
-            modifier = Modifier
-                .align(if (left) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = inset - iconSize / 2),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (left && past) SwipeLabel(label)
-            if (kind == HistoryGesture.Remove) {
-                Icon(Icons.Rounded.Delete, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
-            } else {
-                Icon(
-                    imageVector = if (filled) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(iconSize),
-                )
+    Box(modifier.testTag(PaneTestTags.SWIPE_BG).background(color)) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                modifier = Modifier
+                    .testTag(PaneTestTags.SWIPE_ICON)
+                    .align(if (revealedOnRight) AbsoluteAlignment.CenterRight else AbsoluteAlignment.CenterLeft)
+                    .padding(horizontal = inset - iconSize / 2),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (revealedOnRight && past) SwipeLabel(label)
+                if (kind == HistoryGesture.Remove) {
+                    Icon(Icons.Rounded.Delete, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
+                } else {
+                    Icon(
+                        imageVector = if (filled) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(iconSize),
+                    )
+                }
+                if (!revealedOnRight && past) SwipeLabel(label)
             }
-            if (!left && past) SwipeLabel(label)
         }
     }
 }
@@ -321,6 +353,7 @@ private fun LedgerBody(
         modifier = surface
             .fillMaxWidth()
             .height(58.dp)
+            .testTag(PaneTestTags.rowBody(row.url))
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,
@@ -330,6 +363,7 @@ private fun LedgerBody(
             )
             .semantics {
                 contentDescription = description
+                stateDescription = if (row.starred) "Starred" else "Not starred"
                 customActions = listOf(
                     CustomAccessibilityAction(starLabel) { onActionStar(); true },
                     CustomAccessibilityAction(removeLabel) { onActionRemove(); true },

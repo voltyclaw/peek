@@ -63,19 +63,20 @@ class HomeViewModel(
     /** Left removes the recent only. Right stars, or unstars when the post is already starred. */
     fun swipe(url: String, left: Boolean) {
         viewModelScope.launch {
-            writes.withLock {
+            val pending = writes.withLock {
                 when (HistoryLedger.hubGesture(left, isStarred(url))) {
                     HistoryGesture.Remove -> removeFromRecents(url)
                     HistoryGesture.RemoveStar -> {
-                        val undo = historyRepository.applySwipe(url) ?: return@withLock
-                        notices.emit(HubNotice.Unstarred(undo))
+                        val undo = historyRepository.unstar(url) ?: return@withLock null
+                        HubNotice.Unstarred(undo)
                     }
                     HistoryGesture.Star -> {
                         historyRepository.star(url, copyFor(url))
-                        notices.emit(HubNotice.Starred)
+                        HubNotice.Starred
                     }
                 }
             }
+            pending?.let { notices.emit(it) }
         }
     }
 
@@ -91,10 +92,10 @@ class HomeViewModel(
         viewModelScope.launch { recentLinksRepository.clear() }
     }
 
-    private suspend fun removeFromRecents(url: String) {
-        val link = recentLinksRepository.observeRecents().first().firstOrNull { it.url == url } ?: return
+    private suspend fun removeFromRecents(url: String): HubNotice? {
+        val link = recentLinksRepository.observeRecents().first().firstOrNull { it.url == url } ?: return null
         recentLinksRepository.remove(url)
-        notices.emit(HubNotice.Removed(link))
+        return HubNotice.Removed(link)
     }
 
     private suspend fun isStarred(url: String): Boolean {

@@ -3,6 +3,7 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.compose.screenshot)
+  alias(libs.plugins.roborazzi)
 }
 
 val youtubeApiKey = providers.gradleProperty("YOUTUBE_API_KEY")
@@ -21,8 +22,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 53
-        versionName = "1.4.1"
+        versionCode = 54
+        versionName = "1.4.2"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
@@ -43,6 +44,10 @@ android {
       shaders = false
     }
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 
     packaging {
       resources {
@@ -94,6 +99,12 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.sqlite.jdbc)
+  testImplementation(composeBom)
+  testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.test.ext.junit)
+  testImplementation(libs.roborazzi)
+  testImplementation(libs.roborazzi.compose)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

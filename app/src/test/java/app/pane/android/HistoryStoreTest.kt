@@ -9,6 +9,7 @@ import app.pane.android.domain.model.Clock
 import app.pane.android.domain.model.HistoryView
 import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.model.StarCopy
+import app.pane.android.testing.BudgetCompressor
 import app.pane.android.domain.model.StarImageBytes
 import java.io.File
 import java.nio.file.Files
@@ -155,14 +156,6 @@ class HistoryStoreTest {
         mediaType = "image",
         viewedAtEpochMillis = at,
     )
-}
-
-internal class BudgetCompressor : StarImageCompressor {
-    override fun compress(source: ByteArray, maxBytes: Int): ByteArray = when {
-        source.isEmpty() -> ByteArray(0)
-        source.size <= maxBytes -> source
-        else -> ByteArray(maxBytes) { 7 }
-    }
 }
 
 private class UncappedCompressor : StarImageCompressor {
