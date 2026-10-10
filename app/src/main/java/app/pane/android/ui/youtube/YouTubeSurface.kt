@@ -145,6 +145,12 @@ private fun YouTubeConsentPoster(
                 )
             }
         }
+        Text(
+            text = stringResource(R.string.yt_consent_heading),
+            color = PaneInk,
+            textAlign = TextAlign.Center,
+            style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
