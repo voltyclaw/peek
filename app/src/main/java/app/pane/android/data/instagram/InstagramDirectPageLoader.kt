@@ -54,7 +54,7 @@ class InstagramDirectPageLoader(
         val story = InstagramStories.parse(url)
         if (story != null) return@withContext resolveStory(url, story)
         val shortcode = extractShortcode(url)
-            ?: throw IllegalArgumentException("Unsupported Instagram post URL: $url")
+            ?: throw app.pane.android.domain.model.SourceFailure.Unsupported(url)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.report(0.05f, LoadStage.Connecting)
         val started = System.nanoTime()
@@ -312,12 +312,16 @@ class InstagramDirectPageLoader(
                 .orEmpty()
 
             if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == 429) {
-                throw IOException("Instagram temporarily rate-limited the request (HTTP $status)")
+                throw app.pane.android.domain.model.SourceFailure.Network(
+                    message = "Instagram temporarily rate-limited the request (HTTP $status)",
+                )
             }
             if (status !in 200..299) {
-                throw IOException("Instagram returned HTTP $status")
+                throw app.pane.android.data.net.httpFailure(status, "Instagram returned HTTP $status")
             }
-            if (response.isBlank()) throw IOException("Instagram returned an empty response")
+            if (response.isBlank()) {
+                throw app.pane.android.domain.model.SourceFailure.Parse(message = "Instagram returned an empty response")
+            }
             return response
         } finally {
             connection.disconnect()

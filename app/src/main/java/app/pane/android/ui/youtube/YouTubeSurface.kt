@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.pane.android.R
+import app.pane.android.data.webview.EmbedWebViewLiveness
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneInk
@@ -319,21 +320,27 @@ private fun YouTubeEmbed(
     AndroidView(
         modifier = modifier.fillMaxWidth().aspectRatio(ratio).background(PaneTile),
         factory = { context ->
-            WebView(context).apply {
-                app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.YOUTUBE)
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.mediaPlaybackRequiresUserGesture = false
-                addJavascriptInterface(
-                    object {
-                        @JavascriptInterface
-                        fun onEnded() {
-                            post { ended = true }
-                        }
-                    },
-                    "Pane",
-                )
-                loadDataWithBaseURL("https://app.pane.android", html, "text/html", "UTF-8", null)
+            EmbedWebViewLiveness.acquire()
+            try {
+                WebView(context).apply {
+                    app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.YOUTUBE)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    addJavascriptInterface(
+                        object {
+                            @JavascriptInterface
+                            fun onEnded() {
+                                post { ended = true }
+                            }
+                        },
+                        "Pane",
+                    )
+                    loadDataWithBaseURL("https://app.pane.android", html, "text/html", "UTF-8", null)
+                }
+            } catch (error: Throwable) {
+                EmbedWebViewLiveness.release()
+                throw error
             }
         },
         update = { view ->
@@ -343,9 +350,13 @@ private fun YouTubeEmbed(
             }
         },
         onRelease = { view ->
-            view.stopLoading()
-            view.loadUrl("about:blank")
-            view.destroy()
+            try {
+                view.stopLoading()
+                view.loadUrl("about:blank")
+                view.destroy()
+            } finally {
+                EmbedWebViewLiveness.release()
+            }
         },
     )
 }

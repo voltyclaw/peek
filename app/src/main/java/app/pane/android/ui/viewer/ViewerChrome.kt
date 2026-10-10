@@ -151,14 +151,22 @@ private fun StarRefreshCapsule(
 ) {
     val fill = if (overMedia) PaneGround.copy(alpha = 0.6f) else PaneTile
     Row(
-        modifier = Modifier.height(40.dp).clip(RoundedCornerShape(20.dp)).background(fill),
+        modifier = Modifier
+            .testTag(app.pane.android.ui.PaneTestTags.VIEWER_CAPSULE)
+            .height(40.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(fill),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showStar) StarButton(starred, onStar)
         if (showStar && showRefresh) Box(Modifier.width(1.dp).height(16.dp).background(PaneBorder))
         if (showRefresh) {
             Box(
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable(role = Role.Button, onClick = onRefresh),
+                modifier = Modifier
+                    .testTag(app.pane.android.ui.PaneTestTags.VIEWER_REFRESH)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable(role = Role.Button, onClick = onRefresh),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.refresh), tint = PaneMuted, modifier = Modifier.size(18.dp))

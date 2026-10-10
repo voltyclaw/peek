@@ -2,8 +2,9 @@
 <resources>
 
     <style name="Theme.Pane" parent="android:Theme.Material.NoActionBar">
-        <item name="android:fontFamily">@font/inter_regular</item>
-        <item name="android:colorAccent">#D4886A</item>
+        <item name="android:fontFamily">@font/inter_variable</item>
+        <!-- Coral stays on the exit/open tile. System accent is mute, not coral. -->
+        <item name="android:colorAccent">@color/pane_color_mute</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowBackground">#0E0B0A</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

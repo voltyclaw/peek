@@ -120,7 +120,7 @@
     <string name="loading">Loading</string>
     <string name="content_unavailable">Pane can\'t reach this post</string>
     <string name="unsupported_link_title">Pane can\'t open this kind of link</string>
-    <string name="unsupported_link_description">Your browser can open it instead.</string>
+    <string name="unsupported_link_description">Pane opens public posts from X, Facebook, Instagram, Reddit, YouTube (including YouTube Shorts videos), TikTok and Bluesky. Your browser can open this one.</string>
     <string name="unsupported_link_label">OPENS ELSEWHERE</string>
     <string name="load_failed_label">DIDN\'T LOAD</string>
     <string name="load_failed_title">This one didn\'t come through</string>

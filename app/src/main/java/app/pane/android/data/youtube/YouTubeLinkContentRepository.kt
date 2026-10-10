@@ -33,8 +33,8 @@ class YouTubeLinkContentRepository(
     fun supports(url: String): Boolean = YouTubeUrls.supports(url)
 
     override suspend fun resolve(url: String): Result<LinkContent> {
-        val link = YouTubeUrls.parse(url) ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
-        val videoId = link.videoId ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
+        val link = YouTubeUrls.parse(url) ?: return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
+        val videoId = link.videoId ?: return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         val canonical = link.canonicalUrl ?: url
         if (!hasConsent()) return Result.success(stub(url, canonical, videoId, blockedShort = false))
         val video = api.fetch(videoId)

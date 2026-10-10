@@ -2,7 +2,6 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
-  alias(libs.plugins.compose.screenshot)
   alias(libs.plugins.roborazzi)
 }
 
@@ -22,8 +21,8 @@ android {
         applicationId = "app.pane.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 54
-        versionName = "1.4.2"
+        versionCode = 55
+        versionName = "1.4.3"
         buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
@@ -43,8 +42,6 @@ android {
       buildConfig = true
       shaders = false
     }
-    experimentalProperties["android.experimental.enableScreenshotTest"] = true
-
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -116,7 +113,4 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
-
-  screenshotTestImplementation(libs.screenshot.validation.api)
-  screenshotTestImplementation(libs.androidx.compose.ui.tooling)
 }

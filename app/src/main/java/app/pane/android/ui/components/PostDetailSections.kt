@@ -91,8 +91,7 @@ import app.pane.android.ui.text.MentionNetwork
 import app.pane.android.ui.text.mentionNetwork
 import app.pane.android.ui.actions.openInAppPackages
 import androidx.compose.ui.platform.LocalContext
-import app.pane.android.ui.theme.Geist
-import app.pane.android.ui.theme.GeistMono
+import app.pane.android.ui.theme.PaneMeta
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.LocalPaneColors
 import app.pane.android.ui.theme.PaneDisplay
@@ -164,7 +163,7 @@ fun AuthorByline(
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                 )
-                Text(post.authorMetadata, color = PaneMuted, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp))
+                Text(post.authorMetadata, color = PaneMuted, style = PaneMeta)
             }
             EllipsisToggleButton(expanded = expanded, onToggle = { expanded = !expanded })
         }
@@ -285,7 +284,7 @@ private fun UtilityActionButton(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, lineHeight = 9.sp),
+            style = PaneMeta,
         )
         AnimatedVisibility(
             visible = processing,

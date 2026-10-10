@@ -105,9 +105,8 @@ import app.pane.android.ui.model.ViewerUiState
 import app.pane.android.ui.model.ViewerMediaItemUiModel
 import app.pane.android.ui.model.hasDownloadableMedia
 import app.pane.android.ui.model.mediaItemsOrPrimary
-import app.pane.android.ui.theme.Geist
-import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
+import app.pane.android.ui.theme.PaneMeta
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
 import app.pane.android.ui.theme.PaneChip
@@ -478,7 +477,7 @@ private fun ViewerHeader(isVideo: Boolean, onBack: () -> Unit, onRefresh: () -> 
             Text(
                 text = stringResource(if (isVideo) R.string.video_preview else R.string.viewing_post),
                 color = PaneInk,
-                style = TextStyle(fontFamily = GeistMono, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp),
+                style = TextStyle(fontFamily = Inter, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp),
             )
         }
         Box(
@@ -659,7 +658,7 @@ private fun MediaCanvas(
                     if (items[pagerState.currentPage].videoUrl != null) {
                         Icon(Icons.Rounded.Videocam, contentDescription = null, tint = PaneInk, modifier = Modifier.size(13.dp))
                     }
-                    Text(badge, color = PaneInk, style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp))
+                    Text(badge, color = PaneInk, style = PaneMeta)
                 }
             }
         }
@@ -807,7 +806,7 @@ private fun LoadingProgressCard(progress: Float, message: String) {
             Text(
                 text = stringResource(R.string.fetching_post_label),
                 color = PaneSecondary,
-                style = TextStyle(fontFamily = GeistMono, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp),
+                style = TextStyle(fontFamily = Inter, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp),
             )
             Text(
                 text = "${(animatedProgress * 100).roundToInt()}%",
@@ -868,16 +867,15 @@ private fun friendlyLoadingCopy(message: String): String {
 @Composable
 private fun LoadFailedViewer(
     url: String,
-    reason: String,
+    reason: OpenFailureKind,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onCopy: () -> Unit,
 ) {
-    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrElse { openFailureKind(reason) }
     ErrorShell(url, onBack, onOpen, onShare, onCopy, showOpen = false) {
-        OpenRecovery(url = url, reason = kind, onOpen = onOpen, onRetry = onRetry)
+        OpenRecovery(url = url, reason = reason, onOpen = onOpen, onRetry = onRetry)
     }
 }
 
@@ -1179,7 +1177,7 @@ private fun FailureViewer(
                 Text(
                     text = label,
                     color = PaneSecondary,
-                    style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp),
+                    style = PaneMeta,
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -1188,7 +1186,7 @@ private fun FailureViewer(
                 modifier = Modifier.fillMaxWidth(),
                 color = PaneInk,
                 textAlign = TextAlign.Center,
-                style = TextStyle(fontFamily = Geist, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.1).sp),
+                style = TextStyle(fontFamily = Inter, fontSize = 27.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.1).sp),
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -1224,7 +1222,7 @@ private fun FailureViewer(
                     Text(
                         text = stringResource(R.string.link_source),
                         color = PaneSecondary,
-                        style = TextStyle(fontFamily = GeistMono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp),
+                        style = PaneMeta,
                     )
                     Text(
                         text = url,

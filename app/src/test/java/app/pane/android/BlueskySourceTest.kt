@@ -155,10 +155,11 @@ class BlueskySourceTest {
     @Test
     fun profilePathClearsAllSiteDataAndOriginsDoNot() {
         assertEquals(SiteClearPath.Profile, siteClearPath(true))
-        assertEquals(SiteClearPath.Origins, siteClearPath(false))
+        assertEquals(SiteClearPath.OriginsPartial, siteClearPath(false))
         assertTrue(withdrawClearsAllSiteData(SiteClearPath.Profile, profileDeleted = true))
         assertFalse(withdrawClearsAllSiteData(SiteClearPath.Profile, profileDeleted = false))
-        assertFalse(withdrawClearsAllSiteData(SiteClearPath.Origins, profileDeleted = true))
+        assertFalse(withdrawClearsAllSiteData(SiteClearPath.OriginsPartial, profileDeleted = true))
+        assertFalse(withdrawClearsAllSiteData(SiteClearPath.OriginsFull, profileDeleted = false, idbVerified = true))
         assertEquals(119, app.pane.android.data.webview.EmbedWebProfiles.MIN_WEBVIEW_MAJOR)
     }
 

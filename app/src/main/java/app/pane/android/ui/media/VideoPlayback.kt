@@ -35,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import app.pane.android.ui.theme.tokens.PaneTokenColors
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -231,13 +233,14 @@ internal fun InlineVideoChrome(
                         .weight(1f)
                         .semantics { contentDescription = scrubLabel },
                     colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFFF4EFEA),
-                        activeTrackColor = Color(0xFF8A827A),
-                        inactiveTrackColor = Color(0xFF262018),
+                        thumbColor = PaneTokenColors.ColorTextPrimary,
+                        activeTrackColor = PaneTokenColors.ColorTextMeta,
+                        inactiveTrackColor = PaneTokenColors.ColorBorderHairline,
                     ),
                 )
                 Box(
                     modifier = Modifier
+                        .testTag(app.pane.android.ui.PaneTestTags.PLAYER_ENTER_FULLSCREEN)
                         .size(36.dp)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),

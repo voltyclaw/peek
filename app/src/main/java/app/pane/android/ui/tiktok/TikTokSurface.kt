@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -73,6 +74,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.pane.android.R
+import app.pane.android.data.webview.EmbedWebViewLiveness
+import app.pane.android.ui.theme.tokens.PaneTokenColors
 import app.pane.android.domain.tiktok.TikTokCaption
 import app.pane.android.domain.tiktok.TikTokIds
 import app.pane.android.domain.tiktok.TikTokPlayback
@@ -313,7 +316,9 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
     }) {
         AndroidView(
             factory = { ctx ->
-                WebView(ctx).apply {
+                EmbedWebViewLiveness.acquire()
+                try {
+                    WebView(ctx).apply {
                     app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.TIKTOK)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
@@ -358,6 +363,10 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
                     }, "Pane")
                     loadDataWithBaseURL("https://app.pane.android", html, "text/html", "utf-8", null)
                     webView = this
+                    }
+                } catch (error: Throwable) {
+                    EmbedWebViewLiveness.release()
+                    throw error
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -373,6 +382,7 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
                 AndroidView(factory = { shown }, modifier = Modifier.fillMaxWidth())
                 Box(
                     modifier = Modifier
+                        .testTag(app.pane.android.ui.PaneTestTags.PLAYER_ROTATE)
                         .align(Alignment.BottomEnd)
                         .padding(12.dp)
                         .size(42.dp)
@@ -401,8 +411,13 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
-            (webView?.parent as? ViewGroup)?.removeView(webView)
-            webView?.destroy()
+            val view = webView
+            (view?.parent as? ViewGroup)?.removeView(view)
+            try {
+                view?.destroy()
+            } finally {
+                if (view != null) EmbedWebViewLiveness.release()
+            }
         }
     }
 }
@@ -499,10 +514,10 @@ internal fun TikTokDetails(
         ) {
             Text(
                 stringResource(R.string.tt_comments_live_on_tiktok),
-                color = Color(0xFFDAD4CE),
+                color = PaneTokenColors.ColorTextSoft,
                 style = TextStyle(fontFamily = Inter, fontSize = 15.sp),
             )
-            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = Color(0xFFDAD4CE))
+            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = PaneTokenColors.ColorTextSoft)
         }
     }
 }

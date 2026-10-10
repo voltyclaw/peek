@@ -1,5 +1,14 @@
 package app.pane.android.ui.theme
 
+/**
+ * Dark is the only theme this build ships. The Light palette and [ThemeMode] values stay
+ * so a later build can show the setting again by flipping this flag.
+ */
+internal const val DARK_THEME_ONLY = true
+
+/** The mode this build actually applies. Light and System become Dark while [DARK_THEME_ONLY]. */
+internal fun ThemeMode.forCurrentBuild(): ThemeMode = if (DARK_THEME_ONLY) ThemeMode.Dark else this
+
 enum class ThemeMode {
     Light,
     Dark,

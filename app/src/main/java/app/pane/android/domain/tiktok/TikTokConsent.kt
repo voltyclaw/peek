@@ -84,7 +84,7 @@ fun interface TikTokRedirects {
 interface TikTokSiteData {
     fun clear()
 
-    /** True after [clear] deleted a named WebView profile. See [YouTubeSiteData.withdrawClearsAllSiteData]. */
+    /** True after [clear] deleted a named WebView profile. Pre-119 stays false. See [YouTubeSiteData.withdrawClearsAllSiteData]. */
     val withdrawClearsAllSiteData: Boolean get() = false
 }
 

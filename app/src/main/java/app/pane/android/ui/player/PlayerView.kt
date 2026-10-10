@@ -53,11 +53,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import app.pane.android.ui.theme.tokens.PaneTokenColors
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -96,6 +98,7 @@ import app.pane.android.ui.media.rememberPlaybackSession
 import app.pane.android.ui.media.rotateControlLabel
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.media.surfaceGestureAction
+import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.media.fittedContentPx
 import kotlinx.coroutines.delay
@@ -212,7 +215,12 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnavailableMedia(onBack: () -> Unit, url: String = "", reason: String = "", failed: Boolean = false) {
+private fun UnavailableMedia(
+    onBack: () -> Unit,
+    url: String = "",
+    reason: OpenFailureKind = OpenFailureKind.Network,
+    failed: Boolean = false,
+) {
     val context = LocalContext.current
     val knownSource = remember(url) {
         app.pane.android.ui.actions.sourceAppNameRes(url)
@@ -640,12 +648,12 @@ private fun FullscreenChrome(
                     .fillMaxWidth()
                     .semantics { contentDescription = scrubLabel },
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFF4EFEA),
-                    activeTrackColor = Color(0xFF8A827A),
-                    inactiveTrackColor = Color(0xFF262018),
-                    disabledThumbColor = Color(0xFF8A827A),
-                    disabledActiveTrackColor = Color(0xFF8A827A),
-                    disabledInactiveTrackColor = Color(0xFF262018),
+                    thumbColor = PaneTokenColors.ColorTextPrimary,
+                    activeTrackColor = PaneTokenColors.ColorTextMeta,
+                    inactiveTrackColor = PaneTokenColors.ColorBorderHairline,
+                    disabledThumbColor = PaneTokenColors.ColorTextMeta,
+                    disabledActiveTrackColor = PaneTokenColors.ColorTextMeta,
+                    disabledInactiveTrackColor = PaneTokenColors.ColorBorderHairline,
                 ),
             )
         }
@@ -694,11 +702,13 @@ private fun FullscreenChrome(
                     icon = Icons.Rounded.ScreenRotation,
                     description = rotateLabel,
                     onClick = onRotate,
+                    tag = app.pane.android.ui.PaneTestTags.PLAYER_ROTATE,
                 )
                 ChromeButton(
                     icon = Icons.Rounded.FullscreenExit,
                     description = stringResource(R.string.exit_fullscreen),
                     onClick = onExit,
+                    tag = app.pane.android.ui.PaneTestTags.PLAYER_EXIT_FULLSCREEN,
                 )
             }
         }
@@ -722,7 +732,7 @@ private fun QualityButton(
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            containerColor = Color(0xFF191412),
+            containerColor = PaneTokenColors.ColorBgRaised,
         ) {
             options.forEach { option ->
                 val checked = if (option.auto) {
@@ -758,9 +768,11 @@ private fun ChromeButton(
     icon: ImageVector,
     description: String,
     onClick: () -> Unit,
+    tag: String? = null,
 ) {
     Box(
         modifier = Modifier
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .size(42.dp)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),

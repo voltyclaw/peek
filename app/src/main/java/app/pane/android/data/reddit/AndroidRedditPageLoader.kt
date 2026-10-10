@@ -15,11 +15,15 @@ import android.webkit.WebSettings
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import app.pane.android.data.net.loginWallFailure
 import app.pane.android.data.resolver.PageLoadProgressElement
+import app.pane.android.data.webview.ScraperFallbackCleanup
+import app.pane.android.data.webview.ScraperWebViewFactory
+import app.pane.android.data.webview.ScraperWebViews
 import app.pane.android.domain.model.LoadProgress
+import app.pane.android.domain.model.SourceFailure
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
-import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.coroutineContext
@@ -44,6 +48,7 @@ class AndroidRedditPageLoader(
     context: Context,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
     private val pollIntervalMillis: Long = DEFAULT_POLL_INTERVAL_MILLIS,
+    private val webViews: ScraperWebViewFactory = ScraperWebViews.shared,
 ) : RedditPageLoader {
     private val applicationContext = context.applicationContext
     private val json = Json { isLenient = true }
@@ -53,7 +58,7 @@ class AndroidRedditPageLoader(
     override fun supports(url: String): Boolean = RedditUrls.supports(url)
 
     override suspend fun resolve(url: String): ParsedRedditPost {
-        if (!supports(url)) throw IllegalArgumentException("Unsupported Reddit post URL: $url")
+        if (!supports(url)) throw SourceFailure.Unsupported(url)
         val pageUrl = RedditUrls.fetchPageUrl(url) ?: url
         return loadPage { webView -> webView.loadUrl(pageUrl) }
     }
@@ -79,7 +84,7 @@ class AndroidRedditPageLoader(
                 withTimeout(timeoutMillis) {
                     suspendCancellableCoroutine { continuation ->
                         val handler = Handler(Looper.getMainLooper())
-                        val webView = WebView(applicationContext)
+                        val webView = webViews.create(applicationContext)
                         var pageFinished = false
                         var polling = false
                         var evaluating = false
@@ -98,14 +103,10 @@ class AndroidRedditPageLoader(
 
                         fun cleanup() {
                             handler.removeCallbacksAndMessages(null)
-                        webView.stopLoading()
-                        webView.webViewClient = WebViewClient()
-                        webView.loadUrl("about:blank")
-                        webView.clearCache(true)
-                        webView.clearHistory()
-                        webView.removeAllViews()
-                            webView.destroy()
-                            clearRedditCookies()
+                            webView.webViewClient = WebViewClient()
+                            webViews.release(webView)
+                            ScraperFallbackCleanup.expireCookies(REDDIT_COOKIE_URLS)
+                            ScraperFallbackCleanup.deleteOrigins(REDDIT_ORIGINS)
                         }
 
                         fun fail(error: Throwable) {
@@ -164,7 +165,8 @@ class AndroidRedditPageLoader(
                                             succeed(read.post)
                                         }
                                     }
-                                    is RedditPageDocument.Read.Failed -> fail(IOException(read.reason.withStatus(httpStatus.get())))
+                                    is RedditPageDocument.Read.Failed ->
+                                        fail(redditDocumentFailure(read.reason, httpStatus.get()))
                                     else -> handler.postDelayed(poll, pollIntervalMillis)
                                 }
                             }
@@ -173,11 +175,11 @@ class AndroidRedditPageLoader(
                         fun beginReading(url: String) {
                             if (completed) return
                             if (RedditBrowserNavigation.isLogin(url)) {
-                                fail(IOException(RedditPageDocument.LOGIN))
+                                fail(loginWallFailure(RedditPageDocument.LOGIN))
                                 return
                             }
                             if (!RedditBrowserNavigation.isAllowed(url)) {
-                                fail(IOException("Reddit redirected to an unsupported page"))
+                                fail(SourceFailure.Network(message = "Reddit redirected to an unsupported page"))
                                 return
                             }
                             if (polling) return
@@ -227,11 +229,13 @@ class AndroidRedditPageLoader(
                                 if (!request.isForMainFrame) return false
                                 val target = request.url.toString()
                                 if (RedditBrowserNavigation.isLogin(target)) {
-                                    fail(IOException(RedditPageDocument.LOGIN))
+                                    fail(loginWallFailure(RedditPageDocument.LOGIN))
                                     return true
                                 }
                                 val allowed = RedditBrowserNavigation.isAllowed(target)
-                                if (!allowed) fail(IOException("Blocked browser navigation away from Reddit"))
+                                if (!allowed) {
+                                    fail(SourceFailure.Network(message = "Blocked browser navigation away from Reddit"))
+                                }
                                 return !allowed
                             }
 
@@ -241,7 +245,7 @@ class AndroidRedditPageLoader(
                                 error: WebResourceError,
                             ) {
                                 if (request.isForMainFrame) {
-                                    fail(IOException("Reddit page failed to load in the browser: ${error.description}"))
+                                    fail(SourceFailure.Network(message = "Reddit page failed to load in the browser: ${error.description}"))
                                 }
                             }
 
@@ -258,7 +262,7 @@ class AndroidRedditPageLoader(
                                 view: WebView,
                                 detail: RenderProcessGoneDetail,
                             ): Boolean {
-                                fail(IOException("Reddit page renderer exited"))
+                                fail(SourceFailure.Network(message = "Reddit page renderer exited"))
                                 return true
                             }
                         }
@@ -291,13 +295,13 @@ class AndroidRedditPageLoader(
         } catch (timeout: TimeoutCancellationException) {
             captured.get()?.let { return it }
             val status = httpStatus.get()
-            throw IOException(
-                when (status) {
-                    403, 429 -> "${RedditPageDocument.BLOCKED} (HTTP $status)"
-                    in 400..599 -> "Reddit returned HTTP $status in the browser"
-                    else -> RedditPageDocument.EMPTY
-                },
-            )
+            throw when (status) {
+                401, 403 -> SourceFailure.Private(message = "${RedditPageDocument.BLOCKED} (HTTP $status)")
+                404, 410 -> SourceFailure.Gone(message = "Reddit returned HTTP $status in the browser")
+                429 -> SourceFailure.Network(message = "${RedditPageDocument.BLOCKED} (HTTP $status)")
+                in 400..599 -> SourceFailure.Network(message = "Reddit returned HTTP $status in the browser")
+                else -> SourceFailure.Network(message = RedditPageDocument.EMPTY)
+            }
         }
     }
 
@@ -305,23 +309,26 @@ class AndroidRedditPageLoader(
         json.parseToJsonElement(value).jsonPrimitive.contentOrNull
     }.getOrNull()
 
+    private fun redditDocumentFailure(reason: String, status: Int): SourceFailure {
+        val detail = reason.withStatus(status)
+        return when (reason) {
+            RedditPageDocument.LOGIN, RedditPageDocument.HIDDEN -> SourceFailure.Private(message = detail)
+            RedditPageDocument.BLOCKED -> when (status) {
+                401, 403 -> SourceFailure.Private(message = detail)
+                404, 410 -> SourceFailure.Gone(message = detail)
+                else -> SourceFailure.Network(message = detail)
+            }
+            else -> when (status) {
+                401, 403 -> SourceFailure.Private(message = detail)
+                404, 410 -> SourceFailure.Gone(message = detail)
+                else -> SourceFailure.Parse(message = detail)
+            }
+        }
+    }
+
     private fun String.withStatus(status: Int): String {
         if (status < 400 || this != RedditPageDocument.BLOCKED) return this
         return "$this (HTTP $status)"
-    }
-
-    private fun clearRedditCookies() {
-        runCatching {
-            val manager = CookieManager.getInstance()
-            REDDIT_COOKIE_URLS.forEach { url ->
-                val header = manager.getCookie(url) ?: return@forEach
-                header.split(';').forEach { part ->
-                    val name = part.substringBefore('=').trim()
-                    if (name.isNotEmpty()) manager.setCookie(url, "$name=; Max-Age=0; Path=/")
-                }
-            }
-            manager.flush()
-        }
     }
 
     companion object {
@@ -413,6 +420,15 @@ class AndroidRedditPageLoader(
               return html + '<peek-gallery>' + extra + '</peek-gallery>';
             })();
         """.trimIndent()
+        private val REDDIT_ORIGINS = listOf(
+            "https://www.reddit.com",
+            "https://old.reddit.com",
+            "https://reddit.com",
+            "https://np.reddit.com",
+            "https://new.reddit.com",
+            "https://m.reddit.com",
+            "https://redd.it",
+        )
         private val REDDIT_COOKIE_URLS = listOf(
             "https://www.reddit.com/",
             "https://old.reddit.com/",

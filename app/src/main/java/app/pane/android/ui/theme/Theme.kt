@@ -1,9 +1,9 @@
 package app.pane.android.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -15,11 +15,11 @@ import androidx.core.view.WindowCompat
 
 @Composable
 fun PaneTheme(
-    @Suppress("UNUSED_PARAMETER") mode: ThemeMode = ThemeMode.System,
+    mode: ThemeMode = ThemeMode.Dark,
     content: @Composable () -> Unit,
 ) {
-    val dark = true
-    val colors = DarkPaneColors
+    val dark = mode.forCurrentBuild().resolve(isSystemInDarkTheme())
+    val colors = if (dark) DarkPaneColors else LightPaneColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -32,7 +32,7 @@ fun PaneTheme(
     CompositionLocalProvider(LocalPaneColors provides colors) {
         MaterialTheme(
             colorScheme = paneColorScheme(colors, dark),
-            typography = Typography(),
+            typography = paneTypography(),
             content = content,
         )
     }

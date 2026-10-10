@@ -17,12 +17,17 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import app.pane.android.data.net.httpFailure
+import app.pane.android.data.net.loginWallFailure
 import app.pane.android.data.resolver.PageLoadProgressElement
 import app.pane.android.data.resolver.UrlResolver
+import app.pane.android.data.webview.ScraperFallbackCleanup
+import app.pane.android.data.webview.ScraperWebViewFactory
+import app.pane.android.data.webview.ScraperWebViews
+import app.pane.android.domain.model.SourceFailure
 import app.pane.android.domain.model.LoadProgress
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
-import java.io.IOException
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -45,6 +50,7 @@ class AndroidInstagramPageLoader(
     private val parser: InstagramHtmlParser = InstagramHtmlParser(),
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
     private val pollIntervalMillis: Long = DEFAULT_POLL_INTERVAL_MILLIS,
+    private val webViews: ScraperWebViewFactory = ScraperWebViews.shared,
 ) : InstagramPageLoader {
     private val applicationContext = context.applicationContext
     private val json = Json { isLenient = true }
@@ -79,7 +85,7 @@ class AndroidInstagramPageLoader(
         withTimeout(timeoutMillis) {
             suspendCancellableCoroutine { continuation ->
                 val handler = Handler(Looper.getMainLooper())
-                val webView = WebView(applicationContext)
+                val webView = webViews.create(applicationContext)
                 var pageFinished = false
                 var evaluating = false
                 var completed = false
@@ -93,12 +99,10 @@ class AndroidInstagramPageLoader(
 
                 fun cleanup() {
                     handler.removeCallbacksAndMessages(null)
-                    webView.stopLoading()
                     webView.webViewClient = WebViewClient()
-                    webView.loadUrl("about:blank")
-                    webView.clearHistory()
-                    webView.removeAllViews()
-                    webView.destroy()
+                    webViews.release(webView)
+                    ScraperFallbackCleanup.expireCookies(INSTAGRAM_COOKIE_URLS)
+                    ScraperFallbackCleanup.deleteOrigins(INSTAGRAM_ORIGINS)
                 }
 
                 fun fail(error: Throwable) {
@@ -163,8 +167,12 @@ class AndroidInstagramPageLoader(
 
                     override fun onPageFinished(view: WebView, url: String) {
                         if (completed) return
+                        if (isLoginUrl(url)) {
+                            fail(loginWallFailure("Instagram asked for a login"))
+                            return
+                        }
                         if (!isAllowedInstagramUrl(url, expectedUrl)) {
-                            fail(IOException("Instagram redirected to an unsupported page"))
+                            fail(SourceFailure.Network(message = "Instagram redirected to an unsupported page"))
                             return
                         }
                         pageFinished = true
@@ -177,8 +185,13 @@ class AndroidInstagramPageLoader(
                         request: WebResourceRequest,
                     ): Boolean {
                         if (!request.isForMainFrame) return false
-                        val allowed = isAllowedInstagramUrl(request.url.toString(), expectedUrl)
-                        if (!allowed) fail(IOException("Blocked WebView navigation to ${request.url.host}"))
+                        val target = request.url.toString()
+                        if (isLoginUrl(target)) {
+                            fail(loginWallFailure("Instagram asked for a login"))
+                            return true
+                        }
+                        val allowed = isAllowedInstagramUrl(target, expectedUrl)
+                        if (!allowed) fail(SourceFailure.Network(message = "Blocked WebView navigation to ${request.url.host}"))
                         return !allowed
                     }
 
@@ -188,7 +201,7 @@ class AndroidInstagramPageLoader(
                         error: WebResourceError,
                     ) {
                         if (request.isForMainFrame) {
-                            fail(IOException("WebView load failed: ${error.description}"))
+                            fail(SourceFailure.Network(message = "WebView load failed: ${error.description}"))
                         }
                     }
 
@@ -198,7 +211,7 @@ class AndroidInstagramPageLoader(
                         errorResponse: WebResourceResponse,
                     ) {
                         if (request.isForMainFrame && errorResponse.statusCode >= 400) {
-                            fail(IOException("Instagram returned HTTP ${errorResponse.statusCode}"))
+                            fail(httpFailure(errorResponse.statusCode, "Instagram returned HTTP ${errorResponse.statusCode}"))
                         }
                     }
 
@@ -206,7 +219,7 @@ class AndroidInstagramPageLoader(
                         view: WebView,
                         detail: RenderProcessGoneDetail,
                     ): Boolean {
-                        fail(IOException("WebView renderer process exited"))
+                        fail(SourceFailure.Network(message = "WebView renderer process exited"))
                         return true
                     }
                 }
@@ -246,6 +259,11 @@ class AndroidInstagramPageLoader(
         Log.d(LOG_TAG, "DOM_END")
     }
 
+    private fun isLoginUrl(candidate: String): Boolean {
+        val path = runCatching { Uri.parse(candidate).path }.getOrNull().orEmpty()
+        return path.startsWith("/accounts/")
+    }
+
     private fun isAllowedInstagramUrl(candidate: String, expected: String): Boolean {
         if (candidate == "about:blank") return false
         val uri = runCatching { Uri.parse(candidate) }.getOrNull() ?: return false
@@ -269,6 +287,8 @@ class AndroidInstagramPageLoader(
         private const val LOG_TAG = "PeekInstagramWebView"
         private const val LOG_CHUNK_SIZE = 3_000
         private val INSTAGRAM_HOSTS = setOf("instagram.com", "www.instagram.com")
+        private val INSTAGRAM_COOKIE_URLS = listOf("https://www.instagram.com/", "https://instagram.com/")
+        private val INSTAGRAM_ORIGINS = listOf("https://www.instagram.com", "https://instagram.com")
         private val WEBVIEW_SUPPORTED_PATH = Regex("/(reel|reels)/")
     }
 }

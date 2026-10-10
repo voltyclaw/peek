@@ -44,7 +44,7 @@ class FacebookDirectPageLoader(
 
     override suspend fun resolve(url: String): ParsedFacebookPost = withContext(Dispatchers.IO) {
         val opened = FacebookUrls.parse(url)
-            ?: throw IllegalArgumentException("Unsupported Facebook post URL: $url")
+            ?: throw app.pane.android.domain.model.SourceFailure.Unsupported(url)
         val post = resolveShareShort(opened)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
@@ -122,7 +122,12 @@ class FacebookDirectPageLoader(
             }
             if (post.kind == FacebookUrls.Kind.Story) throw StoryUnavailableException()
             if (standIn.get()) throw app.pane.android.domain.model.PrivateGroupException()
-            throw IOException(lastError.get())
+            val detail = lastError.get()
+            throw if (detail == FacebookDocument.LOGIN) {
+                app.pane.android.data.net.loginWallFailure(detail)
+            } else {
+                app.pane.android.domain.model.SourceFailure.Network(message = detail)
+            }
         }
     }
 
@@ -202,7 +207,7 @@ class FacebookDirectPageLoader(
         val landed = followShare(opened.sourceUrl)
         val next = FacebookUrls.parse(landed)
         if (next == null || next.kind == FacebookUrls.Kind.ShareShort) {
-            throw IllegalArgumentException("Unsupported Facebook post URL: ${opened.sourceUrl}")
+            throw app.pane.android.domain.model.SourceFailure.Unsupported(opened.sourceUrl)
         }
         return next
     }
@@ -279,9 +284,11 @@ class FacebookDirectPageLoader(
                 }
                 .orEmpty()
             if (status !in 200..299) {
-                throw IOException("Facebook returned HTTP $status")
+                throw app.pane.android.data.net.httpFailure(status, "Facebook returned HTTP $status")
             }
-            if (body.isBlank()) throw IOException("Facebook returned an empty page")
+            if (body.isBlank()) {
+                throw app.pane.android.domain.model.SourceFailure.Parse(message = "Facebook returned an empty page")
+            }
             PageBody(body, connection.url?.toString()?.takeIf { it.isNotBlank() } ?: url)
         } finally {
             connection.disconnect()

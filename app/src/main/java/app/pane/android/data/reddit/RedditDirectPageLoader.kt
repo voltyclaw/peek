@@ -43,7 +43,7 @@ class RedditDirectPageLoader(
     override fun supports(url: String): Boolean = RedditUrls.supports(url)
 
     override suspend fun resolve(url: String): ParsedRedditPost = withContext(Dispatchers.IO) {
-        if (!supports(url)) throw IllegalArgumentException("Unsupported Reddit post URL: $url")
+        if (!supports(url)) throw app.pane.android.domain.model.SourceFailure.Unsupported(url)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         listener.report(0.05f, LoadStage.Connecting)
         val pageUrl = RedditUrls.fetchPageUrl(url) ?: followShareLink(url)
@@ -82,13 +82,16 @@ class RedditDirectPageLoader(
             }
             val body = readLimited(connection, status)
             return RedditSharePage.postUrl(body)
-                ?: throw IOException(
-                    if (status in 200..299) {
-                        "Reddit share link did not open a public post"
-                    } else {
-                        "Reddit share link did not open a public post (HTTP $status)"
-                    },
-                )
+                ?: throw if (status in 200..299) {
+                    app.pane.android.domain.model.SourceFailure.Parse(
+                        message = "Reddit share link did not open a public post",
+                    )
+                } else {
+                    app.pane.android.data.net.httpFailure(
+                        status,
+                        "Reddit share link did not open a public post (HTTP $status)",
+                    )
+                }
         } finally {
             connection.disconnect()
         }
@@ -267,10 +270,19 @@ class RedditDirectPageLoader(
                 }
             }
             if (status == 429 || status == 403 || response.contains("whoa there", ignoreCase = true)) {
-                throw IOException("Reddit blocked the request (HTTP $status)")
+                val detail = "Reddit blocked the request (HTTP $status)"
+                throw when (status) {
+                    401, 403 -> app.pane.android.domain.model.SourceFailure.Private(message = detail)
+                    404, 410 -> app.pane.android.domain.model.SourceFailure.Gone(message = detail)
+                    else -> app.pane.android.domain.model.SourceFailure.Network(message = detail)
+                }
             }
-            if (status !in 200..299) throw IOException("Reddit returned HTTP $status")
-            if (response.isBlank()) throw IOException("Reddit returned an empty response")
+            if (status !in 200..299) {
+                throw app.pane.android.data.net.httpFailure(status, "Reddit returned HTTP $status")
+            }
+            if (response.isBlank()) {
+                throw app.pane.android.domain.model.SourceFailure.Parse(message = "Reddit returned an empty response")
+            }
             return response
         } finally {
             connection.disconnect()

@@ -2,7 +2,9 @@ package app.pane.android.data.bluesky
 
 import app.pane.android.domain.model.Author
 import app.pane.android.domain.model.BlueskyMetadata
+import app.pane.android.data.net.httpFailure
 import app.pane.android.domain.model.BlueskyPostException
+import app.pane.android.domain.model.SourceFailure
 import app.pane.android.domain.model.BskyQuoteStub
 import app.pane.android.domain.model.Comment
 import app.pane.android.domain.model.ExternalMediaItem
@@ -15,7 +17,6 @@ import app.pane.android.domain.model.MediaLocation
 import app.pane.android.domain.repository.LinkContentRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -26,7 +27,7 @@ fun interface BskyTransport {
     fun get(url: String): BskyHttp
 }
 
-private const val BSKY_USER_AGENT = "Pane/1.4.2 (public post viewer)"
+private const val BSKY_USER_AGENT = "Pane/1.4.3 (public post viewer)"
 
 internal object HttpBskyTransport : BskyTransport {
     override fun get(url: String): BskyHttp {
@@ -61,7 +62,7 @@ class BlueskyLinkContentRepository(
     override suspend fun refresh(url: String): Result<LinkContent> = resolve(url)
 
     private fun load(url: String): LinkContent {
-        val ref = BskyUrls.parsePost(url) ?: throw IllegalArgumentException("Unsupported link")
+        val ref = BskyUrls.parsePost(url) ?: throw SourceFailure.Unsupported(url)
         val root = fetch(ref.atUri)
         val moderation = BskyLabels.decide(root.post.postLabels, root.post.authorLabels, root.post.did)
         when (moderation.post) {
@@ -127,10 +128,10 @@ class BlueskyLinkContentRepository(
             if (http.code == 400 && http.body.contains("NotFound")) {
                 throw BlueskyPostException(BlueskyPostException.Kind.Gone)
             }
-            if (http.code !in 200..299) throw IOException("bluesky http")
+            if (http.code !in 200..299) throw httpFailure(http.code, "bluesky http")
             return BskyThread.parse(http.body) ?: throw BlueskyPostException(BlueskyPostException.Kind.Gone)
         }
-        throw IOException("bluesky http")
+        throw SourceFailure.Network(message = "bluesky http")
     }
 
     private fun page(
