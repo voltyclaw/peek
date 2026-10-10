@@ -26,7 +26,7 @@ fun interface BskyTransport {
     fun get(url: String): BskyHttp
 }
 
-private const val BSKY_USER_AGENT = "Pane/1.4.2 (public post viewer)"
+private const val BSKY_USER_AGENT = "Pane/1.4.3 (public post viewer)"
 
 internal object HttpBskyTransport : BskyTransport {
     override fun get(url: String): BskyHttp {

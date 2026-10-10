@@ -58,6 +58,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -694,11 +695,13 @@ private fun FullscreenChrome(
                     icon = Icons.Rounded.ScreenRotation,
                     description = rotateLabel,
                     onClick = onRotate,
+                    tag = app.pane.android.ui.PaneTestTags.PLAYER_ROTATE,
                 )
                 ChromeButton(
                     icon = Icons.Rounded.FullscreenExit,
                     description = stringResource(R.string.exit_fullscreen),
                     onClick = onExit,
+                    tag = app.pane.android.ui.PaneTestTags.PLAYER_EXIT_FULLSCREEN,
                 )
             }
         }
@@ -758,9 +761,11 @@ private fun ChromeButton(
     icon: ImageVector,
     description: String,
     onClick: () -> Unit,
+    tag: String? = null,
 ) {
     Box(
         modifier = Modifier
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .size(42.dp)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),

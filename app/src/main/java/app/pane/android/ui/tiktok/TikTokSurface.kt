@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -373,6 +374,7 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
                 AndroidView(factory = { shown }, modifier = Modifier.fillMaxWidth())
                 Box(
                     modifier = Modifier
+                        .testTag(app.pane.android.ui.PaneTestTags.PLAYER_ROTATE)
                         .align(Alignment.BottomEnd)
                         .padding(12.dp)
                         .size(42.dp)

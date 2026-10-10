@@ -12,6 +12,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import app.pane.android.ui.navigation.PeekNavigation
 import app.pane.android.ui.theme.PaneGround
 import app.pane.android.ui.theme.PaneTheme
@@ -35,7 +37,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             PaneTheme(themeMode) {
                 androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.fillMaxSize().background(PaneGround),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(PaneGround)
+                        .semantics { testTagsAsResourceId = true },
                 ) {
                     PeekNavigation(
                         container = container,

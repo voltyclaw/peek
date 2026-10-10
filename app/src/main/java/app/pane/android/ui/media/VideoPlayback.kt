@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -238,6 +239,7 @@ internal fun InlineVideoChrome(
                 )
                 Box(
                     modifier = Modifier
+                        .testTag(app.pane.android.ui.PaneTestTags.PLAYER_ENTER_FULLSCREEN)
                         .size(36.dp)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),
