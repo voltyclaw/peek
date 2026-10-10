@@ -27,6 +27,7 @@ class DefaultScraperWebViewFactory(
 ) : ScraperWebViewFactory {
     override fun create(ctx: Context): WebView {
         janitor.acquire()
+        EmbedWebViewLiveness.acquire()
         return try {
             WebView(ctx).also { webView ->
                 if (!EmbedWebProfiles.assign(webView, EmbedWebProfiles.SCRAPER)) {
@@ -40,19 +41,24 @@ class DefaultScraperWebViewFactory(
                 }
             }
         } catch (error: Throwable) {
+            EmbedWebViewLiveness.release()
             janitor.releaseAndMaybeWipe()
             throw error
         }
     }
 
     override fun release(webView: WebView) {
-        runCatching {
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
-            webView.removeAllViews()
-            webView.destroy()
+        try {
+            runCatching {
+                webView.stopLoading()
+                webView.loadUrl("about:blank")
+                webView.removeAllViews()
+                webView.destroy()
+            }
+        } finally {
+            EmbedWebViewLiveness.release()
+            janitor.releaseAndMaybeWipe()
         }
-        janitor.releaseAndMaybeWipe()
     }
 
     private fun logFallback() {

@@ -2,8 +2,8 @@ package app.pane.android.data.tiktok
 
 import android.content.Context
 import android.webkit.CookieManager
-import android.webkit.WebStorage
 import app.pane.android.data.webview.EmbedWebProfiles
+import app.pane.android.data.webview.LegacySiteData
 import app.pane.android.domain.tiktok.TikTokConsent
 import app.pane.android.domain.tiktok.TikTokConsentKeys
 import app.pane.android.domain.tiktok.TikTokConsentStore
@@ -48,8 +48,9 @@ internal fun expiredTikTokCookies(cookieHeader: String?): List<String> {
         .map { name -> "$name=; Max-Age=0; Path=/" }
 }
 
-/** Expires TikTok cookies and deletes only TikTok web-storage origins. */
-class AndroidTikTokSiteData : TikTokSiteData {
+/** Expires TikTok cookies and clears only TikTok origins on the pre-119 path. */
+class AndroidTikTokSiteData(context: Context) : TikTokSiteData {
+    private val appContext = context.applicationContext
     override var withdrawClearsAllSiteData: Boolean = false
         private set
 
@@ -65,9 +66,6 @@ class AndroidTikTokSiteData : TikTokSiteData {
             }
             manager.flush()
         }
-        runCatching {
-            val storage = WebStorage.getInstance()
-            TikTokWebOrigins.PAGES.forEach { origin -> storage.deleteOrigin(origin) }
-        }
+        runCatching { LegacySiteData.clear(appContext, TikTokWebOrigins.PAGES) }
     }
 }

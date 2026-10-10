@@ -12,9 +12,11 @@ import androidx.webkit.WebViewFeature
  * that source's cookies, DOM storage including IndexedDB, and its HTTP cache.
  *
  * On older WebView, or when multi-process is off, the feature check is false.
- * [assign] does nothing and withdraw keeps the per-origin cookie and
- * [android.webkit.WebStorage.deleteOrigin] path. That fallback does not clear
- * IndexedDB or the HTTP cache, so [withdrawClearsAllSiteData] stays false.
+ * [assign] does nothing. Withdraw expires that source's cookies by name, spikes
+ * [android.webkit.WebStorage.deleteOrigin], clears the app HTTP cache, and deletes
+ * that source's IndexedDB folders when the on-disk layout matches and no WebView
+ * is alive. [withdrawClearsAllSiteData] stays false on that path, so the withdrawal
+ * copy remains the partial strings. App-wide storage and cookie wipes are not used.
  */
 object EmbedWebProfiles {
     const val YOUTUBE = "pane-youtube"
@@ -65,16 +67,8 @@ object EmbedWebProfiles {
         if (!supported()) return false
         return runCatching {
             val store = ProfileStore.getInstance()
-            val existing = store.getProfile(profile) ?: return@runCatching false
-            val deleted = store.deleteProfile(profile)
-            if (!deleted) {
-                runCatching {
-                    existing.cookieManager.removeAllCookies(null)
-                    existing.cookieManager.flush()
-                    existing.webStorage.deleteAllData()
-                }
-            }
-            deleted
+            if (store.getProfile(profile) == null) return@runCatching false
+            store.deleteProfile(profile)
         }.getOrDefault(false)
     }
 
@@ -99,14 +93,63 @@ object EmbedWebProfiles {
     ): Boolean = withdrawSheetIsFull(multiProfileSupported, profileExists, profile in assignedProfiles)
 }
 
-/** Which withdraw path ran. Profile deletion is the only path that clears all site data. */
-internal enum class SiteClearPath { Profile, Origins }
+/**
+ * True only after a device matrix proves pre-119 IndexedDB deletion.
+ * Until then, pre-119 withdraw keeps the partial withdrawal copy.
+ */
+internal const val PRE119_WITHDRAW_COPY_IS_FULL = false
+
+/** Which withdraw path ran. Pre-119 copy stays partial while [PRE119_WITHDRAW_COPY_IS_FULL] is false. */
+internal enum class SiteClearPath { Profile, OriginsFull, OriginsPartial }
 
 internal fun siteClearPath(multiProfileSupported: Boolean): SiteClearPath =
-    if (multiProfileSupported) SiteClearPath.Profile else SiteClearPath.Origins
+    if (multiProfileSupported) SiteClearPath.Profile else SiteClearPath.OriginsPartial
 
-internal fun withdrawClearsAllSiteData(path: SiteClearPath, profileDeleted: Boolean): Boolean =
-    path == SiteClearPath.Profile && profileDeleted
+/**
+ * [SiteClearPath.OriginsFull] means the origin-scoped IndexedDB delete and the HTTP cache
+ * clear both ran on an expected layout with no WebView alive. It does not by itself switch
+ * the withdrawal copy; that still requires [PRE119_WITHDRAW_COPY_IS_FULL].
+ */
+internal fun selectSiteClearPath(
+    multiProfileSupported: Boolean,
+    idbVerified: Boolean,
+    cacheCleared: Boolean,
+    layoutExpected: Boolean = true,
+    webViewLive: Boolean = false,
+): SiteClearPath = when {
+    multiProfileSupported -> SiteClearPath.Profile
+    idbVerified && cacheCleared && layoutExpected && !webViewLive -> SiteClearPath.OriginsFull
+    else -> SiteClearPath.OriginsPartial
+}
+
+internal fun withdrawClearsAllSiteData(
+    path: SiteClearPath,
+    profileDeleted: Boolean,
+    idbVerified: Boolean = false,
+): Boolean = when (path) {
+    SiteClearPath.Profile -> profileDeleted
+    SiteClearPath.OriginsFull -> PRE119_WITHDRAW_COPY_IS_FULL && idbVerified
+    SiteClearPath.OriginsPartial -> false
+}
+
+/** Sheet promise and snackbar for one withdraw. Pre-119 stays partial on both. */
+internal fun withdrawalSnackbarIsFull(
+    multiProfileSupported: Boolean,
+    profileDeleted: Boolean,
+    idbVerified: Boolean,
+    cacheCleared: Boolean,
+    layoutExpected: Boolean,
+    webViewLive: Boolean,
+): Boolean {
+    val path = selectSiteClearPath(
+        multiProfileSupported,
+        idbVerified,
+        cacheCleared,
+        layoutExpected,
+        webViewLive,
+    )
+    return withdrawClearsAllSiteData(path, profileDeleted, idbVerified)
+}
 
 /**
  * Withdraw sheet body, before clear runs.

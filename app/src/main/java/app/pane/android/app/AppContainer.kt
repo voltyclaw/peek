@@ -137,7 +137,7 @@ class DefaultAppContainer(
     override val youtube = YouTubeSession(
         store = youtubeStore,
         api = youtubeApi,
-        siteData = AndroidYouTubeSiteData(),
+        siteData = AndroidYouTubeSiteData(context),
     )
     private val tiktokStore = AndroidTikTokConsentStore(context)
     private val tiktokApi = TikTokOEmbedClient(
@@ -153,7 +153,7 @@ class DefaultAppContainer(
     override val tiktok = TikTokSession(
         store = tiktokStore,
         api = tiktokApi,
-        siteData = AndroidTikTokSiteData(),
+        siteData = AndroidTikTokSiteData(context),
     )
     private val contentRepository: LinkContentRepository = RoutingLinkContentRepository(
         buildList {

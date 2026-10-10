@@ -115,7 +115,8 @@ interface YouTubeSiteData {
 
     /**
      * True after [clear] deleted a named WebView profile (cookies, IndexedDB, cache).
-     * False when withdraw used the per-origin fallback.
+     * False on the pre-119 path, including after that source's IndexedDB folders are removed.
+     * Withdrawal copy stays on the partial strings for that path.
      */
     val withdrawClearsAllSiteData: Boolean get() = false
 }

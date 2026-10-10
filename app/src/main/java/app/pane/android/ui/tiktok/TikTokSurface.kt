@@ -74,6 +74,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.pane.android.R
+import app.pane.android.data.webview.EmbedWebViewLiveness
 import app.pane.android.domain.tiktok.TikTokCaption
 import app.pane.android.domain.tiktok.TikTokIds
 import app.pane.android.domain.tiktok.TikTokPlayback
@@ -314,7 +315,9 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
     }) {
         AndroidView(
             factory = { ctx ->
-                WebView(ctx).apply {
+                EmbedWebViewLiveness.acquire()
+                try {
+                    WebView(ctx).apply {
                     app.pane.android.data.webview.EmbedWebProfiles.assign(this, app.pane.android.data.webview.EmbedWebProfiles.TIKTOK)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
@@ -359,6 +362,10 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
                     }, "Pane")
                     loadDataWithBaseURL("https://app.pane.android", html, "text/html", "utf-8", null)
                     webView = this
+                    }
+                } catch (error: Throwable) {
+                    EmbedWebViewLiveness.release()
+                    throw error
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -403,8 +410,13 @@ private fun TikTokEmbed(html: String, onOpenLink: (String) -> Unit, onPlayerErro
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
-            (webView?.parent as? ViewGroup)?.removeView(webView)
-            webView?.destroy()
+            val view = webView
+            (view?.parent as? ViewGroup)?.removeView(view)
+            try {
+                view?.destroy()
+            } finally {
+                if (view != null) EmbedWebViewLiveness.release()
+            }
         }
     }
 }

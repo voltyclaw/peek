@@ -1,8 +1,10 @@
 package app.pane.android.data.youtube
 
+import android.content.Context
 import android.webkit.CookieManager
 import android.webkit.WebStorage
 import app.pane.android.data.webview.EmbedWebProfiles
+import app.pane.android.data.webview.LegacySiteData
 import app.pane.android.domain.youtube.YouTubeSiteData
 
 /** Cookie names from one Cookie header, each rewritten so the browser drops it. */
@@ -17,8 +19,9 @@ internal fun expiredYouTubeCookies(cookieHeader: String?): List<String> {
 
 /**
  * YouTube and Google video origins only.
- * Withdraw expires cookies on these origins and calls [WebStorage.deleteOrigin] for each.
- * It does not call [WebStorage.deleteAllData], so TikTok and other WebView data stay.
+ * Withdraw expires cookies on these origins. Below WebView 119 it spikes [WebStorage.deleteOrigin],
+ * clears the app HTTP cache, and deletes only these origins' IndexedDB folders.
+ * [CLEARS_ALL_WEBVIEW_STORAGE] stays false: other origins' cookies and IndexedDB stay.
  */
 object YouTubeWebOrigins {
     const val CLEARS_ALL_WEBVIEW_STORAGE = false
@@ -36,7 +39,8 @@ object YouTubeWebOrigins {
     )
 }
 
-class AndroidYouTubeSiteData : YouTubeSiteData {
+class AndroidYouTubeSiteData(context: Context) : YouTubeSiteData {
+    private val appContext = context.applicationContext
     override var withdrawClearsAllSiteData: Boolean = false
         private set
 
@@ -52,10 +56,7 @@ class AndroidYouTubeSiteData : YouTubeSiteData {
             }
             manager.flush()
         }
-        runCatching {
-            val storage = WebStorage.getInstance()
-            YouTubeWebOrigins.PAGES.forEach { origin -> storage.deleteOrigin(origin) }
-        }
+        runCatching { LegacySiteData.clear(appContext, YouTubeWebOrigins.PAGES) }
     }
 }
 
