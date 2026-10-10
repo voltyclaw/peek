@@ -75,6 +75,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import app.pane.android.R
 import app.pane.android.data.webview.EmbedWebViewLiveness
+import app.pane.android.ui.theme.tokens.PaneTokenColors
 import app.pane.android.domain.tiktok.TikTokCaption
 import app.pane.android.domain.tiktok.TikTokIds
 import app.pane.android.domain.tiktok.TikTokPlayback
@@ -513,10 +514,10 @@ internal fun TikTokDetails(
         ) {
             Text(
                 stringResource(R.string.tt_comments_live_on_tiktok),
-                color = Color(0xFFDAD4CE),
+                color = PaneTokenColors.ColorTextSoft,
                 style = TextStyle(fontFamily = Inter, fontSize = 15.sp),
             )
-            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = Color(0xFFDAD4CE))
+            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = PaneTokenColors.ColorTextSoft)
         }
     }
 }

@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import app.pane.android.ui.theme.tokens.PaneTokenColors
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -647,12 +648,12 @@ private fun FullscreenChrome(
                     .fillMaxWidth()
                     .semantics { contentDescription = scrubLabel },
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFF4EFEA),
-                    activeTrackColor = Color(0xFF8A827A),
-                    inactiveTrackColor = Color(0xFF262018),
-                    disabledThumbColor = Color(0xFF8A827A),
-                    disabledActiveTrackColor = Color(0xFF8A827A),
-                    disabledInactiveTrackColor = Color(0xFF262018),
+                    thumbColor = PaneTokenColors.ColorTextPrimary,
+                    activeTrackColor = PaneTokenColors.ColorTextMeta,
+                    inactiveTrackColor = PaneTokenColors.ColorBorderHairline,
+                    disabledThumbColor = PaneTokenColors.ColorTextMeta,
+                    disabledActiveTrackColor = PaneTokenColors.ColorTextMeta,
+                    disabledInactiveTrackColor = PaneTokenColors.ColorBorderHairline,
                 ),
             )
         }
@@ -731,7 +732,7 @@ private fun QualityButton(
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            containerColor = Color(0xFF191412),
+            containerColor = PaneTokenColors.ColorBgRaised,
         ) {
             options.forEach { option ->
                 val checked = if (option.auto) {

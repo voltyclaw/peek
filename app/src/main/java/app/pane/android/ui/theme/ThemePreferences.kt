@@ -9,7 +9,10 @@ object ThemePreferences {
     fun read(context: Context): ThemeMode {
         val stored = context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
             .getString(KEY_THEME_MODE, null)
-        return ThemeMode.fromStorage(stored)
+        val parsed = ThemeMode.fromStorage(stored)
+        val applied = parsed.forCurrentBuild()
+        if (applied != parsed) write(context, applied)
+        return applied
     }
 
     fun write(context: Context, mode: ThemeMode) {

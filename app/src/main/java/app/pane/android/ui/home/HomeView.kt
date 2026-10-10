@@ -74,8 +74,6 @@ import app.pane.android.ui.components.PaneMark
 import app.pane.android.ui.model.HomeUiState
 import app.pane.android.ui.model.RecentLinkUiModel
 import app.pane.android.ui.model.asLedgerRow
-import app.pane.android.ui.theme.Geist
-import app.pane.android.ui.theme.GeistMono
 import app.pane.android.ui.theme.Inter
 import app.pane.android.ui.theme.PaneAccent
 import app.pane.android.ui.theme.PaneBorder
@@ -90,6 +88,7 @@ import app.pane.android.ui.theme.PaneTile
 import app.pane.android.ui.media.VideoQuality
 import app.pane.android.ui.navigation.BackBehavior
 import app.pane.android.ui.navigation.SoundMode
+import app.pane.android.ui.theme.DARK_THEME_ONLY
 import app.pane.android.ui.theme.ThemeMode
 
 @Composable
@@ -150,6 +149,8 @@ fun HomeView(
             HomeHeader(
                 onOpenLinkSettings,
                 versionLabel,
+                themeMode,
+                onThemeMode,
                 videoQuality,
                 onVideoQuality,
                 soundMode,
@@ -215,6 +216,8 @@ fun HomeView(
 private fun HomeHeader(
     onOpenLinkSettings: () -> Unit,
     versionLabel: String,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
     soundMode: SoundMode,
@@ -262,6 +265,8 @@ private fun HomeHeader(
                     menuOpen = false
                     onOpenLinkSettings()
                 },
+                themeMode = themeMode,
+                onThemeMode = onThemeMode,
                 videoQuality = videoQuality,
                 onVideoQuality = onVideoQuality,
                 soundMode = soundMode,
@@ -295,6 +300,8 @@ private fun OptionsMenu(
     versionLabel: String,
     onDismiss: () -> Unit,
     onOpenLinkSettings: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
     videoQuality: VideoQuality,
     onVideoQuality: (VideoQuality) -> Unit,
     soundMode: SoundMode,
@@ -406,7 +413,22 @@ private fun OptionsMenu(
                     )
                 }
                 SettingsHairline()
-                SettingsHairline()
+                if (!DARK_THEME_ONLY) {
+                    SettingsSection(stringResource(R.string.appearance))
+                    ThemeMode.entries.forEach { mode ->
+                        val label = when (mode) {
+                            ThemeMode.Light -> R.string.theme_light
+                            ThemeMode.Dark -> R.string.theme_dark
+                            ThemeMode.System -> R.string.theme_system
+                        }
+                        SettingsChoice(
+                            title = stringResource(label),
+                            selected = themeMode == mode,
+                            onClick = { onThemeMode(mode) },
+                        )
+                    }
+                    SettingsHairline()
+                }
                 SettingsSection(stringResource(R.string.settings_group_sources))
                 SourceSettingsGroup(
                     rows = sourceRows,
