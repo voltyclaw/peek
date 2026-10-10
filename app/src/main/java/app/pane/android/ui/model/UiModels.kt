@@ -2,6 +2,7 @@ package app.pane.android.ui.model
 
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Immutable
+import app.pane.android.ui.viewer.OpenFailureKind
 
 @Immutable
 sealed interface UiImage {
@@ -93,7 +94,7 @@ sealed interface ViewerUiState {
     data class Unavailable(val url: String) : ViewerUiState
 
     /** The URL is supported, but the source did not return a post. */
-    data class LoadFailed(val url: String, val reason: String) : ViewerUiState
+    data class LoadFailed(val url: String, val reason: OpenFailureKind) : ViewerUiState
 
     @Immutable
     data class Content(

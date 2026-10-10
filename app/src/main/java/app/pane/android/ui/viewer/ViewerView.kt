@@ -868,16 +868,15 @@ private fun friendlyLoadingCopy(message: String): String {
 @Composable
 private fun LoadFailedViewer(
     url: String,
-    reason: String,
+    reason: OpenFailureKind,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onCopy: () -> Unit,
 ) {
-    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrElse { openFailureKind(reason) }
     ErrorShell(url, onBack, onOpen, onShare, onCopy, showOpen = false) {
-        OpenRecovery(url = url, reason = kind, onOpen = onOpen, onRetry = onRetry)
+        OpenRecovery(url = url, reason = reason, onOpen = onOpen, onRetry = onRetry)
     }
 }
 

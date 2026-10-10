@@ -48,7 +48,7 @@ class RedditLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         if (!supports(url)) {
-            return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
+            return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         }
         return load(url, onProgress, forceNetwork = false, onPreview = onPreview)
     }
@@ -61,7 +61,7 @@ class RedditLinkContentRepository(
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> {
         if (!supports(url)) {
-            return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
+            return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         }
         return try {
             loadMutex.withLock {
@@ -112,7 +112,7 @@ class RedditLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         if (!supports(url)) {
-            return Result.failure(IllegalArgumentException("Unsupported Reddit post URL: $url"))
+            return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         }
         val id = RedditUrls.direct(url)?.id ?: shareToPostId.remove(url)
         if (id != null) {

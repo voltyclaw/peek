@@ -9,11 +9,15 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import app.pane.android.data.net.loginWallFailure
 import app.pane.android.data.resolver.PageLoadProgressElement
+import app.pane.android.data.webview.ScraperFallbackCleanup
+import app.pane.android.data.webview.ScraperWebViewFactory
+import app.pane.android.data.webview.ScraperWebViews
 import app.pane.android.domain.model.LoadProgress
+import app.pane.android.domain.model.SourceFailure
 import app.pane.android.domain.model.LoadStage
 import app.pane.android.domain.repository.LoadProgressListener
-import java.io.IOException
 import java.net.URI
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
@@ -33,6 +37,7 @@ import kotlinx.serialization.json.jsonPrimitive
 class AndroidFacebookPageLoader(
     context: Context,
     private val timeoutMillis: Long = 10_000L,
+    private val webViews: ScraperWebViewFactory = ScraperWebViews.shared,
 ) : FacebookPageLoader {
     private val applicationContext = context.applicationContext
     private val json = Json { isLenient = true }
@@ -47,25 +52,24 @@ class AndroidFacebookPageLoader(
     @SuppressLint("SetJavaScriptEnabled")
     override suspend fun resolve(url: String): ParsedFacebookPost {
         val post = FacebookUrls.parse(url)
-            ?: throw IllegalArgumentException("Unsupported Facebook post URL: $url")
+            ?: throw SourceFailure.Unsupported(url)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         try {
             return withContext(Dispatchers.Main.immediate) {
                 withTimeout(timeoutMillis) {
                     suspendCancellableCoroutine { continuation ->
                         val handler = Handler(Looper.getMainLooper())
-                        val webView = WebView(applicationContext)
+                        val webView = webViews.create(applicationContext)
                         var completed = false
                         var attempts = 0
                         var best: ParsedFacebookPost? = null
 
                         fun cleanup() {
                             handler.removeCallbacksAndMessages(null)
-                            webView.stopLoading()
                             webView.webViewClient = WebViewClient()
-                            webView.loadUrl("about:blank")
-                            webView.destroy()
-                            clearCookies()
+                            webViews.release(webView)
+                            ScraperFallbackCleanup.expireCookies(COOKIE_URLS)
+                            ScraperFallbackCleanup.deleteOrigins(ORIGINS)
                         }
 
                         fun fail(error: Throwable) {
@@ -93,7 +97,7 @@ class AndroidFacebookPageLoader(
                                 if (completed) return@evaluateJavascript
                                 val html = decode(encoded)
                                 if (html != null && isLogin(webView.url)) {
-                                    fail(IOException(FacebookDocument.LOGIN))
+                                    fail(loginWallFailure(FacebookDocument.LOGIN))
                                     return@evaluateJavascript
                                 }
                                 val parsed = html?.let { FacebookDocument.parse(it, post.id, post.canonicalUrl) }
@@ -114,7 +118,7 @@ class AndroidFacebookPageLoader(
                                         listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
                                         succeed(improved)
                                     }
-                                    attempts >= 4 -> fail(IOException(FacebookDocument.UNAVAILABLE))
+                                    attempts >= 4 -> fail(SourceFailure.Network(message = FacebookDocument.UNAVAILABLE))
                                     else -> handler.postDelayed(read, 700L)
                                 }
                             }
@@ -133,11 +137,11 @@ class AndroidFacebookPageLoader(
                             override fun onPageFinished(view: WebView, finishedUrl: String) {
                                 if (completed) return
                                 if (isLogin(finishedUrl)) {
-                                    fail(IOException(FacebookDocument.LOGIN))
+                                    fail(loginWallFailure(FacebookDocument.LOGIN))
                                     return
                                 }
                                 if (!isAllowed(finishedUrl)) {
-                                    fail(IOException("Facebook redirected away from the post"))
+                                    fail(SourceFailure.Network(message = "Facebook redirected away from the post"))
                                     return
                                 }
                                 handler.post(read)
@@ -147,11 +151,13 @@ class AndroidFacebookPageLoader(
                                 if (!request.isForMainFrame) return false
                                 val target = request.url.toString()
                                 if (isLogin(target)) {
-                                    fail(IOException(FacebookDocument.LOGIN))
+                                    fail(loginWallFailure(FacebookDocument.LOGIN))
                                     return true
                                 }
                                 val allowed = isAllowed(target)
-                                if (!allowed) fail(IOException("Blocked browser navigation away from Facebook"))
+                                if (!allowed) {
+                                    fail(SourceFailure.Network(message = "Blocked browser navigation away from Facebook"))
+                                }
                                 return !allowed
                             }
                         }
@@ -169,7 +175,7 @@ class AndroidFacebookPageLoader(
                 }
             }
         } catch (timeout: TimeoutCancellationException) {
-            throw IOException(FacebookDocument.UNAVAILABLE)
+            throw SourceFailure.Network(message = FacebookDocument.UNAVAILABLE)
         }
     }
 
@@ -186,21 +192,9 @@ class AndroidFacebookPageLoader(
         return path.startsWith("/login") || path.startsWith("/checkpoint")
     }
 
-    private fun clearCookies() {
-        runCatching {
-            val manager = CookieManager.getInstance()
-            listOf("https://www.facebook.com", "https://m.facebook.com", "https://fb.watch").forEach { cookieUrl ->
-                val header = manager.getCookie(cookieUrl) ?: return@forEach
-                header.split(';').forEach { part ->
-                    val name = part.substringBefore('=').trim()
-                    if (name.isNotEmpty()) manager.setCookie(cookieUrl, "$name=; Max-Age=0; Path=/")
-                }
-            }
-            manager.flush()
-        }
-    }
-
     private companion object {
+        val COOKIE_URLS = listOf("https://www.facebook.com", "https://m.facebook.com", "https://fb.watch")
+        val ORIGINS = listOf("https://www.facebook.com", "https://m.facebook.com", "https://fb.watch")
         val ALLOWED = setOf("facebook.com", "m.facebook.com", "mbasic.facebook.com", "fb.com", "fb.watch")
         const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

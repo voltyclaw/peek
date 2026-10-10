@@ -329,7 +329,7 @@ class FacebookDocumentTest {
 
         val error = runCatching { loader.resolve("https://www.facebook.com/share/19j1v6TgD9/") }.exceptionOrNull()
 
-        assertTrue(error is IllegalArgumentException)
+        assertTrue(error is app.pane.android.domain.model.SourceFailure.Unsupported)
     }
 
     @Test

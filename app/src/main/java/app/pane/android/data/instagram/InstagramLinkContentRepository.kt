@@ -169,7 +169,7 @@ class InstagramLinkContentRepository(
         if (InstagramStories.isStoryUrl(url)) {
             Result.failure(StoryUnavailableException())
         } else {
-            Result.failure(IllegalArgumentException("Unsupported Instagram post URL: $url"))
+            Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         }
 
     private fun instagramAuthor(media: ParsedInstagramMedia): Author {

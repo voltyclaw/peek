@@ -33,8 +33,8 @@ class TikTokLinkContentRepository(
     fun supports(url: String): Boolean = TikTokUrls.supports(url)
 
     override suspend fun resolve(url: String): Result<LinkContent> {
-        val link = TikTokUrls.parse(url) ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
-        if (!TikTokLinks.supports(url)) return Result.failure(IllegalArgumentException("Unsupported link: $url"))
+        val link = TikTokUrls.parse(url) ?: return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
+        if (!TikTokLinks.supports(url)) return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         if (link.kind == TikTokLinkKind.Live) return Result.success(live(url, link.handle))
         if (!hasConsent()) return Result.success(stub(url, link))
         val resolved = if (link.kind == TikTokLinkKind.Short) {

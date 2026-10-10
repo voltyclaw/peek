@@ -108,10 +108,10 @@ class Feel131Test {
         assertFalse(NetworkSignals.online(hasDefaultNetwork = false, internet = false, validated = false))
         assertFalse(NetworkSignals.online(hasDefaultNetwork = true, internet = true, validated = false))
         assertTrue(NetworkSignals.online(hasDefaultNetwork = true, internet = true, validated = true))
-        assertEquals(OpenFailureKind.Offline.name, viewerStateFor("https://www.reddit.com/r/x", OfflineException()).let {
+        assertEquals(OpenFailureKind.Offline, viewerStateFor("https://www.reddit.com/r/x", OfflineException()).let {
             (it as app.pane.android.ui.model.ViewerUiState.LoadFailed).reason
         })
-        assertEquals(R.string.youre_offline, failureCopyRes(OpenFailureKind.Offline.name))
+        assertEquals(R.string.youre_offline, failureCopyRes(OpenFailureKind.Offline))
     }
 
     private companion object {

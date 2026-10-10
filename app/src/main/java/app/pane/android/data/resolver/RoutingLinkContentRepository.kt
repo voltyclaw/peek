@@ -65,5 +65,5 @@ class RoutingLinkContentRepository(
         routes.firstOrNull { it.supports(url) }?.repository
 
     private fun unsupported(url: String): Result<LinkContent> =
-        Result.failure(IllegalArgumentException("Unsupported link: $url"))
+        Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
 }

@@ -45,7 +45,7 @@ class XDirectPageLoader(
 
     override suspend fun resolve(url: String): ParsedXPost = withContext(Dispatchers.IO) {
         val status = XUrls.parse(url)
-            ?: throw IllegalArgumentException("Unsupported X status URL: $url")
+            ?: throw app.pane.android.domain.model.SourceFailure.Unsupported(url)
         val listener = coroutineContext[PageLoadProgressElement]?.listener ?: LoadProgressListener {}
         val started = System.nanoTime()
         listener.onProgress(LoadProgress(0.08f, LoadStage.Connecting))
@@ -100,7 +100,7 @@ class XDirectPageLoader(
                     listener.onProgress(LoadProgress(1f, LoadStage.ExtractingContent))
                     post
                 } else {
-                    throw IOException(XSyndication.UNAVAILABLE)
+                    throw app.pane.android.domain.model.SourceFailure.Network(message = XSyndication.UNAVAILABLE)
                 }
             }
         }
@@ -263,7 +263,7 @@ class XDirectPageLoader(
                 }
                 .orEmpty()
             if (status !in 200..299 || body.isBlank()) {
-                throw IOException("X returned HTTP $status")
+                throw app.pane.android.data.net.httpFailure(status, "X returned HTTP $status")
             }
             body
         } finally {

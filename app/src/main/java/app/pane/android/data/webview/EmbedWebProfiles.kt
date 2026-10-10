@@ -22,7 +22,13 @@ object EmbedWebProfiles {
     const val INSTAGRAM = "pane-instagram"
     const val THREADS = "pane-threads"
 
-    /** Profiles this build actually assigns to a WebView. Instagram and Threads stay reserved. */
+    /**
+     * Shared profile for the hidden Reddit, Facebook, and Instagram scrapers.
+     * It is not a withdraw target, so it stays out of [assignedProfiles].
+     */
+    const val SCRAPER = "pane-scraper"
+
+    /** Profiles this build assigns for embeds. Instagram, Threads, and the scraper stay out of withdraw. */
     private val assignedProfiles = setOf(YOUTUBE, TIKTOK)
 
     /** First Chromium milestone whose WebView boundary exposes [WebViewFeature.MULTI_PROFILE]. */
@@ -31,10 +37,24 @@ object EmbedWebProfiles {
     fun supported(): Boolean =
         runCatching { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) }.getOrDefault(false)
 
-    /** Call before the WebView loads anything. No-op when multi-profile is unavailable. */
-    fun assign(webView: WebView, profile: String) {
-        if (!supported()) return
-        runCatching { WebViewCompat.setProfile(webView, profile) }
+    /**
+     * Call before the WebView loads anything.
+     * False when multi-profile is unavailable or [WebViewCompat.setProfile] fails.
+     */
+    fun assign(webView: WebView, profile: String): Boolean {
+        if (!supported()) return false
+        return runCatching { WebViewCompat.setProfile(webView, profile) }.isSuccess
+    }
+
+    /** Deletes [profile] when it exists, then creates an empty one. No-op without multi-profile. */
+    fun recreate(profile: String): Boolean {
+        if (!supported()) return false
+        return runCatching {
+            val store = ProfileStore.getInstance()
+            if (store.getProfile(profile) != null) store.deleteProfile(profile)
+            store.getOrCreateProfile(profile)
+            true
+        }.getOrDefault(false)
     }
 
     /**

@@ -44,7 +44,7 @@ class FacebookLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         val post = FacebookUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Facebook post URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         cached(post.id, url)?.let { return Result.success(it) }
         return load(url, post, onProgress, onPreview)
@@ -57,7 +57,7 @@ class FacebookLinkContentRepository(
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> {
         val post = FacebookUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Facebook post URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         val current = cached(post.id, url)
             ?: return Result.failure(IllegalStateException("Load the Facebook post before loading more comments"))
@@ -76,7 +76,7 @@ class FacebookLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         val post = FacebookUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported Facebook post URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         successfulCache.remove(post.id)
         cacheStore.remove(cacheKey(post.id))

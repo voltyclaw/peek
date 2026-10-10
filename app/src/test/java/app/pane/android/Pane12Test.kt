@@ -23,6 +23,7 @@ import app.pane.android.ui.media.ThreadMedia
 import app.pane.android.ui.media.ThreadVisibility
 import app.pane.android.ui.media.VisibleSlice
 import app.pane.android.ui.text.BidiText
+import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.viewer.failureOffersRetry
 import app.pane.android.ui.viewer.viewerStateFor
@@ -189,7 +190,7 @@ class Pane12Test {
     fun aPrivateGroupFailureDoesNotOfferRetry() {
         val state = viewerStateFor("https://www.facebook.com/share/p/14tZoPM9kTY/", PrivateGroupException())
         assertFalse(failureOffersRetry(state))
-        assertEquals(R.string.private_group_title, failureCopyRes("PrivateGroup"))
+        assertEquals(R.string.private_group_title, failureCopyRes(OpenFailureKind.PrivateGroup))
     }
 
     @Test

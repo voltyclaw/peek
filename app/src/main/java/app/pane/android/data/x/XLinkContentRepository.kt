@@ -47,7 +47,7 @@ class XLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         val status = XUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported X status URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         cached(status.id, url)?.let { return Result.success(it) }
         return load(url, status, onProgress, onPreview)
@@ -60,7 +60,7 @@ class XLinkContentRepository(
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> {
         val status = XUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported X status URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         val current = cached(status.id, url)
             ?: return Result.failure(IllegalStateException("Load the X post before loading more comments"))
@@ -102,7 +102,7 @@ class XLinkContentRepository(
         onPreview: (LinkContent) -> Unit,
     ): Result<LinkContent> {
         val status = XUrls.parse(url) ?: return Result.failure(
-            IllegalArgumentException("Unsupported X status URL: $url"),
+            app.pane.android.domain.model.SourceFailure.Unsupported(url),
         )
         successfulCache.remove(status.id)
         cacheStore.remove(cacheKey(status.id))

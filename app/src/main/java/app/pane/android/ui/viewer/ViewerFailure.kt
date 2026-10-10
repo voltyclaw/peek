@@ -4,9 +4,9 @@ import app.pane.android.R
 import app.pane.android.domain.model.BlueskyPostException
 import app.pane.android.domain.model.OfflineException
 import app.pane.android.domain.model.PrivateGroupException
+import app.pane.android.domain.model.SourceFailure
 import app.pane.android.domain.model.StoryUnavailableException
 import app.pane.android.ui.model.ViewerUiState
-import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -24,109 +24,73 @@ enum class OpenFailureKind {
     BlueskySignedIn,
 }
 
-fun openFailureKind(message: String?): OpenFailureKind {
-    val lower = message.orEmpty().lowercase()
-    if (containsAny(lower, "story unavailable")) return OpenFailureKind.Story
-    if (isOfflineMessage(lower)) return OpenFailureKind.Offline
-    if (isConnectivityMessage(lower)) return OpenFailureKind.Network
-    if (containsAny(lower, "private", "login", "log in", "sign in", "unauthorized", "forbidden", "blocked", "checkpoint")) {
-        return OpenFailureKind.Private
-    }
-    if (containsAny(lower, "expired", "not found", "removed", "deleted", "gone")) {
-        return OpenFailureKind.Expired
-    }
-    if (containsStatus(lower, "401", "403")) return OpenFailureKind.Private
-    if (containsStatus(lower, "404", "410")) return OpenFailureKind.Expired
-    return OpenFailureKind.Network
-}
-
-/** No route to the host. Distinct from a timeout so the screen can say you're offline. */
-private fun isOfflineMessage(lower: String): Boolean = containsAny(
-    lower,
-    "offline",
-    "unknown host",
-    "unable to resolve",
-    "failed to connect",
-    "connection refused",
-    "unreachable",
-    "no address",
-    "network is unreachable",
-    "enotfound",
-)
-
-/** Timeouts and resets are recoverable. They are not "not a public post". */
-private fun isConnectivityMessage(lower: String): Boolean = containsAny(
-    lower,
-    "timeout",
-    "timed out",
-    "connection reset",
-)
-
 /** String resource for a failure the screen is allowed to show. Never the raw message. */
-fun failureCopyRes(reason: String): Int {
-    val kind = runCatching { OpenFailureKind.valueOf(reason) }.getOrElse { openFailureKind(reason) }
-    return when (kind) {
-        OpenFailureKind.Private -> R.string.reason_private
-        OpenFailureKind.Expired -> R.string.reason_expired
-        OpenFailureKind.Network -> R.string.reason_network
-        OpenFailureKind.Offline -> R.string.youre_offline
-        OpenFailureKind.Story -> R.string.reason_story
-        OpenFailureKind.PrivateGroup -> R.string.private_group_title
-        OpenFailureKind.BlueskyGone -> R.string.bs_gone_title
-        OpenFailureKind.BlueskyHidden -> R.string.bs_hidden_title
-        OpenFailureKind.BlueskySignedIn -> R.string.bs_signed_in_title
-    }
+fun failureCopyRes(reason: OpenFailureKind): Int = when (reason) {
+    OpenFailureKind.Private -> R.string.reason_private
+    OpenFailureKind.Expired -> R.string.reason_expired
+    OpenFailureKind.Network -> R.string.reason_network
+    OpenFailureKind.Offline -> R.string.youre_offline
+    OpenFailureKind.Story -> R.string.reason_story
+    OpenFailureKind.PrivateGroup -> R.string.private_group_title
+    OpenFailureKind.BlueskyGone -> R.string.bs_gone_title
+    OpenFailureKind.BlueskyHidden -> R.string.bs_hidden_title
+    OpenFailureKind.BlueskySignedIn -> R.string.bs_signed_in_title
 }
 
-/** Unsupported URLs keep the existing screen. Fetch and parse failures stay separate. */
-fun viewerStateFor(url: String, error: Throwable): ViewerUiState = when {
-    error is OfflineException -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
-    error is BlueskyPostException -> ViewerUiState.LoadFailed(
+/**
+ * Maps a thrown error onto a screen.
+ * Platform exceptions are classified by type. Anything else is a retryable network error.
+ * [ViewerUiState.Unavailable] is only [SourceFailure.Unsupported].
+ */
+fun viewerStateFor(url: String, error: Throwable): ViewerUiState =
+    viewerStateFor(url, error.asSourceFailure())
+
+fun viewerStateFor(url: String, error: SourceFailure): ViewerUiState = when (error) {
+    is SourceFailure.Unsupported -> ViewerUiState.Unavailable(error.url.ifBlank { url })
+    is SourceFailure.Private -> ViewerUiState.LoadFailed(
         url = url,
-        reason = when (error.kind) {
-            BlueskyPostException.Kind.Gone -> OpenFailureKind.BlueskyGone.name
-            BlueskyPostException.Kind.Hidden -> OpenFailureKind.BlueskyHidden.name
-            BlueskyPostException.Kind.SignedIn -> OpenFailureKind.BlueskySignedIn.name
+        reason = if (error.reason == SourceFailure.PrivateReason.Group) {
+            OpenFailureKind.PrivateGroup
+        } else {
+            OpenFailureKind.Private
         },
     )
-    error is PrivateGroupException -> ViewerUiState.LoadFailed(
+    is SourceFailure.Gone -> ViewerUiState.LoadFailed(
         url = url,
-        reason = OpenFailureKind.PrivateGroup.name,
+        reason = when (error.bluesky) {
+            null -> OpenFailureKind.Expired
+            SourceFailure.BlueskyKind.Gone -> OpenFailureKind.BlueskyGone
+            SourceFailure.BlueskyKind.Hidden -> OpenFailureKind.BlueskyHidden
+            SourceFailure.BlueskyKind.SignedIn -> OpenFailureKind.BlueskySignedIn
+        },
     )
-    error is StoryUnavailableException -> ViewerUiState.LoadFailed(
-        url = url,
-        reason = OpenFailureKind.Story.name,
-    )
-    error is UnknownHostException || error is ConnectException ->
-        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
-    error is SocketTimeoutException ->
-        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network.name)
-    error is IllegalArgumentException -> ViewerUiState.Unavailable(url)
-    error is IOException && isOfflineMessage(error.message.orEmpty().lowercase()) ->
-        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline.name)
-    error is IOException && isConnectivityMessage(error.message.orEmpty().lowercase()) ->
-        ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network.name)
-    else -> ViewerUiState.LoadFailed(
-        url = url,
-        reason = openFailureKind(error.message).name,
-    )
+    SourceFailure.StoryUnavailable -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Story)
+    is SourceFailure.Offline -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Offline)
+    is SourceFailure.Network -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network)
+    is SourceFailure.Parse -> ViewerUiState.LoadFailed(url = url, reason = OpenFailureKind.Network)
 }
 
-/** True when the error screen should offer Retry. Classification misses do not. */
+/** True when the error screen should offer Retry. */
 fun failureOffersRetry(state: ViewerUiState): Boolean =
-    state is ViewerUiState.LoadFailed && state.reason != OpenFailureKind.PrivateGroup.name &&
-        state.reason != OpenFailureKind.BlueskyGone.name &&
-        state.reason != OpenFailureKind.BlueskyHidden.name &&
-        state.reason != OpenFailureKind.BlueskySignedIn.name
+    state is ViewerUiState.LoadFailed &&
+        state.reason != OpenFailureKind.PrivateGroup &&
+        state.reason != OpenFailureKind.BlueskyGone &&
+        state.reason != OpenFailureKind.BlueskyHidden &&
+        state.reason != OpenFailureKind.BlueskySignedIn
 
-private fun containsAny(text: String, vararg needles: String): Boolean =
-    needles.any { it in text }
-
-/** Match a status code as its own token so a long page does not trip on a stray digit run. */
-private fun containsStatus(text: String, vararg codes: String): Boolean =
-    codes.any { code ->
-        val index = text.indexOf(code)
-        index >= 0 &&
-            (index == 0 || !text[index - 1].isDigit()) &&
-            (index + code.length == text.length || !text[index + code.length].isDigit())
-    }
+internal fun Throwable.asSourceFailure(): SourceFailure = when (this) {
+    is SourceFailure -> this
+    is OfflineException -> SourceFailure.Offline(this)
+    is BlueskyPostException -> SourceFailure.Gone(
+        bluesky = when (kind) {
+            BlueskyPostException.Kind.Gone -> SourceFailure.BlueskyKind.Gone
+            BlueskyPostException.Kind.Hidden -> SourceFailure.BlueskyKind.Hidden
+            BlueskyPostException.Kind.SignedIn -> SourceFailure.BlueskyKind.SignedIn
+        },
+    )
+    is PrivateGroupException -> SourceFailure.Private(SourceFailure.PrivateReason.Group)
+    is StoryUnavailableException -> SourceFailure.StoryUnavailable
+    is UnknownHostException, is ConnectException -> SourceFailure.Offline(this)
+    is SocketTimeoutException -> SourceFailure.Network(this)
+    else -> SourceFailure.Network(this)
+}

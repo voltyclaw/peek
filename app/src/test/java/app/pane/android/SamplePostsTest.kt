@@ -197,12 +197,12 @@ class SamplePostsTest {
     fun errorAndUnsupportedStayOffline() = runBlocking {
         val error = repository.resolve(url("error"))
         val failure = error.exceptionOrNull()
-        assertTrue(failure is IOException)
+        assertTrue(failure is app.pane.android.domain.model.SourceFailure.Gone)
         assertTrue(failure!!.message!!.contains("removed"))
         assertEquals("This post was removed", repository.peekCached(url("error"))?.title)
 
         val unsupported = repository.resolve(url("unsupported"))
-        assertTrue(unsupported.exceptionOrNull() is IllegalArgumentException)
+        assertTrue(unsupported.exceptionOrNull() is app.pane.android.domain.model.SourceFailure.Unsupported)
         assertEquals("Marketplace listing", repository.peekCached(url("unsupported"))?.title)
         assertEquals(R.drawable.ic_source_facebook, sourceMarkRes(url("unsupported")))
         assertEquals(R.string.open_in_facebook, openInAppLabelRes(url("unsupported")))

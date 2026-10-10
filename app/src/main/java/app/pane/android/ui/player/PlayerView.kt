@@ -97,6 +97,7 @@ import app.pane.android.ui.media.rememberPlaybackSession
 import app.pane.android.ui.media.rotateControlLabel
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.media.surfaceGestureAction
+import app.pane.android.ui.viewer.OpenFailureKind
 import app.pane.android.ui.viewer.failureCopyRes
 import app.pane.android.ui.media.fittedContentPx
 import kotlinx.coroutines.delay
@@ -213,7 +214,12 @@ private fun LoadingMedia(uiState: ViewerUiState.Loading, onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnavailableMedia(onBack: () -> Unit, url: String = "", reason: String = "", failed: Boolean = false) {
+private fun UnavailableMedia(
+    onBack: () -> Unit,
+    url: String = "",
+    reason: OpenFailureKind = OpenFailureKind.Network,
+    failed: Boolean = false,
+) {
     val context = LocalContext.current
     val knownSource = remember(url) {
         app.pane.android.ui.actions.sourceAppNameRes(url)

@@ -3,7 +3,6 @@ package app.pane.android.data.sample
 import app.pane.android.domain.model.LinkContent
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
-import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
 /** Serves [SamplePosts] with no network. Reddit and Instagram samples page comments in memory. */
@@ -30,7 +29,7 @@ class SampleLinkContentRepository(
 
     override suspend fun loadMoreComments(url: String): Result<LinkContent> {
         val entry = SamplePosts.entryFor(url)
-            ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
+            ?: return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         if (entry.kind != SamplePosts.Kind.Post) return outcome(url, reset = false)
         val current = pages[entry.id] ?: 0
         if (current >= entry.maxPage) {
@@ -51,11 +50,13 @@ class SampleLinkContentRepository(
 
     private fun outcome(url: String, reset: Boolean): Result<LinkContent> {
         val entry = SamplePosts.entryFor(url)
-            ?: return Result.failure(IllegalArgumentException("Unsupported link: $url"))
+            ?: return Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
         if (reset) pages.remove(entry.id)
         return when (entry.kind) {
-            SamplePosts.Kind.Error -> Result.failure(IOException("This post was removed"))
-            SamplePosts.Kind.Unsupported -> Result.failure(IllegalArgumentException("Unsupported link: $url"))
+            SamplePosts.Kind.Error -> Result.failure(
+                app.pane.android.domain.model.SourceFailure.Gone(message = "This post was removed"),
+            )
+            SamplePosts.Kind.Unsupported -> Result.failure(app.pane.android.domain.model.SourceFailure.Unsupported(url))
             SamplePosts.Kind.Post -> Result.success(SamplePosts.render(entry, files, pages[entry.id] ?: 0))
         }
     }

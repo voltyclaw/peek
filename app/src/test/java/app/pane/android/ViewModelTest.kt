@@ -139,7 +139,7 @@ class ViewModelTest {
     }
 
     @Test
-    fun viewerViewModelPublishesUnavailableForUnknownUrl() = runTest(mainDispatcherRule.dispatcher) {
+    fun viewerViewModelPublishesARetryableNetworkErrorForAnUnknownFixture() = runTest(mainDispatcherRule.dispatcher) {
         val fakeRecents = FakeRecentLinksRepository(emptyList())
         val viewModel = ViewerViewModel(
             url = "unknown",
@@ -151,7 +151,10 @@ class ViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(ViewerUiState.Unavailable("unknown"), viewModel.uiState.value)
+        assertEquals(
+            ViewerUiState.LoadFailed("unknown", app.pane.android.ui.viewer.OpenFailureKind.Network),
+            viewModel.uiState.value,
+        )
     }
 }
 
