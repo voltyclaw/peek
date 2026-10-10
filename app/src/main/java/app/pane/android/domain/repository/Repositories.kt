@@ -78,7 +78,8 @@ interface HistoryRepository {
     suspend fun distinctSourceApps(): List<SourceApp> = emptyList()
     suspend fun recordSuccessfulView(view: HistoryView)
     suspend fun star(url: String, copy: StarCopy, images: StarImageBytes = StarImageBytes())
-    suspend fun unstar(url: String)
+    /** Clears the star and returns the row as it was. An unstarred row stays. Never deletes. */
+    suspend fun unstar(url: String): HistoryUndo? = null
 
     /** History remove. Does not touch Recents. */
     suspend fun remove(url: String): HistoryUndo? = null
@@ -127,7 +128,7 @@ object NoHistoryRepository : HistoryRepository {
     override fun observeHistory(query: HistoryQuery): Flow<List<HistoryEntry>> = empty
     override suspend fun recordSuccessfulView(view: HistoryView) = Unit
     override suspend fun star(url: String, copy: StarCopy, images: StarImageBytes) = Unit
-    override suspend fun unstar(url: String) = Unit
+    override suspend fun unstar(url: String): HistoryUndo? = null
     override suspend fun seedFromRecents(recents: List<RecentLink>) = Unit
     override suspend fun pruneUnstarred(enabled: Boolean, cap: Int): List<String> = emptyList()
 }

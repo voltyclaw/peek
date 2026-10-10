@@ -10,6 +10,7 @@ import app.pane.android.domain.model.RecentLink
 import app.pane.android.domain.repository.LinkContentRepository
 import app.pane.android.domain.repository.LoadProgressListener
 import app.pane.android.domain.repository.RecentLinksRepository
+import app.pane.android.testing.FakeRecentLinksRepository
 import app.pane.android.domain.usecase.ObserveRecentContentUseCase
 import app.pane.android.domain.usecase.OpenLinkUseCase
 import app.pane.android.domain.usecase.RefreshLinkUseCase
@@ -151,25 +152,6 @@ class ViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ViewerUiState.Unavailable("unknown"), viewModel.uiState.value)
-    }
-}
-
-private class FakeRecentLinksRepository(initial: List<RecentLink>) : RecentLinksRepository {
-    private val state = MutableStateFlow(initial)
-    val openedUrls = mutableListOf<String>()
-
-    override fun observeRecents(): Flow<List<RecentLink>> = state
-
-    override suspend fun markOpened(url: String) {
-        openedUrls += url
-    }
-
-    override suspend fun remove(url: String) {
-        state.value = state.value.filterNot { it.url == url }
-    }
-
-    override suspend fun clear() {
-        state.value = emptyList()
     }
 }
 

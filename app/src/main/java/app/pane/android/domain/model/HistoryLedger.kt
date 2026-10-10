@@ -12,7 +12,7 @@ enum class HistoryBucket { Today, Yesterday, ThisWeek, Older }
 
 enum class HistoryGesture { Remove, Star, RemoveStar }
 
-enum class HistoryEmptyKind { None, History, Starred, Search }
+enum class HistoryEmptyKind { None, History, Starred, Search, StarredApp }
 
 data class HistorySection(
     val bucket: HistoryBucket,
@@ -121,6 +121,7 @@ object HistoryLedger {
         query: String,
     ): HistoryEmptyKind {
         if (filteredRows > 0) return HistoryEmptyKind.None
+        if (scope == HistoryScope.Starred && apps.isNotEmpty()) return HistoryEmptyKind.StarredApp
         if (query.isNotBlank() || apps.isNotEmpty()) return HistoryEmptyKind.Search
         if (scope == HistoryScope.Starred && starredRows == 0) return HistoryEmptyKind.Starred
         if (totalRows == 0) return HistoryEmptyKind.History

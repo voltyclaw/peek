@@ -57,6 +57,10 @@ class HistoryViewModel(
     private var refreshingTikTok = false
     private val writes = Mutex()
 
+    init {
+        viewModelScope.launch { dropRememberedAppWithNoRows() }
+    }
+
     val uiState: StateFlow<HistoryListUi> = combine(historyRepository.observeHistory(), query) { rows, filter ->
         latest = rows
         HistoryPresenter.present(rows, filter, clock.nowEpochMillis(), zone)
@@ -115,14 +119,15 @@ class HistoryViewModel(
     /** Swipes unstar a starred row first. A second swipe removes it. */
     fun swipe(url: String, left: Boolean) {
         viewModelScope.launch {
-            writes.withLock {
-                val row = rowFor(url) ?: return@withLock
+            val pending = writes.withLock {
+                val row = rowFor(url) ?: return@withLock null
                 when (HistoryLedger.gesture(left, row.starredAt != null)) {
                     HistoryGesture.Star -> star(row)
                     HistoryGesture.RemoveStar -> unstar(row.url)
                     HistoryGesture.Remove -> remove(row.url)
                 }
             }
+            pending?.let { notices.emit(it) }
         }
     }
 
@@ -132,15 +137,16 @@ class HistoryViewModel(
      */
     fun menu(url: String, action: HistoryRowAction) {
         viewModelScope.launch {
-            writes.withLock {
-                val row = rowFor(url) ?: return@withLock
+            val pending = writes.withLock {
+                val row = rowFor(url) ?: return@withLock null
                 when (action) {
                     HistoryRowAction.Star -> star(row)
                     HistoryRowAction.RemoveStar -> unstar(row.url)
                     HistoryRowAction.Remove -> remove(row.url)
-                    else -> Unit
+                    else -> null
                 }
             }
+            pending?.let { notices.emit(it) }
         }
     }
 
@@ -154,22 +160,42 @@ class HistoryViewModel(
         viewModelScope.launch { historyRepository.undo(undo) }
     }
 
-    private suspend fun star(row: HistoryEntry) {
+    /**
+     * A remembered app with no History rows falls back. Starred scope stays;
+     * an All scope returns to All. Zero starred rows of that app do not clear it.
+     */
+    private suspend fun dropRememberedAppWithNoRows() {
+        val app = HistoryFilterCatalog.selectedApp(query.value.apps) ?: return
+        val rows = historyRepository.observeHistory().first()
+        // An empty ledger has not contradicted the chip (tests start from an empty
+        // repo, and the first emission can be empty before rows are readable).
+        if (rows.isEmpty() || rows.any { it.sourceApp == app }) return
+        val current = query.value
+        val next = if (current.scope == HistoryScope.Starred) {
+            current.copy(apps = emptySet())
+        } else {
+            HistoryQuery()
+        }
+        if (next != current) update(next)
+    }
+
+    private suspend fun star(row: HistoryEntry): HistoryNotice {
         historyRepository.star(
             row.url,
             StarCopy(row.title, row.authorName, row.handle, row.caption, row.thumbUrl, row.pfpUrl),
         )
-        notices.emit(HistoryNotice.Starred)
+        return HistoryNotice.Starred
     }
 
-    private suspend fun unstar(url: String) {
-        val undo = historyRepository.applySwipe(url) ?: return
-        notices.emit(HistoryNotice.Unstarred(undo))
+    /** Clears the star only. A second caller that already lost the race does not delete the row. */
+    private suspend fun unstar(url: String): HistoryNotice? {
+        val undo = historyRepository.unstar(url) ?: return null
+        return HistoryNotice.Unstarred(undo)
     }
 
-    private suspend fun remove(url: String) {
-        val undo = historyRepository.remove(url) ?: return
-        notices.emit(HistoryNotice.Removed(undo))
+    private suspend fun remove(url: String): HistoryNotice? {
+        val undo = historyRepository.remove(url) ?: return null
+        return HistoryNotice.Removed(undo)
     }
 
     private fun update(next: HistoryQuery) {

@@ -9,14 +9,16 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.theme.PaneInk
 import app.pane.android.ui.theme.PaneTile
 import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun PaneSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
-    SnackbarHost(hostState = hostState, modifier = modifier) { data ->
+    SnackbarHost(hostState = hostState, modifier = modifier.testTag(PaneTestTags.SNACKBAR)) { data ->
         Snackbar(
             snackbarData = data,
             containerColor = lerp(PaneTile, PaneInk, 0.09f),
@@ -34,6 +36,7 @@ suspend fun SnackbarHostState.showForFiveSeconds(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    currentSnackbarData?.dismiss()
     val result = withTimeoutOrNull(5_000) {
         showSnackbar(
             message = message,

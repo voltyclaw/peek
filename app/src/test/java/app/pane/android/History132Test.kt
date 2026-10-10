@@ -1,5 +1,7 @@
 package app.pane.android
 
+import app.pane.android.testing.BudgetCompressor
+
 import app.pane.android.data.history.FileStarImageStore
 import app.pane.android.data.history.JdbcHistorySql
 import app.pane.android.data.history.SqliteHistoryRepository

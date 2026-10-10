@@ -70,6 +70,10 @@
     <string name="a11y_collapse_description">הצגת פחות</string>
     <string name="a11y_expand_description">הצגת התיאור המלא</string>
     <string name="a11y_filter_app_none">%1$s, אין פוסטים בהיסטוריה</string>
+    <string name="a11y_filter_app_disabled">%1$s, אין פוסטים מסומנים</string>
+    <string name="a11y_filter_show_all">הקשה כפולה להצגת הכל</string>
+    <string name="filter_empty_starred_app_title">עוד אין פוסטים מסומנים מ-%1$s</string>
+    <string name="filter_empty_body">לחיצה על הכל מציגה את הכל.</string>
     <string name="a11y_filter_chip_remove">סינון לפי %1$s, להסרה</string>
     <string name="a11y_jump_to">מעבר ל-%1$s</string>
     <string name="a11y_open_channel">%1$s, %2$s. פתיחת הערוץ ב-YouTube</string>
@@ -273,6 +277,7 @@
     <string name="sound_on">פועל</string>
     <string name="sound_remember">לזכור את הבחירה האחרונה</string>
     <string name="star">כוכב</string>
+    <string name="star_post">סימון הפוסט בכוכב</string>
     <string name="starred_empty_body">לחיצה על הכוכב בפוסט שומרת אותו קרוב.</string>
     <string name="starred_empty_title">עוד אין כוכבים</string>
     <string name="starred_snack">סומן בכוכב. יחכה לך בהיסטוריה.</string>
@@ -324,6 +329,12 @@
     <string name="yt_replay">הפעלה מחדש</string>
     <string name="yt_short_tag">Short</string>
     <string name="yt_sound_on">הפעלת סאונד</string>
+    <plurals name="a11y_filter_results">
+        <item quantity="one">פוסט אחד</item>
+        <item quantity="two">%d פוסטים</item>
+        <item quantity="many">%d פוסטים</item>
+        <item quantity="other">%d פוסטים</item>
+    </plurals>
     <plurals name="history_filters_show_posts">
         <item quantity="one">להציג פוסט אחד</item>
         <item quantity="two">להציג %d פוסטים</item>

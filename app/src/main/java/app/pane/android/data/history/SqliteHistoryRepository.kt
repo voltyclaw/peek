@@ -24,6 +24,7 @@ import app.pane.android.domain.model.SystemClock
 import app.pane.android.domain.repository.HistoryRepository
 import app.pane.android.domain.tiktok.TikTokCopyRetention
 import app.pane.android.domain.youtube.YouTubeCopyExpiry
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,7 @@ internal class SqliteHistoryRepository(
     private val sql: HistorySql,
     private val imageStore: StarImageStore,
     private val clock: Clock = SystemClock,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : HistoryRepository {
     private val lock = Any()
     private val entries = MutableStateFlow<List<HistoryEntry>>(emptyList())
@@ -46,11 +48,11 @@ internal class SqliteHistoryRepository(
     override fun observeHistory(query: HistoryQuery): Flow<List<HistoryEntry>> =
         entries.map { rows -> HistoryQueries.filter(rows, query) }
 
-    override suspend fun distinctSourceApps(): List<SourceApp> = withContext(Dispatchers.IO) {
+    override suspend fun distinctSourceApps(): List<SourceApp> = withContext(io) {
         synchronized(lock) { HistoryQueries.distinctApps(entries.value) }
     }
 
-    override suspend fun recordSuccessfulView(view: HistoryView) = withContext(Dispatchers.IO) {
+    override suspend fun recordSuccessfulView(view: HistoryView) = withContext(io) {
         synchronized(lock) {
             if (profileLink(view.url) != null) return@withContext
             val url = HistoryUrls.canonical(view.url)
@@ -100,7 +102,7 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    override suspend fun star(url: String, copy: StarCopy, images: StarImageBytes) = withContext(Dispatchers.IO) {
+    override suspend fun star(url: String, copy: StarCopy, images: StarImageBytes) = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             if (key.isBlank() || profileLink(key) != null) return@withContext
@@ -187,28 +189,19 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    override suspend fun unstar(url: String) = withContext(Dispatchers.IO) {
+    override suspend fun unstar(url: String): HistoryUndo? = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
-            val existing = find(key) ?: return@withContext
-            sql.transaction {
-                sql.exec(
-                    """
-                    UPDATE history SET starred_at = NULL, pinned_thumb_path = NULL, pinned_pfp_path = NULL
-                    WHERE url = ?
-                    """.trimIndent(),
-                    listOf(key),
-                )
-            }
-            imageStore.unpin(existing.pinnedThumbPath, existing.pinnedPfpPath)
-            reload()
+            val existing = find(key) ?: return@withContext null
+            if (existing.starredAt == null) return@withContext null
+            unstarRow(existing)
         }
     }
 
     override suspend fun seedFromRecents(recents: List<RecentLink>) =
         seedFromCached(recents.map { RecentContent(it, null) })
 
-    override suspend fun seedFromCached(entries: List<RecentContent>) = withContext(Dispatchers.IO) {
+    override suspend fun seedFromCached(entries: List<RecentContent>) = withContext(io) {
         synchronized(lock) {
             sql.transaction {
                 entries.sortedByDescending { it.recentLink.openedAtEpochMillis }.forEach { entry ->
@@ -248,11 +241,11 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    override suspend fun remove(url: String): HistoryUndo? = withContext(Dispatchers.IO) {
+    override suspend fun remove(url: String): HistoryUndo? = withContext(io) {
         synchronized(lock) { deleteRow(HistoryUrls.canonical(url)) }
     }
 
-    override suspend fun applySwipe(url: String): HistoryUndo? = withContext(Dispatchers.IO) {
+    override suspend fun applySwipe(url: String): HistoryUndo? = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             val row = find(key) ?: return@withContext null
@@ -263,7 +256,7 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    override suspend fun undo(undo: HistoryUndo) = withContext(Dispatchers.IO) {
+    override suspend fun undo(undo: HistoryUndo) = withContext(io) {
         synchronized(lock) {
             val row = undo.row
             undo.thumbBytes?.let { imageStore.restore(row.pinnedThumbPath, it) }
@@ -275,7 +268,7 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    override suspend fun pruneUnstarred(enabled: Boolean, cap: Int): List<String> = withContext(Dispatchers.IO) {
+    override suspend fun pruneUnstarred(enabled: Boolean, cap: Int): List<String> = withContext(io) {
         synchronized(lock) {
             if (!enabled) return@withContext emptyList()
             val victims = HistoryRetention.urlsToPrune(retentionRows(), cap)
@@ -292,7 +285,7 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    internal suspend fun setNote(url: String, note: String?) = withContext(Dispatchers.IO) {
+    internal suspend fun setNote(url: String, note: String?) = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             val stored = note?.trim()?.take(HISTORY_TEXT_LIMIT)?.takeIf { it.isNotEmpty() }
@@ -301,7 +294,7 @@ internal class SqliteHistoryRepository(
         }
     }
 
-    internal suspend fun addTag(url: String, name: String) = withContext(Dispatchers.IO) {
+    internal suspend fun addTag(url: String, name: String) = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             if (find(key) == null) return@withContext
@@ -409,14 +402,14 @@ internal class SqliteHistoryRepository(
     private fun find(url: String): HistoryEntry? =
         sql.query("$SELECT_ROW WHERE url = ?", listOf(url)).firstOrNull()?.toEntry()
 
-    override suspend fun stripDisplayCache(url: String) = withContext(Dispatchers.IO) {
+    override suspend fun stripDisplayCache(url: String) = withContext(io) {
         synchronized(lock) {
             clearDisplayCache("url = ?", listOf(HistoryUrls.canonical(url)))
             reload()
         }
     }
 
-    override suspend fun stripSourceDisplayCache(source: SourceApp) = withContext(Dispatchers.IO) {
+    override suspend fun stripSourceDisplayCache(source: SourceApp) = withContext(io) {
         synchronized(lock) {
             clearDisplayCache("source_app = ?", listOf(source.name))
             reload()
@@ -431,7 +424,7 @@ internal class SqliteHistoryRepository(
         caption: String,
         thumbUrl: String?,
         fetchedAtEpochMillis: Long,
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(io) {
         synchronized(lock) {
             val key = HistoryUrls.canonical(url)
             sql.exec(

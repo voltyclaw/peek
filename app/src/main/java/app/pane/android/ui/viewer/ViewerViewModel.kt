@@ -167,16 +167,17 @@ class ViewerViewModel(
 
     fun onToggleStar() {
         viewModelScope.launch {
-            writes.withLock {
-                val content = mutableUiState.value as? ViewerUiState.Content ?: return@withLock
+            val pending = writes.withLock {
+                val content = mutableUiState.value as? ViewerUiState.Content ?: return@withLock null
                 if (isStarred(url)) {
-                    val undo = historyRepository.applySwipe(url) ?: return@withLock
-                    notices.emit(ViewerNotice.Unstarred(undo))
+                    val undo = historyRepository.unstar(url) ?: return@withLock null
+                    ViewerNotice.Unstarred(undo)
                 } else {
                     historyRepository.star(url, starCopy(content))
-                    notices.emit(ViewerNotice.Starred)
+                    ViewerNotice.Starred
                 }
             }
+            pending?.let { notices.emit(it) }
         }
     }
 

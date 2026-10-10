@@ -150,8 +150,7 @@ object HistoryPresenter {
 fun sourceMark(app: SourceApp): Int? = when (app) {
     SourceApp.X -> R.drawable.ic_source_x
     SourceApp.Instagram -> R.drawable.ic_source_instagram
-    SourceApp.Reddit -> R.drawable.ic_source_reddit
     SourceApp.Facebook -> R.drawable.ic_source_facebook
     SourceApp.YouTube -> R.drawable.ic_source_youtube
-    SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
+    SourceApp.Reddit, SourceApp.TikTok, SourceApp.Threads, SourceApp.Bluesky, SourceApp.Other -> null
 }

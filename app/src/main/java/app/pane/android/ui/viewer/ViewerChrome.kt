@@ -49,7 +49,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
@@ -169,10 +172,12 @@ private fun StarButton(starred: Boolean, onStar: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.9f else 1f, label = "starScale")
-    val label = stringResource(if (starred) R.string.unstar else R.string.star)
+    val label = stringResource(if (starred) R.string.remove_star else R.string.star_post)
     Box(
         modifier = Modifier
             .size(40.dp)
+            .testTag(app.pane.android.ui.PaneTestTags.VIEWER_STAR)
+            .semantics { stateDescription = if (starred) "Starred" else "Not starred" }
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(20.dp))
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onStar),

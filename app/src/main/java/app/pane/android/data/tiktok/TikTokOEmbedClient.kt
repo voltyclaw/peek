@@ -37,7 +37,7 @@ internal object HttpTikTokTransport : TikTokTransport {
         connection.connectTimeout = 5_000
         connection.readTimeout = 5_000
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "Pane/1.4.1 (public post viewer)")
+        connection.setRequestProperty("User-Agent", "Pane/1.4.2 (public post viewer)")
         return try {
             val code = connection.responseCode
             val location = connection.getHeaderField("Location")
