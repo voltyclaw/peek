@@ -15,24 +15,17 @@ tags:
 - tapOn:
     id: viewer_media
 - extendedWaitUntil:
-    visible:
-      id: viewer_fullscreen
+    visible: "Enter fullscreen"
     timeout: 10000
-- tapOn:
-    id: viewer_fullscreen
+- tapOn: "Enter fullscreen"
 - extendedWaitUntil:
-    visible:
-      id: viewer_exit_fullscreen
+    visible: "Exit fullscreen"
     timeout: 10000
-- tapOn:
-    id: viewer_rotate
+- tapOn: "Rotate to landscape"
 - takeScreenshot: fs_rotated_by_button
-- assertVisible:
-    id: viewer_exit_fullscreen
-- tapOn:
-    id: viewer_rotate
+- assertVisible: "Exit fullscreen"
+- tapOn: "Rotate to portrait"
 - takeScreenshot: fs_rotated_back
-- tapOn:
-    id: viewer_exit_fullscreen
+- tapOn: "Exit fullscreen"
 - assertVisible:
     id: viewer_done

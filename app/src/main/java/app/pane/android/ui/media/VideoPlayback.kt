@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.pane.android.R
@@ -241,6 +242,7 @@ internal fun InlineVideoChrome(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
+                        .semantics { testTagsAsResourceId = true }
                         .testTag(PaneTestTags.ViewerFullscreen)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),

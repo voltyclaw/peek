@@ -6,9 +6,9 @@ tags:
 ---
 # run-maestro.sh sets accelerometer_rotation 1 before this pass.
 # Inline controls start hidden; a tap on the fixture video reveals fullscreen.
-# Entering fullscreen does not leave the player. Maestro 2.11 has setOrientation
-# and no documented way to read the current orientation, so this flow checks that
-# Exit fullscreen survives both turns. run-maestro.sh logs mCurrentRotation.
+# Maestro 2.11 accepts PORTRAIT, LANDSCAPE_LEFT, LANDSCAPE_RIGHT, and UPSIDE_DOWN.
+# There is no documented way to read the current orientation, so this flow checks
+# that Exit fullscreen survives both turns. run-maestro.sh logs mCurrentRotation.
 - runFlow: subflows/fresh_start.yaml
 - openLink: pane://sample/x-video
 - extendedWaitUntil:
@@ -18,36 +18,28 @@ tags:
 - tapOn:
     id: viewer_media
 - extendedWaitUntil:
-    visible:
-      id: viewer_fullscreen
+    visible: "Enter fullscreen"
     timeout: 10000
-- tapOn:
-    id: viewer_fullscreen
+- tapOn: "Enter fullscreen"
 - extendedWaitUntil:
-    visible:
-      id: viewer_exit_fullscreen
+    visible: "Exit fullscreen"
     timeout: 10000
-- setOrientation: LANDSCAPE
+- setOrientation: LANDSCAPE_LEFT
 - runFlow:
     when:
-      notVisible:
-        id: viewer_exit_fullscreen
+      notVisible: "Exit fullscreen"
     commands:
       - tapOn:
           id: viewer_player_surface
-- assertVisible:
-    id: viewer_exit_fullscreen
+- assertVisible: "Exit fullscreen"
 - setOrientation: PORTRAIT
 - runFlow:
     when:
-      notVisible:
-        id: viewer_exit_fullscreen
+      notVisible: "Exit fullscreen"
     commands:
       - tapOn:
           id: viewer_player_surface
-- assertVisible:
-    id: viewer_exit_fullscreen
-- tapOn:
-    id: viewer_exit_fullscreen
+- assertVisible: "Exit fullscreen"
+- tapOn: "Exit fullscreen"
 - assertVisible:
     id: viewer_done

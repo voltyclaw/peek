@@ -138,6 +138,7 @@ jobs:
 
       - name: Create AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: ${{ matrix.api-level }}
@@ -145,7 +146,9 @@ jobs:
           arch: x86_64
           profile: pixel_6
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -change-locale ${{ matrix.locale }}
+          # No -change-locale: the google_apis image is already en-US, and that flag
+          # restarts the framework while this action sends KEYCODE_MENU.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "snapshot created"
 
@@ -158,7 +161,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -change-locale ${{ matrix.locale }}
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           emulator-boot-timeout: 900
           disable-animations: true
           script: bash .github/scripts/run-maestro.sh
