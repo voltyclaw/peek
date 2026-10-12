@@ -2,6 +2,10 @@ package app.pane.android.ui.media
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -43,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.player.playbackFraction
 import app.pane.android.ui.player.seekPositionMs
 import kotlinx.coroutines.delay
@@ -95,6 +101,8 @@ internal fun MutedInlineVideo(
     paused: Boolean = false,
     onContinuity: (playing: Boolean, muted: Boolean) -> Unit = { _, _ -> },
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
+    onSingleTap: (() -> Unit)? = null,
+    onDoubleTap: (() -> Unit)? = null,
     resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
 ) {
     val session = rememberPlaybackSession()
@@ -140,6 +148,8 @@ internal fun MutedInlineVideo(
         exoPlayer = exoPlayer,
         resizeMode = resizeMode,
         modifier = modifier,
+        onSingleTap = onSingleTap,
+        onDoubleTap = onDoubleTap,
     )
 }
 
@@ -179,6 +189,7 @@ internal fun InlineVideoChrome(
             modifier = Modifier
                 .align(Alignment.Center)
                 .size(64.dp)
+                .testTag(PaneTestTags.ViewerPause)
                 .clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.55f))
                 .clickable(role = Role.Button, onClick = onTogglePlay),
@@ -236,16 +247,18 @@ internal fun InlineVideoChrome(
                         inactiveTrackColor = Color(0xFF262018),
                     ),
                 )
+                val enterFullscreen = stringResource(R.string.enter_fullscreen)
                 Box(
                     modifier = Modifier
                         .size(36.dp)
+                        .testTag(PaneTestTags.ViewerFullscreen)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Rounded.Fullscreen,
-                        contentDescription = stringResource(R.string.enter_fullscreen),
+                        contentDescription = enterFullscreen,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp),
                     )
@@ -318,23 +331,86 @@ internal fun VideoSurface(
     resizeMode: Int,
     modifier: Modifier = Modifier,
     shutterColor: Int = android.graphics.Color.BLACK,
+    onSingleTap: (() -> Unit)? = null,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
+    val taps = remember { SurfaceTaps() }
+    taps.onSingleTap = onSingleTap
+    taps.onDoubleTap = onDoubleTap
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            Media3PlayerView(context).apply {
+            taps.slopPx = ViewConfiguration.get(context).scaledTouchSlop
+            // TextureView stays in this window. The surface is the view under the
+            // finger, so the listener has to be on that child, not only the parent.
+            // Return false so a sideways drag still reaches the pager.
+            (LayoutInflater.from(context).inflate(R.layout.pane_player_view, null) as Media3PlayerView).apply {
                 player = exoPlayer
                 useController = false
                 setShutterBackgroundColor(shutterColor)
                 this.resizeMode = resizeMode
                 isClickable = false
                 isFocusable = false
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                setOnTouchListener(taps.touchListener)
+                attachSurfaceTouch(taps)
+                // API 34: Compose AndroidView and SurfaceView desync (androidx/media#1237).
+                setEnableComposeSurfaceSyncWorkaround(true)
             }
         },
         update = { view ->
             view.player = exoPlayer
             view.resizeMode = resizeMode
+            view.setOnTouchListener(taps.touchListener)
+            view.attachSurfaceTouch(taps)
         },
         onRelease = { view -> view.player = null },
     )
+}
+
+private fun Media3PlayerView.attachSurfaceTouch(taps: SurfaceTaps) {
+    getVideoSurfaceView()?.apply {
+        isClickable = false
+        isFocusable = false
+        setOnTouchListener(taps.touchListener)
+    }
+}
+
+private class SurfaceTaps {
+    var onSingleTap: (() -> Unit)? = null
+    var onDoubleTap: (() -> Unit)? = null
+    var slopPx: Int = 24
+    private var tracking = false
+    private var downX = 0f
+    private var downY = 0f
+    private var lastUp = 0L
+
+    val touchListener = View.OnTouchListener { _, event ->
+        if (onSingleTap != null || onDoubleTap != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    tracking = true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (tracking) {
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (dx * dx + dy * dy > slopPx * slopPx) tracking = false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (tracking) {
+                        val now = event.eventTime
+                        if (now - lastUp <= 300L) onDoubleTap?.invoke() else onSingleTap?.invoke()
+                        lastUp = now
+                    }
+                    tracking = false
+                }
+                MotionEvent.ACTION_CANCEL -> tracking = false
+            }
+        }
+        false
+    }
 }

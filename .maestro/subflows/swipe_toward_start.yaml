@@ -1,0 +1,30 @@
+# Toward start is a leftward drag (offsetPx < 0).
+#
+# DIST=40 snaps back: Maestro LEFT from the row center ends at 10% of the
+# screen, which is 40% of a full-width row, under LedgerSwipe 45%.
+# DIST=55 commits. Maestro 2.11 direction swipes end at 10% of the screen, and
+# from.point cannot be paired with a custom end. Start at 70% of the row so the
+# travel is about 60% of a full-width row (past LedgerSwipe 45%) without
+# beginning inside the system back-gesture inset. The exact 45% boundary stays
+# in Pane12Test. Both drags are slow (under the 800 dp/s fling).
+appId: app.pane.android
+---
+- runFlow:
+    when:
+      true: ${DIST == '40'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+          direction: LEFT
+          duration: 2000
+- runFlow:
+    when:
+      true: ${DIST == '55'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+            point: "70%, 50%"
+          direction: LEFT
+          duration: 1500

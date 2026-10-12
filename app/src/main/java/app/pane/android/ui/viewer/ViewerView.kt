@@ -52,6 +52,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.view.MotionEvent
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -73,12 +80,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.actions.sourceMarkRes
 import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
 import app.pane.android.ui.media.InlineVideoChrome
 import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
+import app.pane.android.ui.media.rememberDebounced
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.components.autolinkedCaption
 import app.pane.android.ui.components.ArticleCard
@@ -568,6 +577,8 @@ private fun MediaCanvas(
             }
             val touchExploration = rememberTouchExplorationEnabled()
             var showControls by remember(videoUrl) { mutableStateOf(videoUrl != null && touchExploration) }
+            val toggleControls = rememberDebounced { showControls = !showControls }
+            val openFullscreen = rememberDebounced { onOpenMedia("", page) }
             var scrubbing by remember(videoUrl) { mutableStateOf(false) }
             LaunchedEffect(touchExploration, videoUrl) {
                 if (videoUrl != null && touchExploration) showControls = true
@@ -586,17 +597,22 @@ private fun MediaCanvas(
                     showControls = false
                 }
             }
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag(PaneTestTags.ViewerMedia)
                     .then(
                         if (videoUrl == null) {
                             Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
+                        } else if (!showControls) {
+                            // The video view sits above Compose and swallows the tap.
+                            // Initial-pass interop still sees the finger-up on this box.
+                            Modifier.pointerInteropFilter { event ->
+                                if (event.actionMasked == MotionEvent.ACTION_UP) toggleControls()
+                                false
+                            }
                         } else {
-                            Modifier.confirmedMediaTaps(
-                                onSingleTapConfirmed = { showControls = !showControls },
-                                onDoubleTap = { onOpenMedia("", page) },
-                            )
+                            Modifier
                         },
                     ),
                 contentAlignment = Alignment.Center,
@@ -631,21 +647,58 @@ private fun MediaCanvas(
                                 onPausedChange(!playing)
                             },
                             onVideoSize = reportSize,
+                            onSingleTap = toggleControls,
+                            onDoubleTap = openFullscreen,
                         )
                     }
                 }
-                if (videoUrl != null && showControls) {
-                    InlineVideoChrome(
-                        paused = videoPaused,
-                        muted = inlineMuted,
-                        onTogglePlay = onToggleVideo,
-                        onToggleMute = {
-                            inlineMuted = !inlineMuted
-                            onMutedChange(inlineMuted)
-                        },
-                        onEnterFullscreen = { onOpenMedia("", page) },
-                        onScrubbing = { scrubbing = it },
+                // Above the player so a tap is not swallowed by the video view.
+                // Chrome is composed after this, so its buttons still win the hit.
+                // The player listener uses the same debounced toggle, so one tap
+                // cannot show the controls and hide them again.
+                if (videoUrl != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = toggleControls,
+                                onDoubleTap = openFullscreen,
+                            ),
                     )
+                }
+                if (videoUrl != null && showControls) {
+                    // A separate window, so the pause and fullscreen controls sit above
+                    // the video surface. The dialog/popup compose view needs its own
+                    // testTagsAsResourceId; the activity root does not cover it.
+                    val chromeWidth = maxWidth
+                    val chromeHeight = maxHeight
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        properties = PopupProperties(
+                            focusable = false,
+                            dismissOnBackPress = false,
+                            dismissOnClickOutside = false,
+                            clippingEnabled = false,
+                        ),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(chromeWidth, chromeHeight)
+                                .semantics { testTagsAsResourceId = true },
+                        ) {
+                            InlineVideoChrome(
+                                paused = videoPaused,
+                                muted = inlineMuted,
+                                onTogglePlay = onToggleVideo,
+                                onToggleMute = {
+                                    inlineMuted = !inlineMuted
+                                    onMutedChange(inlineMuted)
+                                },
+                                onEnterFullscreen = { onOpenMedia("", page) },
+                                onScrubbing = { scrubbing = it },
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -1,0 +1,62 @@
+appId: app.pane.android
+name: Manual rotate button works with auto-rotate off
+tags:
+  - viewer
+  - device
+  - rotate-button-off
+---
+# run-maestro.sh turns accelerometer_rotation off before this flow and restores it after.
+- runFlow: subflows/fresh_start.yaml
+- openLink: pane://sample/x-video
+- runFlow: subflows/dismiss_anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: viewer_done
+    timeout: 30000
+# Controls start hidden and hide again after 3s while the video plays.
+# Each tap toggles them, so only tap while the pause button is absent,
+# then pause from that button so they stay up for the fullscreen control.
+# One tap. Another tap toggles the controls off, and they only stay up for 3s.
+- tapOn:
+    id: viewer_media
+- extendedWaitUntil:
+    visible:
+      id: viewer_pause
+    timeout: 4000
+- tapOn:
+    id: viewer_pause
+- extendedWaitUntil:
+    visible:
+      id: viewer_fullscreen
+    timeout: 10000
+- tapOn:
+    id: viewer_fullscreen
+# Chrome starts visible, then hides after 3s while the video plays.
+# If it is already gone, a tap on the player shows it again.
+- extendedWaitUntil:
+    visible:
+      id: viewer_player_surface
+    timeout: 10000
+- runFlow:
+    when:
+      notVisible:
+        id: viewer_exit_fullscreen
+    commands:
+      - tapOn:
+          id: viewer_player_surface
+- extendedWaitUntil:
+    visible:
+      id: viewer_exit_fullscreen
+    timeout: 10000
+- tapOn:
+    id: viewer_rotate
+- takeScreenshot: fs_rotated_by_button
+- assertVisible:
+    id: viewer_exit_fullscreen
+- tapOn:
+    id: viewer_rotate
+- takeScreenshot: fs_rotated_back
+- tapOn:
+    id: viewer_exit_fullscreen
+- assertVisible:
+    id: viewer_done

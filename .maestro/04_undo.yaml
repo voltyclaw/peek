@@ -1,0 +1,57 @@
+appId: app.pane.android
+name: Undo restores; Undo dies with the screen
+tags:
+  - history
+---
+- runFlow: subflows/fresh_start.yaml
+- runFlow: subflows/seed_history.yaml
+- runFlow: subflows/open_history.yaml
+- copyTextFrom:
+    id: history_row_0_title
+# The title node is a bidi-wrapped sentence and the row paints it ellipsized,
+# so a text selector never matches the copied string. Compare the copied
+# plain prefix instead.
+- evalScript: ${output.plain = maestro.copiedText.replace(/[^\x20-\x7E]/g, '').substring(0, 22)}
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- tapOn: ${TEXT_UNDO}
+- extendedWaitUntil:
+    visible:
+      id: history_row_0_title
+    timeout: 10000
+- copyTextFrom:
+    id: history_row_0_title
+- evalScript: ${output.restored = maestro.copiedText.replace(/[^\x20-\x7E]/g, '')}
+- runFlow:
+    when:
+      true: "${output.restored.indexOf(output.plain) < 0}"
+    commands:
+      - assertVisible: "Undo did not restore the row"
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- assertVisible: ${TEXT_UNDO}
+# Stay in this process. open_history force-stops the app, and startup
+# copies recents back into History, which would put the removed row back.
+- back
+- runFlow: subflows/dismiss_anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: history_door
+    timeout: 20000
+- tapOn:
+    id: history_door
+- assertVisible:
+    id: history_filter_all
+- assertNotVisible: ${TEXT_UNDO}
+- copyTextFrom:
+    id: history_row_0_title
+- evalScript: ${output.after = maestro.copiedText.replace(/[^\x20-\x7E]/g, '')}
+- runFlow:
+    when:
+      true: "${output.after.indexOf(output.plain) >= 0}"
+    commands:
+      - assertVisible: "Undo survived leaving History"

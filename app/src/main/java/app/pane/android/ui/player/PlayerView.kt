@@ -2,6 +2,7 @@ package app.pane.android.ui.player
 
 import android.app.Activity
 import android.content.res.Configuration
+import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -58,10 +59,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -73,6 +79,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
@@ -94,6 +101,7 @@ import app.pane.android.ui.media.nextManualLock
 import app.pane.android.ui.media.orientationRequest
 import app.pane.android.ui.media.rememberPlaybackSession
 import app.pane.android.ui.media.rotateControlLabel
+import app.pane.android.ui.media.rememberDebounced
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.media.surfaceGestureAction
 import app.pane.android.ui.viewer.failureCopyRes
@@ -404,23 +412,7 @@ private fun MediaContent(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .confirmedMediaTaps(
-                onSingleTapConfirmed = {
-                    if (
-                        surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
-                            == SurfaceGestureAction.ToggleControls
-                    ) {
-                        chromeVisible = !chromeVisible
-                    }
-                },
-                onDoubleTap = {
-                    when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
-                        SurfaceGestureAction.ExitFullscreen -> onBack()
-                        SurfaceGestureAction.EnterFullscreen -> Unit
-                        SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
-                    }
-                },
-            ),
+            .testTag(PaneTestTags.ViewerPlayerSurface),
     ) {
         val boxW = constraints.maxWidth.toFloat()
         val boxH = constraints.maxHeight.toFloat()
@@ -430,6 +422,21 @@ private fun MediaContent(
             beyondViewportPageCount = 1,
             key = { items[it].id },
         ) { page ->
+            val toggleChrome = rememberDebounced {
+                if (
+                    surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
+                        == SurfaceGestureAction.ToggleControls
+                ) {
+                    chromeVisible = !chromeVisible
+                }
+            }
+            val doubleChrome = rememberDebounced {
+                when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
+                    SurfaceGestureAction.ExitFullscreen -> onBack()
+                    SurfaceGestureAction.EnterFullscreen -> Unit
+                    SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
+                }
+            }
             val item = items[page]
             val reported = if (page == pagerState.currentPage) playbackSize else null
             val contentW = reported?.first ?: item.width?.toFloat() ?: 0f
@@ -467,6 +474,30 @@ private fun MediaContent(
                         exoPlayer = exoPlayer,
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                         modifier = mediaModifier,
+                        onSingleTap = toggleChrome,
+                        onDoubleTap = doubleChrome,
+                    )
+                }
+                // Above the player, under the chrome. Same debounced toggle as the
+                // player listener, so one tap cannot show controls and hide them.
+                if (page == pagerState.currentPage && pageVideo != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (!chromeVisible) {
+                                    Modifier.pointerInteropFilter { event ->
+                                        if (event.actionMasked == MotionEvent.ACTION_UP) toggleChrome()
+                                        false
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = toggleChrome,
+                                onDoubleTap = doubleChrome,
+                            ),
                     )
                 }
             }
@@ -500,6 +531,16 @@ private fun MediaContent(
             )
         }
         if (chromeVisible) {
+            Popup(
+                alignment = Alignment.BottomCenter,
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                    clippingEnabled = false,
+                ),
+            ) {
+            Box(Modifier.semantics { testTagsAsResourceId = true }) {
             FullscreenChrome(
                 showTransport = playbackUrl != null && exoPlayer != null,
                 playing = playing,
@@ -539,8 +580,10 @@ private fun MediaContent(
                 onRotate = { manualLock = nextManualLock(manualLock, deviceLandscape) },
                 rotateLabel = rotateLabel,
                 onExit = onBack,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp),
             )
+            }
+            }
         }
         if (ended) {
             Column(
@@ -694,11 +737,13 @@ private fun FullscreenChrome(
                     icon = Icons.Rounded.ScreenRotation,
                     description = rotateLabel,
                     onClick = onRotate,
+                    tag = PaneTestTags.ViewerRotate,
                 )
                 ChromeButton(
                     icon = Icons.Rounded.FullscreenExit,
                     description = stringResource(R.string.exit_fullscreen),
                     onClick = onExit,
+                    tag = PaneTestTags.ViewerExitFullscreen,
                 )
             }
         }
@@ -758,10 +803,12 @@ private fun ChromeButton(
     icon: ImageVector,
     description: String,
     onClick: () -> Unit,
+    tag: String? = null,
 ) {
     Box(
         modifier = Modifier
             .size(42.dp)
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,

@@ -1,0 +1,24 @@
+# Toward end is a rightward drag.
+# See swipe_toward_start.yaml. DIST=55 starts at 30% of the row and ends at 90%
+# of the screen, past 45%, and outside the back-gesture inset.
+appId: app.pane.android
+---
+- runFlow:
+    when:
+      true: ${DIST == '40'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+          direction: RIGHT
+          duration: 2000
+- runFlow:
+    when:
+      true: ${DIST == '55'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+            point: "30%, 50%"
+          direction: RIGHT
+          duration: 1500

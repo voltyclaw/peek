@@ -1,0 +1,19 @@
+appId: app.pane.android
+---
+# A slow KVM emulator puts "Pixel Launcher isn't responding" over the app.
+# Wait brings that dialog straight back. Close the launcher instead.
+# Any other ANR still gets Wait so we do not kill Pane.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible: ".*Pixel Launcher.*"
+          commands:
+            - tapOn: "Close app"
+      - runFlow:
+          when:
+            visible: ".*responding.*"
+            notVisible: ".*Pixel Launcher.*"
+          commands:
+            - tapOn: "Wait"

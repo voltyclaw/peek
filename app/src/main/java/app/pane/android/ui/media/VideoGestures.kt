@@ -3,9 +3,8 @@ package app.pane.android.ui.media
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.os.SystemClock
-import android.view.GestureDetector
-import android.view.MotionEvent
 import android.view.accessibility.AccessibilityManager
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -17,11 +16,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 
 /** How long visible controls stay up while playback is moving. */
 internal const val CONTROLS_AUTO_HIDE_MS = 3_000L
+
+/**
+ * The player view and the Compose layer above it can both see one tap.
+ * Compose confirms a single tap after the double-tap timeout (~300ms), so a
+ * second call inside this window is that same tap, not a second toggle.
+ */
+@Composable
+internal fun rememberDebounced(block: () -> Unit): () -> Unit {
+    val latest = rememberUpdatedState(block)
+    val lastAt = remember { longArrayOf(0L) }
+    return remember {
+        {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastAt[0] >= 600L) {
+                lastAt[0] = now
+                latest.value.invoke()
+            }
+        }
+    }
+}
 
 internal enum class VideoSurfaceKind { Inline, Fullscreen }
 
@@ -118,63 +135,19 @@ internal fun rememberTouchExplorationEnabled(): Boolean {
 }
 
 /**
- * [GestureDetector.onSingleTapConfirmed] so the first half of a double-tap does not toggle controls.
- * A drag past touch slop is cancelled and left for the parent scroll or pager.
+ * Confirmed single-tap toggles controls. Double-tap enters inline and exits fullscreen.
+ * A drag past touch slop is left for the parent scroll or pager.
  */
 internal fun Modifier.confirmedMediaTaps(
     onSingleTapConfirmed: () -> Unit,
     onDoubleTap: () -> Unit,
 ): Modifier = composed {
-    val context = LocalContext.current
     val single = rememberUpdatedState(onSingleTapConfirmed)
     val doubleTap = rememberUpdatedState(onDoubleTap)
     pointerInput(Unit) {
-        val detector = GestureDetector(
-            context,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent): Boolean = true
-                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    single.value()
-                    return true
-                }
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    doubleTap.value()
-                    return true
-                }
-            },
+        detectTapGestures(
+            onTap = { single.value() },
+            onDoubleTap = { doubleTap.value() },
         )
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            val pointerId = down.id
-            val downTime = SystemClock.uptimeMillis()
-            dispatchTouch(detector, motion(MotionEvent.ACTION_DOWN, down.position.x, down.position.y, downTime))
-            val origin = down.position
-            val slop = viewConfiguration.touchSlop
-            while (true) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                val dx = change.position.x - origin.x
-                val dy = change.position.y - origin.y
-                if (dx * dx + dy * dy > slop * slop) {
-                    dispatchTouch(detector, motion(MotionEvent.ACTION_CANCEL, change.position.x, change.position.y, downTime))
-                    break
-                }
-                if (!change.pressed) {
-                    dispatchTouch(detector, motion(MotionEvent.ACTION_UP, change.position.x, change.position.y, downTime))
-                    break
-                }
-            }
-        }
-    }
-}
-
-private fun motion(action: Int, x: Float, y: Float, downTime: Long): MotionEvent =
-    MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, x, y, 0)
-
-private fun dispatchTouch(detector: GestureDetector, event: MotionEvent) {
-    try {
-        detector.onTouchEvent(event)
-    } finally {
-        event.recycle()
     }
 }

@@ -1,0 +1,18 @@
+appId: app.pane.android
+---
+# Share-in and sample deep links finish the activity on Back. Relaunch without
+# clearing storage, then open History from Home.
+- runFlow: dismiss_anr.yaml
+- launchApp:
+    appId: app.pane.android
+    clearState: false
+# The relaunch is slow enough for the launcher ANR to land after the first dismiss.
+- runFlow: dismiss_anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: history_door
+    timeout: 30000
+- tapOn:
+    id: history_door
+- assertVisible:
+    id: history_filter_all

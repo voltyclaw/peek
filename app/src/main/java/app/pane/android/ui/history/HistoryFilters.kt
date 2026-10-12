@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -129,7 +130,13 @@ internal fun HistoryFilterSheet(
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
         modifier = Modifier.testTag(PaneTestTags.HistoryFilterSheet),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .semantics { testTagsAsResourceId = true }
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+        ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.history_filters_sheet_title),
@@ -209,7 +216,10 @@ private fun FilterTextChip(
             .semantics { this.selected = selected }
             .clip(shape)
             .then(if (selected) Modifier.background(PaneInk) else Modifier.border(1.dp, PaneBorder, shape))
-            .clickable(role = Role.Button, onClick = onClick)
+            // Compose 1.10 maps semantics.selected to AccessibilityNodeInfo.isSelected
+            // only for Role.Tab. Role.Button reports it as checked, which Maestro's
+            // `selected:` matcher does not read.
+            .clickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),

@@ -1,0 +1,26 @@
+appId: app.pane.android
+name: Commit past 45% on release; snap back below; same in both directions
+tags:
+  - history
+---
+- runFlow: subflows/fresh_start.yaml
+- runFlow: subflows/seed_history.yaml
+- runFlow: subflows/open_history.yaml
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "40"
+- assertNotVisible: ${TEXT_REMOVED}
+- assertNotVisible:
+    id: history_row_0_star
+- runFlow:
+    file: subflows/swipe_toward_end.yaml
+    env:
+      DIST: "40"
+- assertNotVisible:
+    id: history_row_0_star
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- assertVisible: ${TEXT_REMOVED}
