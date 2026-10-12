@@ -12,6 +12,12 @@ tags:
     visible:
       id: viewer_done
     timeout: 30000
+# First tap shows controls. The second hits pause, so they stay up.
+# Auto-hide is 3s while the video is playing, shorter than a slow hierarchy poll.
+- tapOn:
+    id: viewer_media
+- waitForAnimationToEnd:
+    timeout: 1500
 - tapOn:
     id: viewer_media
 - extendedWaitUntil:

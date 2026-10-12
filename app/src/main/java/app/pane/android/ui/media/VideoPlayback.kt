@@ -344,6 +344,13 @@ internal fun VideoSurface(
                 isClickable = false
                 isFocusable = false
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                // Taps belong to the Compose gesture layer and the chrome drawn over the video.
+                setOnTouchListener { _, _ -> false }
+                getVideoSurfaceView()?.apply {
+                    isClickable = false
+                    isFocusable = false
+                    setOnTouchListener { _, _ -> false }
+                }
                 // API 34: Compose AndroidView and SurfaceView desync (androidx/media#1237).
                 setEnableComposeSurfaceSyncWorkaround(true)
             }

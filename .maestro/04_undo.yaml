@@ -8,16 +8,18 @@ tags:
 - runFlow: subflows/open_history.yaml
 - copyTextFrom:
     id: history_row_0_title
-# The row paints an ellipsized title. Maestro matches the whole node text,
-# so the copied sentence never matches. A short prefix does, including once
-# the row is gone (assertNotVisible below).
-- evalScript: ${output.prefix = maestro.copiedText.substring(0, Math.min(22, maestro.copiedText.length)) + '.*'}
+# The title node is the full sentence wrapped in bidi isolates, painted
+# ellipsized. Maestro matches the whole node text, so allow junk on either
+# side of a short visible prefix. The same pattern is assertNotVisible later.
+- evalScript: ${output.prefix = '.*' + maestro.copiedText.replace(/[^\x20-\x7E]/g, '').substring(0, 22) + '.*'}
 - runFlow:
     file: subflows/swipe_toward_start.yaml
     env:
       DIST: "55"
 - tapOn: ${TEXT_UNDO}
-- assertVisible: ${output.prefix}
+- extendedWaitUntil:
+    visible: ${output.prefix}
+    timeout: 10000
 - runFlow:
     file: subflows/swipe_toward_start.yaml
     env:
