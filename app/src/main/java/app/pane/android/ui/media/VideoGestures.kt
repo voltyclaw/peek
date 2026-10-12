@@ -23,6 +23,25 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 /** How long visible controls stay up while playback is moving. */
 internal const val CONTROLS_AUTO_HIDE_MS = 3_000L
 
+/**
+ * The player view and the Compose layer above it can both see one tap.
+ * A second call inside this window is the same tap, not a second toggle.
+ */
+@Composable
+internal fun rememberDebounced(block: () -> Unit): () -> Unit {
+    val latest = rememberUpdatedState(block)
+    val lastAt = remember { longArrayOf(0L) }
+    return remember {
+        {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastAt[0] >= 400L) {
+                lastAt[0] = now
+                latest.value.invoke()
+            }
+        }
+    }
+}
+
 internal enum class VideoSurfaceKind { Inline, Fullscreen }
 
 internal enum class SurfaceGesture { SingleTap, DoubleTap }

@@ -63,7 +63,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -97,6 +96,7 @@ import app.pane.android.ui.media.nextManualLock
 import app.pane.android.ui.media.orientationRequest
 import app.pane.android.ui.media.rememberPlaybackSession
 import app.pane.android.ui.media.rotateControlLabel
+import app.pane.android.ui.media.rememberDebounced
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.media.surfaceGestureAction
 import app.pane.android.ui.viewer.failureCopyRes
@@ -417,6 +417,21 @@ private fun MediaContent(
             beyondViewportPageCount = 1,
             key = { items[it].id },
         ) { page ->
+            val toggleChrome = rememberDebounced {
+                if (
+                    surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
+                        == SurfaceGestureAction.ToggleControls
+                ) {
+                    chromeVisible = !chromeVisible
+                }
+            }
+            val doubleChrome = rememberDebounced {
+                when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
+                    SurfaceGestureAction.ExitFullscreen -> onBack()
+                    SurfaceGestureAction.EnterFullscreen -> Unit
+                    SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
+                }
+            }
             val item = items[page]
             val reported = if (page == pagerState.currentPage) playbackSize else null
             val contentW = reported?.first ?: item.width?.toFloat() ?: 0f
@@ -454,6 +469,8 @@ private fun MediaContent(
                         exoPlayer = exoPlayer,
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                         modifier = mediaModifier,
+                        onSingleTap = toggleChrome,
+                        onDoubleTap = doubleChrome,
                     )
                 }
                 // Inside the page, above the player, so a tap is not swallowed by the
@@ -463,21 +480,8 @@ private fun MediaContent(
                         Modifier
                             .fillMaxSize()
                             .confirmedMediaTaps(
-                                onSingleTapConfirmed = {
-                                    if (
-                                        surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
-                                            == SurfaceGestureAction.ToggleControls
-                                    ) {
-                                        chromeVisible = !chromeVisible
-                                    }
-                                },
-                                onDoubleTap = {
-                                    when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
-                                        SurfaceGestureAction.ExitFullscreen -> onBack()
-                                        SurfaceGestureAction.EnterFullscreen -> Unit
-                                        SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
-                                    }
-                                },
+                                onSingleTapConfirmed = toggleChrome,
+                                onDoubleTap = doubleChrome,
                             ),
                     )
                 }
@@ -777,10 +781,6 @@ private fun ChromeButton(
     Box(
         modifier = Modifier
             .size(42.dp)
-            .semantics {
-                testTagsAsResourceId = true
-                contentDescription = description
-            }
             .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),

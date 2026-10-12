@@ -34,8 +34,18 @@ tags:
     env:
       DIST: "55"
 - assertVisible: ${TEXT_UNDO}
+# Stay in this process. open_history force-stops the app, and startup
+# copies recents back into History, which would put the removed row back.
 - back
-- runFlow: subflows/open_history.yaml
+- runFlow: subflows/dismiss_anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: history_door
+    timeout: 20000
+- tapOn:
+    id: history_door
+- assertVisible:
+    id: history_filter_all
 - assertNotVisible: ${TEXT_UNDO}
 - copyTextFrom:
     id: history_row_0_title

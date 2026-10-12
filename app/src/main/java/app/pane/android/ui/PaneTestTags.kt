@@ -13,6 +13,7 @@ object PaneTestTags {
     const val ViewerDone = "viewer_done"
     const val ViewerMedia = "viewer_media"
     const val ViewerFullscreen = "viewer_fullscreen"
+    const val ViewerPause = "viewer_pause"
     const val ViewerPlayerSurface = "viewer_player_surface"
     const val ViewerRotate = "viewer_rotate"
     const val ViewerExitFullscreen = "viewer_exit_fullscreen"

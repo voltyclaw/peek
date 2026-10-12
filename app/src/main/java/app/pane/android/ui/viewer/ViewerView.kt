@@ -81,6 +81,7 @@ import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
 import app.pane.android.ui.media.InlineVideoChrome
 import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
+import app.pane.android.ui.media.rememberDebounced
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
 import app.pane.android.ui.components.autolinkedCaption
 import app.pane.android.ui.components.ArticleCard
@@ -570,6 +571,8 @@ private fun MediaCanvas(
             }
             val touchExploration = rememberTouchExplorationEnabled()
             var showControls by remember(videoUrl) { mutableStateOf(videoUrl != null && touchExploration) }
+            val toggleControls = rememberDebounced { showControls = !showControls }
+            val openFullscreen = rememberDebounced { onOpenMedia("", page) }
             var scrubbing by remember(videoUrl) { mutableStateOf(false) }
             LaunchedEffect(touchExploration, videoUrl) {
                 if (videoUrl != null && touchExploration) showControls = true
@@ -631,6 +634,8 @@ private fun MediaCanvas(
                                 onPausedChange(!playing)
                             },
                             onVideoSize = reportSize,
+                            onSingleTap = toggleControls,
+                            onDoubleTap = openFullscreen,
                         )
                     }
                 }
@@ -641,8 +646,8 @@ private fun MediaCanvas(
                         Modifier
                             .fillMaxSize()
                             .confirmedMediaTaps(
-                                onSingleTapConfirmed = { showControls = !showControls },
-                                onDoubleTap = { onOpenMedia("", page) },
+                                onSingleTapConfirmed = toggleControls,
+                                onDoubleTap = openFullscreen,
                             ),
                     )
                 }

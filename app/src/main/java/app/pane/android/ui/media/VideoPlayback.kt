@@ -2,7 +2,9 @@ package app.pane.android.ui.media
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -43,7 +45,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.pane.android.R
@@ -100,6 +101,8 @@ internal fun MutedInlineVideo(
     paused: Boolean = false,
     onContinuity: (playing: Boolean, muted: Boolean) -> Unit = { _, _ -> },
     onVideoSize: ((width: Float, height: Float) -> Unit)? = null,
+    onSingleTap: (() -> Unit)? = null,
+    onDoubleTap: (() -> Unit)? = null,
     resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
 ) {
     val session = rememberPlaybackSession()
@@ -145,6 +148,8 @@ internal fun MutedInlineVideo(
         exoPlayer = exoPlayer,
         resizeMode = resizeMode,
         modifier = modifier,
+        onSingleTap = onSingleTap,
+        onDoubleTap = onDoubleTap,
     )
 }
 
@@ -184,6 +189,7 @@ internal fun InlineVideoChrome(
             modifier = Modifier
                 .align(Alignment.Center)
                 .size(64.dp)
+                .testTag(PaneTestTags.ViewerPause)
                 .clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.55f))
                 .clickable(role = Role.Button, onClick = onTogglePlay),
@@ -245,10 +251,6 @@ internal fun InlineVideoChrome(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .semantics {
-                            testTagsAsResourceId = true
-                            contentDescription = enterFullscreen
-                        }
                         .testTag(PaneTestTags.ViewerFullscreen)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),
@@ -329,13 +331,34 @@ internal fun VideoSurface(
     resizeMode: Int,
     modifier: Modifier = Modifier,
     shutterColor: Int = android.graphics.Color.BLACK,
+    onSingleTap: (() -> Unit)? = null,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
+    val taps = remember { SurfaceTaps() }
+    taps.onSingleTap = onSingleTap
+    taps.onDoubleTap = onDoubleTap
     AndroidView(
         modifier = modifier,
         factory = { context ->
+            val detector = GestureDetector(
+                context,
+                object : GestureDetector.SimpleOnGestureListener() {
+                    override fun onDown(e: MotionEvent): Boolean = true
+                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                        taps.onSingleTap?.invoke()
+                        return true
+                    }
+                    override fun onDoubleTap(e: MotionEvent): Boolean {
+                        taps.onDoubleTap?.invoke()
+                        return true
+                    }
+                },
+            )
             // TextureView stays in this window, so Compose chrome (fullscreen, rotate)
-            // receives taps. A SurfaceView on API 34 is a separate layer above the
-            // window: the workaround below fixes the draw, and the tap still misses.
+            // receives taps that land on a button. A SurfaceView on API 34 is a
+            // separate layer above the window: the workaround below fixes the draw,
+            // and the tap still misses. The listener covers a tap the Compose layer
+            // above the player does not see; both paths share one debounced toggle.
             (LayoutInflater.from(context).inflate(R.layout.pane_player_view, null) as Media3PlayerView).apply {
                 player = exoPlayer
                 useController = false
@@ -344,8 +367,15 @@ internal fun VideoSurface(
                 isClickable = false
                 isFocusable = false
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                // Taps belong to the Compose gesture layer and the chrome drawn over the video.
-                setOnTouchListener { _, _ -> false }
+                // Return false so a sideways drag still reaches the pager. The
+                // detector still sees the stream, and a confirmed tap is debounced
+                // against the Compose layer above this view.
+                setOnTouchListener { _, event ->
+                    if (taps.onSingleTap != null || taps.onDoubleTap != null) {
+                        detector.onTouchEvent(event)
+                    }
+                    false
+                }
                 getVideoSurfaceView()?.apply {
                     isClickable = false
                     isFocusable = false
@@ -361,4 +391,9 @@ internal fun VideoSurface(
         },
         onRelease = { view -> view.player = null },
     )
+}
+
+private class SurfaceTaps {
+    var onSingleTap: (() -> Unit)? = null
+    var onDoubleTap: (() -> Unit)? = null
 }
