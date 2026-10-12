@@ -596,10 +596,7 @@ private fun MediaCanvas(
                         if (videoUrl == null) {
                             Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
                         } else {
-                            Modifier.confirmedMediaTaps(
-                                onSingleTapConfirmed = { showControls = !showControls },
-                                onDoubleTap = { onOpenMedia("", page) },
-                            )
+                            Modifier
                         },
                     ),
                 contentAlignment = Alignment.Center,
@@ -636,6 +633,18 @@ private fun MediaCanvas(
                             onVideoSize = reportSize,
                         )
                     }
+                }
+                // Above the player so a tap is not swallowed by the video view.
+                // Chrome is composed after this, so its buttons still win the hit.
+                if (videoUrl != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = { showControls = !showControls },
+                                onDoubleTap = { onOpenMedia("", page) },
+                            ),
+                    )
                 }
                 if (videoUrl != null && showControls) {
                     InlineVideoChrome(

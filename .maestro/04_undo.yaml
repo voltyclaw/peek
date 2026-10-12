@@ -8,18 +8,27 @@ tags:
 - runFlow: subflows/open_history.yaml
 - copyTextFrom:
     id: history_row_0_title
-# The title node is the full sentence wrapped in bidi isolates, painted
-# ellipsized. Maestro matches the whole node text, so allow junk on either
-# side of a short visible prefix. The same pattern is assertNotVisible later.
-- evalScript: ${output.prefix = '.*' + maestro.copiedText.replace(/[^\x20-\x7E]/g, '').substring(0, 22) + '.*'}
+# The title node is a bidi-wrapped sentence and the row paints it ellipsized,
+# so a text selector never matches the copied string. Compare the copied
+# plain prefix instead.
+- evalScript: ${output.plain = maestro.copiedText.replace(/[^\x20-\x7E]/g, '').substring(0, 22)}
 - runFlow:
     file: subflows/swipe_toward_start.yaml
     env:
       DIST: "55"
 - tapOn: ${TEXT_UNDO}
 - extendedWaitUntil:
-    visible: ${output.prefix}
+    visible:
+      id: history_row_0_title
     timeout: 10000
+- copyTextFrom:
+    id: history_row_0_title
+- evalScript: ${output.restored = maestro.copiedText.replace(/[^\x20-\x7E]/g, '')}
+- runFlow:
+    when:
+      true: "${output.restored.indexOf(output.plain) < 0}"
+    commands:
+      - assertVisible: "Undo did not restore the row"
 - runFlow:
     file: subflows/swipe_toward_start.yaml
     env:
@@ -28,4 +37,11 @@ tags:
 - back
 - runFlow: subflows/open_history.yaml
 - assertNotVisible: ${TEXT_UNDO}
-- assertNotVisible: ${output.prefix}
+- copyTextFrom:
+    id: history_row_0_title
+- evalScript: ${output.after = maestro.copiedText.replace(/[^\x20-\x7E]/g, '')}
+- runFlow:
+    when:
+      true: "${output.after.indexOf(output.plain) >= 0}"
+    commands:
+      - assertVisible: "Undo survived leaving History"

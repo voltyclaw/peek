@@ -407,24 +407,7 @@ private fun MediaContent(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .testTag(PaneTestTags.ViewerPlayerSurface)
-            .confirmedMediaTaps(
-                onSingleTapConfirmed = {
-                    if (
-                        surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
-                            == SurfaceGestureAction.ToggleControls
-                    ) {
-                        chromeVisible = !chromeVisible
-                    }
-                },
-                onDoubleTap = {
-                    when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
-                        SurfaceGestureAction.ExitFullscreen -> onBack()
-                        SurfaceGestureAction.EnterFullscreen -> Unit
-                        SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
-                    }
-                },
-            ),
+            .testTag(PaneTestTags.ViewerPlayerSurface),
     ) {
         val boxW = constraints.maxWidth.toFloat()
         val boxH = constraints.maxHeight.toFloat()
@@ -471,6 +454,31 @@ private fun MediaContent(
                         exoPlayer = exoPlayer,
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
                         modifier = mediaModifier,
+                    )
+                }
+                // Inside the page, above the player, so a tap is not swallowed by the
+                // video view and a sideways drag can still reach the pager.
+                if (page == pagerState.currentPage && pageVideo != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = {
+                                    if (
+                                        surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.SingleTap)
+                                            == SurfaceGestureAction.ToggleControls
+                                    ) {
+                                        chromeVisible = !chromeVisible
+                                    }
+                                },
+                                onDoubleTap = {
+                                    when (surfaceGestureAction(VideoSurfaceKind.Fullscreen, SurfaceGesture.DoubleTap)) {
+                                        SurfaceGestureAction.ExitFullscreen -> onBack()
+                                        SurfaceGestureAction.EnterFullscreen -> Unit
+                                        SurfaceGestureAction.ToggleControls -> chromeVisible = !chromeVisible
+                                    }
+                                },
+                            ),
                     )
                 }
             }
