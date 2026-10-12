@@ -2,6 +2,7 @@ package app.pane.android.ui.media
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -239,10 +240,14 @@ internal fun InlineVideoChrome(
                         inactiveTrackColor = Color(0xFF262018),
                     ),
                 )
+                val enterFullscreen = stringResource(R.string.enter_fullscreen)
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .semantics { testTagsAsResourceId = true }
+                        .semantics {
+                            testTagsAsResourceId = true
+                            contentDescription = enterFullscreen
+                        }
                         .testTag(PaneTestTags.ViewerFullscreen)
                         .clip(CircleShape)
                         .clickable(role = Role.Button, onClick = onEnterFullscreen),
@@ -250,7 +255,7 @@ internal fun InlineVideoChrome(
                 ) {
                     Icon(
                         Icons.Rounded.Fullscreen,
-                        contentDescription = stringResource(R.string.enter_fullscreen),
+                        contentDescription = enterFullscreen,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp),
                     )
@@ -334,6 +339,9 @@ internal fun VideoSurface(
                 this.resizeMode = resizeMode
                 isClickable = false
                 isFocusable = false
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                // API 34: Compose AndroidView and SurfaceView desync (androidx/media#1237).
+                setEnableComposeSurfaceSyncWorkaround(true)
             }
         },
         update = { view ->

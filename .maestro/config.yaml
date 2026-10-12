@@ -1,4 +1,6 @@
 # English copy. These flows run on the English AVD only.
+# run-maestro.sh also passes the same strings with maestro -e. Workspace env
+# alone did not substitute ${TEXT_*} on CI (the selector became "undefined").
 env:
   TEXT_REMOVED: Removed from History
   TEXT_UNDO: Undo
@@ -12,5 +14,14 @@ flows:
   - 05_filters.yaml
   - 06a_fullscreen_auto_rotate.yaml
   - 06b_fullscreen_rotate_button.yaml
+# `flows` is inclusion, not order. Share-in must run before any clearState.
+# 06b is excluded from the first pass and run on its own with auto-rotate off.
 executionOrder:
   continueOnFailure: true
+  flowsOrder:
+    - 01_share_in
+    - 02_swipe_commit_45
+    - 03_star_first_then_remove
+    - 04_undo
+    - 05_filters
+    - 06a_fullscreen_auto_rotate

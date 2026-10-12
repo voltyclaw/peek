@@ -16,12 +16,22 @@ adb shell am start -a android.intent.action.SEND -t text/plain \
   --es android.intent.extra.TEXT "https://x.com/mayaren/status/1842700101" \
   -n "$PKG/.MainActivity"
 adb logcat -c
-# App-only logcat: re-attach to the app PID whenever it (re)starts (clearState kills it).
+# App-only logcat. `logcat --pid` stays bound to the first process, so clearState
+# used to leave the rest of the run uncaptured. Restart the stream on each new pid.
 (
+  current=""
+  logcat_pid=""
   while true; do
-    pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)
-    if [ -n "$pid" ]; then
-      adb logcat -v threadtime --pid="$pid" >> "$OUT/logcat-app.raw" 2>/dev/null || true
+    pid=$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true)
+    if [ -n "$pid" ] && [ "$pid" != "$current" ]; then
+      if [ -n "$logcat_pid" ]; then
+        kill "$logcat_pid" 2>/dev/null || true
+        wait "$logcat_pid" 2>/dev/null || true
+      fi
+      current=$pid
+      echo "----- pid $pid -----" >> "$OUT/logcat-app.raw"
+      adb logcat -v threadtime --pid="$pid" >> "$OUT/logcat-app.raw" 2>/dev/null &
+      logcat_pid=$!
     fi
     sleep 1
   done
@@ -31,14 +41,23 @@ LOGLOOP=$!
 adb logcat -v threadtime -s AndroidRuntime:E > "$OUT/crash.raw" 2>/dev/null &
 CRASH=$!
 set +e
+# -e is required. config.yaml env did not expand ${TEXT_*} on the emulator.
 maestro test .maestro \
   --exclude-tags=rotate-button-off \
+  -e "TEXT_REMOVED=Removed from History" \
+  -e "TEXT_UNDO=Undo" \
+  -e "TEXT_APPS=APPS" \
+  -e "TEXT_SHOW=Show 1 post" \
   --format junit \
   --output "$OUT/junit.xml" \
   --test-output-dir "$OUT/artifacts"
 rc1=$?
 adb shell settings put system accelerometer_rotation 0
 maestro test .maestro/06b_fullscreen_rotate_button.yaml \
+  -e "TEXT_REMOVED=Removed from History" \
+  -e "TEXT_UNDO=Undo" \
+  -e "TEXT_APPS=APPS" \
+  -e "TEXT_SHOW=Show 1 post" \
   --format junit \
   --output "$OUT/junit-06b.xml" \
   --test-output-dir "$OUT/artifacts"
@@ -48,6 +67,7 @@ adb shell settings put system accelerometer_rotation 1
   echo "after-06b"
   adb shell dumpsys window | grep -m1 mCurrentRotation || true
 } >> "$OUT/rotation.txt"
+pkill -P "$LOGLOOP" 2>/dev/null || true
 kill "$LOGLOOP" "$CRASH" 2>/dev/null || true
 wait "$LOGLOOP" "$CRASH" 2>/dev/null || true
 # Keep only crash blocks that name our process.

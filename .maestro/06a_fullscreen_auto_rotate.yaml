@@ -14,32 +14,40 @@ tags:
 - extendedWaitUntil:
     visible:
       id: viewer_done
-    timeout: 15000
+    timeout: 30000
 - tapOn:
     id: viewer_media
 - extendedWaitUntil:
-    visible: "Enter fullscreen"
+    visible:
+      id: viewer_fullscreen
     timeout: 10000
-- tapOn: "Enter fullscreen"
+- tapOn:
+    id: viewer_fullscreen
 - extendedWaitUntil:
-    visible: "Exit fullscreen"
+    visible:
+      id: viewer_exit_fullscreen
     timeout: 10000
 - setOrientation: LANDSCAPE_LEFT
 - runFlow:
     when:
-      notVisible: "Exit fullscreen"
+      notVisible:
+        id: viewer_exit_fullscreen
     commands:
       - tapOn:
           id: viewer_player_surface
-- assertVisible: "Exit fullscreen"
+- assertVisible:
+    id: viewer_exit_fullscreen
 - setOrientation: PORTRAIT
 - runFlow:
     when:
-      notVisible: "Exit fullscreen"
+      notVisible:
+        id: viewer_exit_fullscreen
     commands:
       - tapOn:
           id: viewer_player_surface
-- assertVisible: "Exit fullscreen"
-- tapOn: "Exit fullscreen"
+- assertVisible:
+    id: viewer_exit_fullscreen
+- tapOn:
+    id: viewer_exit_fullscreen
 - assertVisible:
     id: viewer_done

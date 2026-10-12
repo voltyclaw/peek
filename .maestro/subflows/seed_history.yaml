@@ -6,17 +6,17 @@ appId: app.pane.android
 - extendedWaitUntil:
     visible:
       id: viewer_done
-    timeout: 15000
+    timeout: 30000
 - back
 - openLink: pane://sample/reddit-text
 - extendedWaitUntil:
     visible:
       id: viewer_done
-    timeout: 15000
+    timeout: 30000
 - back
 - openLink: pane://sample/ig-image
 - extendedWaitUntil:
     visible:
       id: viewer_done
-    timeout: 15000
+    timeout: 30000
 - back

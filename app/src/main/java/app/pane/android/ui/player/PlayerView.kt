@@ -63,6 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -768,6 +769,10 @@ private fun ChromeButton(
     Box(
         modifier = Modifier
             .size(42.dp)
+            .semantics {
+                testTagsAsResourceId = true
+                contentDescription = description
+            }
             .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
