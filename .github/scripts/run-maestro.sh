@@ -32,23 +32,13 @@ adb logcat -v threadtime -s AndroidRuntime:E > "$OUT/crash.raw" 2>/dev/null &
 CRASH=$!
 set +e
 maestro test .maestro \
-  --exclude-tags=rtl,rotate-button-off \
-  -e "PANE_DIR=${PANE_DIR:-ltr}" \
-  -e "TEXT_REMOVED=${TEXT_REMOVED:-Removed from History}" \
-  -e "TEXT_UNDO=${TEXT_UNDO:-Undo}" \
-  -e "TEXT_APPS=${TEXT_APPS:-APPS}" \
-  -e "TEXT_SHOW=${TEXT_SHOW:-Show 1 post}" \
+  --exclude-tags=rotate-button-off \
   --format junit \
   --output "$OUT/junit.xml" \
   --test-output-dir "$OUT/artifacts"
 rc1=$?
 adb shell settings put system accelerometer_rotation 0
 maestro test .maestro/06b_fullscreen_rotate_button.yaml \
-  -e "PANE_DIR=${PANE_DIR:-ltr}" \
-  -e "TEXT_REMOVED=${TEXT_REMOVED:-Removed from History}" \
-  -e "TEXT_UNDO=${TEXT_UNDO:-Undo}" \
-  -e "TEXT_APPS=${TEXT_APPS:-APPS}" \
-  -e "TEXT_SHOW=${TEXT_SHOW:-Show 1 post}" \
   --format junit \
   --output "$OUT/junit-06b.xml" \
   --test-output-dir "$OUT/artifacts"

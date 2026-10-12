@@ -1,9 +1,7 @@
-# Toward start on the shipped LTR-physical gesture is a leftward drag (offsetPx < 0).
-# Under the pending RTL lock, start is the right edge; those branches stay unused
-# while CI sets PANE_DIR=ltr.
+# Toward start is a leftward drag (offsetPx < 0).
 #
-# DIST=40 snaps back: Maestro LEFT/RIGHT from the row center ends at 10%/90% of
-# the screen, which is 40% of a full-width row, under LedgerSwipe 45%.
+# DIST=40 snaps back: Maestro LEFT from the row center ends at 10% of the
+# screen, which is 40% of a full-width row, under LedgerSwipe 45%.
 # DIST=55 commits: start near the far edge of history_row_0 so the same endpoint
 # travels well past 45%. Maestro 2.11 cannot pair from.point with a custom end,
 # so this is the long side of the threshold. The exact 45% boundary stays in
@@ -12,7 +10,7 @@ appId: app.pane.android
 ---
 - runFlow:
     when:
-      true: ${PANE_DIR != 'rtl' && DIST == '40'}
+      true: ${DIST == '40'}
     commands:
       - swipe:
           from:
@@ -21,30 +19,11 @@ appId: app.pane.android
           duration: 2000
 - runFlow:
     when:
-      true: ${PANE_DIR != 'rtl' && DIST == '55'}
+      true: ${DIST == '55'}
     commands:
       - swipe:
           from:
             id: history_row_0
             point: "95%, 50%"
           direction: LEFT
-          duration: 1500
-- runFlow:
-    when:
-      true: ${PANE_DIR == 'rtl' && DIST == '40'}
-    commands:
-      - swipe:
-          from:
-            id: history_row_0
-          direction: RIGHT
-          duration: 2000
-- runFlow:
-    when:
-      true: ${PANE_DIR == 'rtl' && DIST == '55'}
-    commands:
-      - swipe:
-          from:
-            id: history_row_0
-            point: "5%, 50%"
-          direction: RIGHT
           duration: 1500

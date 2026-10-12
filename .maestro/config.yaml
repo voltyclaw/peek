@@ -1,9 +1,5 @@
-# English defaults. CI overrides these with -e for the Hebrew AVD.
-# PANE_DIR stays ltr on both AVDs: the shipped swipe is physical (offsetPx < 0),
-# not layout-direction aware. The rtl branches in the swipe subflows are ready
-# for that lock; nothing on master sets PANE_DIR=rtl.
+# English copy. These flows run on the English AVD only.
 env:
-  PANE_DIR: ltr
   TEXT_REMOVED: Removed from History
   TEXT_UNDO: Undo
   TEXT_APPS: APPS

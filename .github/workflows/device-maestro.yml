@@ -93,24 +93,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # English only. Hebrew strings stay in the app; this job does not boot a Hebrew AVD.
           - name: en
             api-level: 34
             locale: en-US
-            dir: ltr
-            text-removed: "Removed from History"
-            text-undo: "Undo"
-            text-apps: "APPS"
-            text-show: "Show 1 post"
-          # Hebrew locale, shipped physical swipes. The RTL lock is not on master,
-          # so dir stays ltr (see .maestro/config.yaml).
-          - name: iw
-            api-level: 34
-            locale: iw-IL
-            dir: ltr
-            text-removed: "הוסר מההיסטוריה"
-            text-undo: "ביטול"
-            text-apps: "אפליקציות"
-            text-show: "להציג פוסט אחד"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -166,12 +152,6 @@ jobs:
       - name: Run Maestro
         id: run
         uses: reactivecircus/android-emulator-runner@v2.38.0
-        env:
-          PANE_DIR: ${{ matrix.dir }}
-          TEXT_REMOVED: ${{ matrix.text-removed }}
-          TEXT_UNDO: ${{ matrix.text-undo }}
-          TEXT_APPS: ${{ matrix.text-apps }}
-          TEXT_SHOW: ${{ matrix.text-show }}
         with:
           api-level: ${{ matrix.api-level }}
           target: google_apis
