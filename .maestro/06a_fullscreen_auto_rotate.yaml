@@ -11,6 +11,7 @@ tags:
 # that Exit fullscreen survives both turns. run-maestro.sh logs mCurrentRotation.
 - runFlow: subflows/fresh_start.yaml
 - openLink: pane://sample/x-video
+- runFlow: subflows/dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done

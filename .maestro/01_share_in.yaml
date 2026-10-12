@@ -12,6 +12,7 @@ tags:
     appId: app.pane.android
     clearState: false
     stopApp: false
+- runFlow: subflows/dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done

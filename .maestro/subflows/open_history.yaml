@@ -6,6 +6,12 @@ appId: app.pane.android
 - launchApp:
     appId: app.pane.android
     clearState: false
+# The relaunch is slow enough for the launcher ANR to land after the first dismiss.
+- runFlow: dismiss_anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: history_door
+    timeout: 30000
 - tapOn:
     id: history_door
 - assertVisible:

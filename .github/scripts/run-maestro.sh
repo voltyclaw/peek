@@ -7,6 +7,11 @@ OUT=build/maestro
 PKG=app.pane.android
 mkdir -p "$OUT"
 adb wait-for-device
+# Pixel Launcher ANRs on this slow image, and the dialog sits on top of Pane.
+# The setting blocks later dialogs. force-stop clears one that is already up.
+adb shell settings put global hide_error_dialogs 1
+adb shell settings get global hide_error_dialogs >> "$OUT/locale.txt" || true
+adb shell am force-stop com.google.android.apps.nexuslauncher || true
 adb install -r "$APK"
 adb shell settings put system accelerometer_rotation 1
 adb shell getprop persist.sys.locale >> "$OUT/locale.txt" || true

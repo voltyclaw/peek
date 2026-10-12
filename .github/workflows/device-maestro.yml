@@ -150,7 +150,7 @@ jobs:
           # restarts the framework while this action sends KEYCODE_MENU.
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
-          script: echo "snapshot created"
+          script: adb shell settings put global hide_error_dialogs 1
 
       - name: Run Maestro
         id: run

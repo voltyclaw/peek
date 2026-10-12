@@ -3,18 +3,21 @@ appId: app.pane.android
 # Fixture deep links only. Each back finishes a share-in style viewer; the next
 # openLink starts the app again. History rows stay in app storage.
 - openLink: pane://sample/x-image
+- runFlow: dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done
     timeout: 30000
 - back
 - openLink: pane://sample/reddit-text
+- runFlow: dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done
     timeout: 30000
 - back
 - openLink: pane://sample/ig-image
+- runFlow: dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done

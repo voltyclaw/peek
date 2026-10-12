@@ -8,6 +8,7 @@ tags:
 # run-maestro.sh turns accelerometer_rotation off before this flow and restores it after.
 - runFlow: subflows/fresh_start.yaml
 - openLink: pane://sample/x-video
+- runFlow: subflows/dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: viewer_done
