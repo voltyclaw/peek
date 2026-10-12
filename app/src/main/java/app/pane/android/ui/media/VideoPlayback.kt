@@ -340,16 +340,10 @@ internal fun VideoSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            val slop = ViewConfiguration.get(context).scaledTouchSlop
-            val downX = floatArrayOf(0f)
-            val downY = floatArrayOf(0f)
-            val lastUp = longArrayOf(0L)
-            var tracking = false
-            // TextureView stays in this window, so Compose chrome (fullscreen, rotate)
-            // receives taps that land on a button. A SurfaceView on API 34 is a
-            // separate layer above the window: the workaround below fixes the draw,
-            // and the tap still misses. The listener covers a tap the Compose layer
-            // above the player does not see; both paths share one debounced toggle.
+            taps.slopPx = ViewConfiguration.get(context).scaledTouchSlop
+            // TextureView stays in this window. The surface is the view under the
+            // finger, so the listener has to be on that child, not only the parent.
+            // Return false so a sideways drag still reaches the pager.
             (LayoutInflater.from(context).inflate(R.layout.pane_player_view, null) as Media3PlayerView).apply {
                 player = exoPlayer
                 useController = false
@@ -358,49 +352,8 @@ internal fun VideoSurface(
                 isClickable = false
                 isFocusable = false
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                // Return false so a sideways drag still reaches the pager. The
-                // detector still sees the stream, and a confirmed tap is debounced
-                // against the Compose layer above this view.
-                // Fire on finger-up. GestureDetector's delayed confirm never arrived
-                // for an injected tap on this emulator, so the controls stayed hidden.
-                // A second call from the Compose layer is dropped by rememberDebounced.
-                setOnTouchListener { _, event ->
-                    if (taps.onSingleTap != null || taps.onDoubleTap != null) {
-                        when (event.actionMasked) {
-                            MotionEvent.ACTION_DOWN -> {
-                                downX[0] = event.x
-                                downY[0] = event.y
-                                tracking = true
-                            }
-                            MotionEvent.ACTION_MOVE -> {
-                                if (tracking) {
-                                    val dx = event.x - downX[0]
-                                    val dy = event.y - downY[0]
-                                    if (dx * dx + dy * dy > slop * slop) tracking = false
-                                }
-                            }
-                            MotionEvent.ACTION_UP -> {
-                                if (tracking) {
-                                    val now = event.eventTime
-                                    if (now - lastUp[0] <= 300L) {
-                                        taps.onDoubleTap?.invoke()
-                                    } else {
-                                        taps.onSingleTap?.invoke()
-                                    }
-                                    lastUp[0] = now
-                                }
-                                tracking = false
-                            }
-                            MotionEvent.ACTION_CANCEL -> tracking = false
-                        }
-                    }
-                    false
-                }
-                getVideoSurfaceView()?.apply {
-                    isClickable = false
-                    isFocusable = false
-                    setOnTouchListener { _, _ -> false }
-                }
+                setOnTouchListener(taps.touchListener)
+                attachSurfaceTouch(taps)
                 // API 34: Compose AndroidView and SurfaceView desync (androidx/media#1237).
                 setEnableComposeSurfaceSyncWorkaround(true)
             }
@@ -408,12 +361,56 @@ internal fun VideoSurface(
         update = { view ->
             view.player = exoPlayer
             view.resizeMode = resizeMode
+            view.setOnTouchListener(taps.touchListener)
+            view.attachSurfaceTouch(taps)
         },
         onRelease = { view -> view.player = null },
     )
 }
 
+private fun Media3PlayerView.attachSurfaceTouch(taps: SurfaceTaps) {
+    getVideoSurfaceView()?.apply {
+        isClickable = false
+        isFocusable = false
+        setOnTouchListener(taps.touchListener)
+    }
+}
+
 private class SurfaceTaps {
     var onSingleTap: (() -> Unit)? = null
     var onDoubleTap: (() -> Unit)? = null
+    var slopPx: Int = 24
+    private var tracking = false
+    private var downX = 0f
+    private var downY = 0f
+    private var lastUp = 0L
+
+    val touchListener = View.OnTouchListener { _, event ->
+        if (onSingleTap != null || onDoubleTap != null) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    tracking = true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (tracking) {
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (dx * dx + dy * dy > slopPx * slopPx) tracking = false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (tracking) {
+                        val now = event.eventTime
+                        if (now - lastUp <= 300L) onDoubleTap?.invoke() else onSingleTap?.invoke()
+                        lastUp = now
+                    }
+                    tracking = false
+                }
+                MotionEvent.ACTION_CANCEL -> tracking = false
+            }
+        }
+        false
+    }
 }

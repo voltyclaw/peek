@@ -52,7 +52,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.view.MotionEvent
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -591,13 +597,20 @@ private fun MediaCanvas(
                     showControls = false
                 }
             }
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .testTag(PaneTestTags.ViewerMedia)
                     .then(
                         if (videoUrl == null) {
                             Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })
+                        } else if (!showControls) {
+                            // The video view sits above Compose and swallows the tap.
+                            // Initial-pass interop still sees the finger-up on this box.
+                            Modifier.pointerInteropFilter { event ->
+                                if (event.actionMasked == MotionEvent.ACTION_UP) toggleControls()
+                                false
+                            }
                         } else {
                             Modifier
                         },
@@ -654,17 +667,38 @@ private fun MediaCanvas(
                     )
                 }
                 if (videoUrl != null && showControls) {
-                    InlineVideoChrome(
-                        paused = videoPaused,
-                        muted = inlineMuted,
-                        onTogglePlay = onToggleVideo,
-                        onToggleMute = {
-                            inlineMuted = !inlineMuted
-                            onMutedChange(inlineMuted)
-                        },
-                        onEnterFullscreen = { onOpenMedia("", page) },
-                        onScrubbing = { scrubbing = it },
-                    )
+                    // A separate window, so the pause and fullscreen controls sit above
+                    // the video surface. The dialog/popup compose view needs its own
+                    // testTagsAsResourceId; the activity root does not cover it.
+                    val chromeWidth = maxWidth
+                    val chromeHeight = maxHeight
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        properties = PopupProperties(
+                            focusable = false,
+                            dismissOnBackPress = false,
+                            dismissOnClickOutside = false,
+                            clippingEnabled = false,
+                        ),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(chromeWidth, chromeHeight)
+                                .semantics { testTagsAsResourceId = true },
+                        ) {
+                            InlineVideoChrome(
+                                paused = videoPaused,
+                                muted = inlineMuted,
+                                onTogglePlay = onToggleVideo,
+                                onToggleMute = {
+                                    inlineMuted = !inlineMuted
+                                    onMutedChange(inlineMuted)
+                                },
+                                onEnterFullscreen = { onOpenMedia("", page) },
+                                onScrubbing = { scrubbing = it },
+                            )
+                        }
+                    }
                 }
             }
         }

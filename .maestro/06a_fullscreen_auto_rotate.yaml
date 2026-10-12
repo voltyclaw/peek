@@ -19,21 +19,13 @@ tags:
 # Controls start hidden and hide again after 3s while the video plays.
 # Each tap toggles them, so only tap while the pause button is absent,
 # then pause from that button so they stay up for the fullscreen control.
-- repeat:
-    times: 4
-    while:
-      notVisible:
-        id: viewer_pause
-    commands:
-      - tapOn:
-          id: viewer_media
-      # Controls stay up 3s. Check while they are still on screen.
-      - waitForAnimationToEnd:
-          timeout: 1500
+# One tap. Another tap toggles the controls off, and they only stay up for 3s.
+- tapOn:
+    id: viewer_media
 - extendedWaitUntil:
     visible:
       id: viewer_pause
-    timeout: 5000
+    timeout: 4000
 - tapOn:
     id: viewer_pause
 - extendedWaitUntil:

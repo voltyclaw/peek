@@ -2,6 +2,7 @@ package app.pane.android.ui.player
 
 import android.app.Activity
 import android.content.res.Configuration
+import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -58,11 +59,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -479,6 +484,16 @@ private fun MediaContent(
                     Box(
                         Modifier
                             .fillMaxSize()
+                            .then(
+                                if (!chromeVisible) {
+                                    Modifier.pointerInteropFilter { event ->
+                                        if (event.actionMasked == MotionEvent.ACTION_UP) toggleChrome()
+                                        false
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .confirmedMediaTaps(
                                 onSingleTapConfirmed = toggleChrome,
                                 onDoubleTap = doubleChrome,
@@ -516,6 +531,16 @@ private fun MediaContent(
             )
         }
         if (chromeVisible) {
+            Popup(
+                alignment = Alignment.BottomCenter,
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false,
+                    clippingEnabled = false,
+                ),
+            ) {
+            Box(Modifier.semantics { testTagsAsResourceId = true }) {
             FullscreenChrome(
                 showTransport = playbackUrl != null && exoPlayer != null,
                 playing = playing,
@@ -555,8 +580,10 @@ private fun MediaContent(
                 onRotate = { manualLock = nextManualLock(manualLock, deviceLandscape) },
                 rotateLabel = rotateLabel,
                 onExit = onBack,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp),
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp),
             )
+            }
+            }
         }
         if (ended) {
             Column(
