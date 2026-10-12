@@ -24,8 +24,9 @@ tags:
     commands:
       - tapOn:
           id: viewer_media
+      # Controls stay up 3s. Check while they are still on screen.
       - waitForAnimationToEnd:
-          timeout: 800
+          timeout: 1500
 - extendedWaitUntil:
     visible:
       id: viewer_pause

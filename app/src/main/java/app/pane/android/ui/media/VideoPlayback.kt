@@ -2,10 +2,10 @@ package app.pane.android.ui.media
 
 import android.content.Context
 import android.content.ContextWrapper
-import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -340,20 +340,11 @@ internal fun VideoSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            val detector = GestureDetector(
-                context,
-                object : GestureDetector.SimpleOnGestureListener() {
-                    override fun onDown(e: MotionEvent): Boolean = true
-                    override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                        taps.onSingleTap?.invoke()
-                        return true
-                    }
-                    override fun onDoubleTap(e: MotionEvent): Boolean {
-                        taps.onDoubleTap?.invoke()
-                        return true
-                    }
-                },
-            )
+            val slop = ViewConfiguration.get(context).scaledTouchSlop
+            val downX = floatArrayOf(0f)
+            val downY = floatArrayOf(0f)
+            val lastUp = longArrayOf(0L)
+            var tracking = false
             // TextureView stays in this window, so Compose chrome (fullscreen, rotate)
             // receives taps that land on a button. A SurfaceView on API 34 is a
             // separate layer above the window: the workaround below fixes the draw,
@@ -370,9 +361,38 @@ internal fun VideoSurface(
                 // Return false so a sideways drag still reaches the pager. The
                 // detector still sees the stream, and a confirmed tap is debounced
                 // against the Compose layer above this view.
+                // Fire on finger-up. GestureDetector's delayed confirm never arrived
+                // for an injected tap on this emulator, so the controls stayed hidden.
+                // A second call from the Compose layer is dropped by rememberDebounced.
                 setOnTouchListener { _, event ->
                     if (taps.onSingleTap != null || taps.onDoubleTap != null) {
-                        detector.onTouchEvent(event)
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> {
+                                downX[0] = event.x
+                                downY[0] = event.y
+                                tracking = true
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                if (tracking) {
+                                    val dx = event.x - downX[0]
+                                    val dy = event.y - downY[0]
+                                    if (dx * dx + dy * dy > slop * slop) tracking = false
+                                }
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                if (tracking) {
+                                    val now = event.eventTime
+                                    if (now - lastUp[0] <= 300L) {
+                                        taps.onDoubleTap?.invoke()
+                                    } else {
+                                        taps.onSingleTap?.invoke()
+                                    }
+                                    lastUp[0] = now
+                                }
+                                tracking = false
+                            }
+                            MotionEvent.ACTION_CANCEL -> tracking = false
+                        }
                     }
                     false
                 }
