@@ -24,8 +24,9 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 internal const val CONTROLS_AUTO_HIDE_MS = 3_000L
 
 /**
- * The player view and the Compose layer above it can both see one tap.
- * A second call inside this window is the same tap, not a second toggle.
+ * The player view and the Compose layer above it can both see one tap,
+ * and the two callbacks are not always the same millisecond. A second call
+ * inside this window is that same tap, not a second toggle.
  */
 @Composable
 internal fun rememberDebounced(block: () -> Unit): () -> Unit {
@@ -34,7 +35,7 @@ internal fun rememberDebounced(block: () -> Unit): () -> Unit {
     return remember {
         {
             val now = SystemClock.uptimeMillis()
-            if (now - lastAt[0] >= 400L) {
+            if (now - lastAt[0] >= 2_000L) {
                 lastAt[0] = now
                 latest.value.invoke()
             }

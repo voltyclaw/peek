@@ -79,6 +79,7 @@ import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.actions.sourceMarkRes
 import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
 import app.pane.android.ui.media.InlineVideoChrome
+import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
 import app.pane.android.ui.media.rememberDebounced
 import app.pane.android.ui.media.rememberTouchExplorationEnabled
@@ -637,6 +638,20 @@ private fun MediaCanvas(
                             onDoubleTap = openFullscreen,
                         )
                     }
+                }
+                // Above the player so a tap is not swallowed by the video view.
+                // Chrome is composed after this, so its buttons still win the hit.
+                // The player listener uses the same debounced toggle, so one tap
+                // cannot show the controls and hide them again.
+                if (videoUrl != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = toggleControls,
+                                onDoubleTap = openFullscreen,
+                            ),
+                    )
                 }
                 if (videoUrl != null && showControls) {
                     InlineVideoChrome(

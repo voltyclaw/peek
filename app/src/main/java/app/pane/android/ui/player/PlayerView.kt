@@ -90,6 +90,7 @@ import app.pane.android.ui.media.SurfaceGesture
 import app.pane.android.ui.media.SurfaceGestureAction
 import app.pane.android.ui.media.VideoSurfaceKind
 import app.pane.android.ui.media.activityOrientation
+import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
 import app.pane.android.ui.media.nextManualLock
 import app.pane.android.ui.media.orientationRequest
@@ -470,6 +471,18 @@ private fun MediaContent(
                         modifier = mediaModifier,
                         onSingleTap = toggleChrome,
                         onDoubleTap = doubleChrome,
+                    )
+                }
+                // Above the player, under the chrome. Same debounced toggle as the
+                // player listener, so one tap cannot show controls and hide them.
+                if (page == pagerState.currentPage && pageVideo != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .confirmedMediaTaps(
+                                onSingleTapConfirmed = toggleChrome,
+                                onDoubleTap = doubleChrome,
+                            ),
                     )
                 }
             }
