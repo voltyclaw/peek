@@ -23,6 +23,19 @@ tags:
     timeout: 10000
 - tapOn:
     id: viewer_fullscreen
+# Chrome starts visible, then hides after 3s while the video plays.
+# If it is already gone, a tap on the player shows it again.
+- extendedWaitUntil:
+    visible:
+      id: viewer_player_surface
+    timeout: 10000
+- runFlow:
+    when:
+      notVisible:
+        id: viewer_exit_fullscreen
+    commands:
+      - tapOn:
+          id: viewer_player_surface
 - extendedWaitUntil:
     visible:
       id: viewer_exit_fullscreen

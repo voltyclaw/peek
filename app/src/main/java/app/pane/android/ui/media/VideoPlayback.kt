@@ -2,6 +2,7 @@ package app.pane.android.ui.media
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.LayoutInflater
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -332,7 +333,10 @@ internal fun VideoSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            Media3PlayerView(context).apply {
+            // TextureView stays in this window, so Compose chrome (fullscreen, rotate)
+            // receives taps. A SurfaceView on API 34 is a separate layer above the
+            // window: the workaround below fixes the draw, and the tap still misses.
+            (LayoutInflater.from(context).inflate(R.layout.pane_player_view, null) as Media3PlayerView).apply {
                 player = exoPlayer
                 useController = false
                 setShutterBackgroundColor(shutterColor)

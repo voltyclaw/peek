@@ -1,7 +1,8 @@
 appId: app.pane.android
 ---
 # API 27+ window background stays the light theme until Compose draws.
-# An ANR dialog on the launcher hides Home, so dismiss that before waiting.
+# On this emulator that first frame can take most of a minute, and a
+# launcher ANR can cover Home while it starts.
 - launchApp:
     appId: app.pane.android
     clearState: true
@@ -10,7 +11,20 @@ appId: app.pane.android
     appId: app.pane.android
     clearState: false
     stopApp: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- runFlow: dismiss_anr.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: history_door
+    commands:
+      - launchApp:
+          appId: app.pane.android
+          clearState: false
+          stopApp: false
+      - runFlow: dismiss_anr.yaml
 - extendedWaitUntil:
     visible:
       id: history_door
-    timeout: 30000
+    timeout: 45000

@@ -209,7 +209,10 @@ private fun FilterTextChip(
             .semantics { this.selected = selected }
             .clip(shape)
             .then(if (selected) Modifier.background(PaneInk) else Modifier.border(1.dp, PaneBorder, shape))
-            .clickable(role = Role.Button, onClick = onClick)
+            // Compose 1.10 maps semantics.selected to AccessibilityNodeInfo.isSelected
+            // only for Role.Tab. Role.Button reports it as checked, which Maestro's
+            // `selected:` matcher does not read.
+            .clickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
