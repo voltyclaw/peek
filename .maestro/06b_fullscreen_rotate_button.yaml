@@ -12,14 +12,23 @@ tags:
     visible:
       id: viewer_done
     timeout: 30000
-# One tap on the video reveals controls. A second tap on the same id
-# toggles them off. Pause by its own button so the 3s auto-hide stops.
-- tapOn:
-    id: viewer_media
+# Controls start hidden and hide again after 3s while the video plays.
+# Each tap toggles them, so only tap while the pause button is absent,
+# then pause from that button so they stay up for the fullscreen control.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: viewer_pause
+    commands:
+      - tapOn:
+          id: viewer_media
+      - waitForAnimationToEnd:
+          timeout: 800
 - extendedWaitUntil:
     visible:
       id: viewer_pause
-    timeout: 8000
+    timeout: 5000
 - tapOn:
     id: viewer_pause
 - extendedWaitUntil:

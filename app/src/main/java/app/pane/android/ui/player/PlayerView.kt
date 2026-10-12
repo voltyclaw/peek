@@ -90,7 +90,6 @@ import app.pane.android.ui.media.SurfaceGesture
 import app.pane.android.ui.media.SurfaceGestureAction
 import app.pane.android.ui.media.VideoSurfaceKind
 import app.pane.android.ui.media.activityOrientation
-import app.pane.android.ui.media.confirmedMediaTaps
 import app.pane.android.ui.media.controlsAutoHide
 import app.pane.android.ui.media.nextManualLock
 import app.pane.android.ui.media.orientationRequest
@@ -471,18 +470,6 @@ private fun MediaContent(
                         modifier = mediaModifier,
                         onSingleTap = toggleChrome,
                         onDoubleTap = doubleChrome,
-                    )
-                }
-                // Inside the page, above the player, so a tap is not swallowed by the
-                // video view and a sideways drag can still reach the pager.
-                if (page == pagerState.currentPage && pageVideo != null) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .confirmedMediaTaps(
-                                onSingleTapConfirmed = toggleChrome,
-                                onDoubleTap = doubleChrome,
-                            ),
                     )
                 }
             }
