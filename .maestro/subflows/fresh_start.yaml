@@ -1,12 +1,16 @@
 appId: app.pane.android
 ---
-# API 27+ window background is the light theme until Compose draws. Wait until
-# Home is actually up before the next deep link, or the viewer wait sits on that
-# blank window.
+# API 27+ window background stays the light theme until Compose draws.
+# An ANR dialog on the launcher hides Home, so dismiss that before waiting.
 - launchApp:
     appId: app.pane.android
     clearState: true
+- runFlow: dismiss_anr.yaml
+- launchApp:
+    appId: app.pane.android
+    clearState: false
+    stopApp: false
 - extendedWaitUntil:
     visible:
       id: history_door
-    timeout: 45000
+    timeout: 30000

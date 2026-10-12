@@ -1,0 +1,12 @@
+appId: app.pane.android
+---
+# A slow KVM emulator often puts "Pixel Launcher isn't responding" over the app.
+# Wait keeps the process. Close app would dismiss the wrong one.
+- repeat:
+    times: 2
+    commands:
+      - runFlow:
+          when:
+            visible: ".*responding.*"
+          commands:
+            - tapOn: "Wait"

@@ -42,8 +42,15 @@ adb logcat -v threadtime -s AndroidRuntime:E > "$OUT/crash.raw" 2>/dev/null &
 CRASH=$!
 set +e
 # -e is required. config.yaml env did not expand ${TEXT_*} on the emulator.
-maestro test .maestro \
-  --exclude-tags=rotate-button-off \
+# Pass files in order. Maestro 2.11 did not honor executionOrder.flowsOrder
+# and ran Undo (clearState) before the share-in that depends on the SEND intent.
+maestro test \
+  .maestro/01_share_in.yaml \
+  .maestro/02_swipe_commit_45.yaml \
+  .maestro/03_star_first_then_remove.yaml \
+  .maestro/04_undo.yaml \
+  .maestro/05_filters.yaml \
+  .maestro/06a_fullscreen_auto_rotate.yaml \
   -e "TEXT_REMOVED=Removed from History" \
   -e "TEXT_UNDO=Undo" \
   -e "TEXT_APPS=APPS" \

@@ -2,6 +2,7 @@ appId: app.pane.android
 ---
 # Share-in and sample deep links finish the activity on Back. Relaunch without
 # clearing storage, then open History from Home.
+- runFlow: dismiss_anr.yaml
 - launchApp:
     appId: app.pane.android
     clearState: false

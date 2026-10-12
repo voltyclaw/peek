@@ -5,6 +5,13 @@ tags:
 ---
 # No clearState: run-maestro.sh fires the SEND intent (fixture URL x-image) first.
 # Back from a share-in finishes the activity; open_history relaunches Home.
+# The launcher ANR dialog covers the viewer on a busy emulator. Dismiss it,
+# then bring Pane forward without stopping the process.
+- runFlow: subflows/dismiss_anr.yaml
+- launchApp:
+    appId: app.pane.android
+    clearState: false
+    stopApp: false
 - extendedWaitUntil:
     visible:
       id: viewer_done
