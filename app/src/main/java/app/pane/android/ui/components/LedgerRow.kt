@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -114,6 +115,7 @@ fun LedgerSwipeRow(
     held: Boolean = false,
     recents: Boolean = false,
     showDivider: Boolean = true,
+    rowTag: String? = null,
 ) {
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
@@ -145,7 +147,7 @@ fun LedgerSwipeRow(
                 else -> base
             }
         }
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().then(if (rowTag != null) Modifier.testTag(rowTag) else Modifier)) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -218,6 +220,7 @@ fun LedgerSwipeRow(
                     onLongPress = onLongPress,
                     onActionStar = onActionStar,
                     onActionRemove = onActionRemove,
+                    rowTag = rowTag,
                 )
             }
         }
@@ -297,6 +300,7 @@ private fun LedgerBody(
     onLongPress: () -> Unit,
     onActionStar: () -> Unit,
     onActionRemove: () -> Unit,
+    rowTag: String? = null,
 ) {
     val title = ledgerTitle(row)
     val interaction = remember { MutableInteractionSource() }
@@ -343,7 +347,11 @@ private fun LedgerBody(
                     Icons.Rounded.Star,
                     contentDescription = null,
                     tint = PaneInk,
-                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 20.dp).size(12.dp),
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 20.dp)
+                        .size(12.dp)
+                        .then(if (rowTag != null) Modifier.testTag("${rowTag}_star") else Modifier),
                 )
             }
         }
@@ -354,6 +362,7 @@ private fun LedgerBody(
         ) {
             Text(
                 text = ledgerBidi(title),
+                modifier = if (rowTag != null) Modifier.testTag("${rowTag}_title") else Modifier,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = PaneInk,

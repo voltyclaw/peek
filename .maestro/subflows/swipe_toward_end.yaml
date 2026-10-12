@@ -1,0 +1,42 @@
+# Toward end on the shipped LTR-physical gesture is a rightward drag.
+# See swipe_toward_start.yaml for the 40% / past-45% split.
+appId: app.pane.android
+---
+- runFlow:
+    when:
+      true: ${PANE_DIR != 'rtl' && DIST == '40'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+          direction: RIGHT
+          duration: 2000
+- runFlow:
+    when:
+      true: ${PANE_DIR != 'rtl' && DIST == '55'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+            point: "5%, 50%"
+          direction: RIGHT
+          duration: 1500
+- runFlow:
+    when:
+      true: ${PANE_DIR == 'rtl' && DIST == '40'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+          direction: LEFT
+          duration: 2000
+- runFlow:
+    when:
+      true: ${PANE_DIR == 'rtl' && DIST == '55'}
+    commands:
+      - swipe:
+          from:
+            id: history_row_0
+            point: "95%, 50%"
+          direction: LEFT
+          duration: 1500

@@ -1,0 +1,6 @@
+appId: app.pane.android
+---
+- launchApp:
+    appId: app.pane.android
+    clearState: true
+- waitForAnimationToEnd

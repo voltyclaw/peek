@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.window.Dialog
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.actions.RecoveryBody
 import app.pane.android.ui.actions.RecoveryHeadline
 import app.pane.android.ui.actions.RecoveryReason
@@ -84,6 +86,7 @@ internal fun DonePill(onDone: () -> Unit, overMedia: Boolean, modifier: Modifier
     val fill = if (overMedia) PaneGround.copy(alpha = 0.6f) else PaneTile
     Row(
         modifier = modifier
+            .testTag(PaneTestTags.ViewerDone)
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(fill)

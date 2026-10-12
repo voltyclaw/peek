@@ -1,0 +1,25 @@
+appId: app.pane.android
+name: Undo restores; Undo dies with the screen
+tags:
+  - history
+---
+- runFlow: subflows/fresh_start.yaml
+- runFlow: subflows/seed_history.yaml
+- runFlow: subflows/open_history.yaml
+- copyTextFrom:
+    id: history_row_0_title
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- tapOn: ${TEXT_UNDO}
+- assertVisible: ${maestro.copiedText}
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- assertVisible: ${TEXT_UNDO}
+- back
+- runFlow: subflows/open_history.yaml
+- assertNotVisible: ${TEXT_UNDO}
+- assertNotVisible: ${maestro.copiedText}

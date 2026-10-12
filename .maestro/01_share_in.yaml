@@ -1,0 +1,15 @@
+appId: app.pane.android
+name: Share-in opens the viewer and records History
+tags:
+  - smoke
+---
+# No clearState: run-maestro.sh fires the SEND intent (fixture URL x-image) first.
+# Back from a share-in finishes the activity; open_history relaunches Home.
+- extendedWaitUntil:
+    visible:
+      id: viewer_done
+    timeout: 15000
+- back
+- runFlow: subflows/open_history.yaml
+- assertVisible:
+    id: history_row_0

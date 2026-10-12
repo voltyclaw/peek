@@ -1,0 +1,53 @@
+appId: app.pane.android
+name: Fullscreen follows physical rotation with auto-rotate on
+tags:
+  - viewer
+  - device
+---
+# run-maestro.sh sets accelerometer_rotation 1 before this pass.
+# Inline controls start hidden; a tap on the fixture video reveals fullscreen.
+# Entering fullscreen does not leave the player. Maestro 2.11 has setOrientation
+# and no documented way to read the current orientation, so this flow checks that
+# Exit fullscreen survives both turns. run-maestro.sh logs mCurrentRotation.
+- runFlow: subflows/fresh_start.yaml
+- openLink: pane://sample/x-video
+- extendedWaitUntil:
+    visible:
+      id: viewer_done
+    timeout: 15000
+- tapOn:
+    id: viewer_media
+- extendedWaitUntil:
+    visible:
+      id: viewer_fullscreen
+    timeout: 10000
+- tapOn:
+    id: viewer_fullscreen
+- extendedWaitUntil:
+    visible:
+      id: viewer_exit_fullscreen
+    timeout: 10000
+- setOrientation: LANDSCAPE
+- runFlow:
+    when:
+      notVisible:
+        id: viewer_exit_fullscreen
+    commands:
+      - tapOn:
+          id: viewer_player_surface
+- assertVisible:
+    id: viewer_exit_fullscreen
+- setOrientation: PORTRAIT
+- runFlow:
+    when:
+      notVisible:
+        id: viewer_exit_fullscreen
+    commands:
+      - tapOn:
+          id: viewer_player_surface
+- assertVisible:
+    id: viewer_exit_fullscreen
+- tapOn:
+    id: viewer_exit_fullscreen
+- assertVisible:
+    id: viewer_done

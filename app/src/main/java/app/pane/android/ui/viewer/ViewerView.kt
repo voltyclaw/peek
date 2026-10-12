@@ -52,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.actions.openInAppLabelRes
 import app.pane.android.ui.actions.sourceMarkRes
 import app.pane.android.ui.media.CONTROLS_AUTO_HIDE_MS
@@ -589,6 +591,7 @@ private fun MediaCanvas(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag(PaneTestTags.ViewerMedia)
                     .then(
                         if (videoUrl == null) {
                             Modifier.clickable(role = Role.Button, onClick = { onOpenMedia("", page) })

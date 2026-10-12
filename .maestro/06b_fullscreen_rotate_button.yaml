@@ -1,0 +1,38 @@
+appId: app.pane.android
+name: Manual rotate button works with auto-rotate off
+tags:
+  - viewer
+  - device
+  - rotate-button-off
+---
+# run-maestro.sh turns accelerometer_rotation off before this flow and restores it after.
+- runFlow: subflows/fresh_start.yaml
+- openLink: pane://sample/x-video
+- extendedWaitUntil:
+    visible:
+      id: viewer_done
+    timeout: 15000
+- tapOn:
+    id: viewer_media
+- extendedWaitUntil:
+    visible:
+      id: viewer_fullscreen
+    timeout: 10000
+- tapOn:
+    id: viewer_fullscreen
+- extendedWaitUntil:
+    visible:
+      id: viewer_exit_fullscreen
+    timeout: 10000
+- tapOn:
+    id: viewer_rotate
+- takeScreenshot: fs_rotated_by_button
+- assertVisible:
+    id: viewer_exit_fullscreen
+- tapOn:
+    id: viewer_rotate
+- takeScreenshot: fs_rotated_back
+- tapOn:
+    id: viewer_exit_fullscreen
+- assertVisible:
+    id: viewer_done

@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.components.LedgerMenuLine
 import app.pane.android.ui.components.LedgerMenuSheet
 import app.pane.android.ui.components.LedgerMenuStyle
@@ -896,7 +898,9 @@ private fun RecentHeader(count: Int?, onOpenHistory: () -> Unit) {
         Text(countLabel, color = PaneMuted, style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em))
         Text(
             text = stringResource(R.string.history_door),
-            modifier = Modifier.clickable(role = Role.Button, onClick = onOpenHistory),
+            modifier = Modifier
+                .testTag(PaneTestTags.HistoryDoor)
+                .clickable(role = Role.Button, onClick = onOpenHistory),
             color = PaneInk.copy(alpha = 0.75f),
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, fontWeight = FontWeight.Medium),
         )

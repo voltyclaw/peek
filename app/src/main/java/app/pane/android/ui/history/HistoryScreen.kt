@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pane.android.R
 import app.pane.android.domain.model.HistoryEmptyKind
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.domain.model.HistoryRowAction
 import app.pane.android.domain.model.HistoryRowActions
 import app.pane.android.domain.model.SourceApp
@@ -244,6 +245,7 @@ fun HistoryView(
             HistoryEmpty(ui.empty, Modifier.weight(1f))
         } else {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                var rowOrdinal = 0
                 ui.sections.forEach { section ->
                     Text(
                         text = section.title,
@@ -252,6 +254,8 @@ fun HistoryView(
                         style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em),
                     )
                     section.rows.forEachIndexed { index, row ->
+                        val ordinal = rowOrdinal
+                        rowOrdinal += 1
                         if (row.tiktokId.isNotBlank()) {
                             DisposableEffect(row.url) {
                                 onDispose { visibleTikTok.remove(row.url) }
@@ -279,6 +283,7 @@ fun HistoryView(
                                 onActionStar = { onSwipe(row.url, false) },
                                 onActionRemove = { onRemove(row.url) },
                                 showDivider = index != section.rows.lastIndex,
+                                rowTag = PaneTestTags.historyRow(ordinal),
                             )
                         }
                     }

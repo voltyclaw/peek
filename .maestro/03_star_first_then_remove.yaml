@@ -1,0 +1,44 @@
+appId: app.pane.android
+name: In All, starred rows unstar first (either direction); then toward-start removes
+tags:
+  - history
+---
+- runFlow: subflows/fresh_start.yaml
+- runFlow: subflows/seed_history.yaml
+- runFlow: subflows/open_history.yaml
+- runFlow:
+    file: subflows/swipe_toward_end.yaml
+    env:
+      DIST: "55"
+- assertVisible:
+    id: history_row_0_star
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- assertNotVisible: ${TEXT_REMOVED}
+- assertNotVisible:
+    id: history_row_0_star
+- runFlow:
+    file: subflows/swipe_toward_start.yaml
+    env:
+      DIST: "55"
+- assertVisible: ${TEXT_REMOVED}
+# The remove snackbar stays up for 5s. Leave History so it dies with the screen,
+# then star and unstar the new top row. Toward-end on a starred row unstars only.
+- back
+- runFlow: subflows/open_history.yaml
+- assertNotVisible: ${TEXT_REMOVED}
+- runFlow:
+    file: subflows/swipe_toward_end.yaml
+    env:
+      DIST: "55"
+- assertVisible:
+    id: history_row_0_star
+- runFlow:
+    file: subflows/swipe_toward_end.yaml
+    env:
+      DIST: "55"
+- assertNotVisible:
+    id: history_row_0_star
+- assertNotVisible: ${TEXT_REMOVED}

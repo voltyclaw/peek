@@ -58,6 +58,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -73,6 +74,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import app.pane.android.R
+import app.pane.android.ui.PaneTestTags
 import app.pane.android.ui.components.PeekImage
 import app.pane.android.ui.media.PHOTO_FALLBACK_ASPECT
 import app.pane.android.ui.media.VIDEO_FALLBACK_ASPECT
@@ -404,6 +406,7 @@ private fun MediaContent(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .testTag(PaneTestTags.ViewerPlayerSurface)
             .confirmedMediaTaps(
                 onSingleTapConfirmed = {
                     if (
@@ -694,11 +697,13 @@ private fun FullscreenChrome(
                     icon = Icons.Rounded.ScreenRotation,
                     description = rotateLabel,
                     onClick = onRotate,
+                    tag = PaneTestTags.ViewerRotate,
                 )
                 ChromeButton(
                     icon = Icons.Rounded.FullscreenExit,
                     description = stringResource(R.string.exit_fullscreen),
                     onClick = onExit,
+                    tag = PaneTestTags.ViewerExitFullscreen,
                 )
             }
         }
@@ -758,10 +763,12 @@ private fun ChromeButton(
     icon: ImageVector,
     description: String,
     onClick: () -> Unit,
+    tag: String? = null,
 ) {
     Box(
         modifier = Modifier
             .size(42.dp)
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,

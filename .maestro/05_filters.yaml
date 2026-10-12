@@ -1,0 +1,34 @@
+appId: app.pane.android
+name: Filters sheet, disabled empty app, one app at a time
+tags:
+  - history
+  - filters
+---
+# Other stays a zero-count tile. pane://sample/error does not record History
+# (failed opens are dropped) and its URL is an X post. No fixture is SourceApp.Other.
+# Tile order is HistoryFilterTest on the JVM. This flow checks the sheet, a
+# disabled app, and filtering to the one Reddit fixture.
+- runFlow: subflows/fresh_start.yaml
+- runFlow: subflows/seed_history.yaml
+- runFlow: subflows/open_history.yaml
+- assertVisible:
+    id: history_filter_all
+    selected: true
+- tapOn:
+    id: history_filter_filters
+- assertVisible: ${TEXT_APPS}
+- assertVisible:
+    id: history_filter_tile_Other
+- assertVisible:
+    id: history_filter_tile_TikTok
+    enabled: false
+- tapOn:
+    id: history_filter_tile_Reddit
+- tapOn: ${TEXT_SHOW}
+- assertVisible:
+    id: history_filter_app_chip
+- tapOn:
+    id: history_filter_app_chip
+- assertVisible:
+    id: history_filter_all
+    selected: true

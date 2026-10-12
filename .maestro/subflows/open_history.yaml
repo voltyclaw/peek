@@ -1,0 +1,11 @@
+appId: app.pane.android
+---
+# Share-in and sample deep links finish the activity on Back. Relaunch without
+# clearing storage, then open History from Home.
+- launchApp:
+    appId: app.pane.android
+    clearState: false
+- tapOn:
+    id: history_door
+- assertVisible:
+    id: history_filter_all
